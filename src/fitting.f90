@@ -102,6 +102,12 @@ program fitting
         RMS = SQRT(RMS)
     end function
 
+    subroutine inverse_SVD(A,N)
+        real(r_kind), intent(inout) :: A(N,N)
+        integer, intent(in) :: N
+
+    end subroutine inverse_SVD
+
     subroutine inverse(A,N)
         real(r_kind), intent(inout) :: A(N,N)
         integer, intent(in) :: N
@@ -110,6 +116,10 @@ program fitting
         real(r_kind) :: WORK(N)
         external :: dgetrf, dgetri
         LWORK = N
+        WRITE(*,*) "Input matrix A:"
+        do idx = 1, N
+            WRITE(*,*) A(idx,:)
+        end do
         call dgetrf(N,N,A,N,IPIV,INFO)
         if(INFO/=0) then
             WRITE(*,*) "Error in matrix inversion. INFO: ", INFO
