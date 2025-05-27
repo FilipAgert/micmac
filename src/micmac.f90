@@ -5,7 +5,7 @@ module micmac
 
 
     private
-    public :: binding_energy, mass_excess
+    public :: binding_energy, mass_excess, binding_energies, BE_mat
     contains
 
 pure function mass_excess(BE, Z, A) result(ME)
@@ -25,58 +25,77 @@ pure function binding_energy(parameters, Z, A) result(BE)
     real(r_kind), intent(in) :: parameters(num_params)
     integer, intent(in) :: Z, A
     real(r_kind) :: BE
-    real(r_kind) :: av, as, ac, ai, ap
-    integer :: N
-    N = A - Z
-    ! Unpack parameters
-    av = parameters(1)
-    as = parameters(2)
-    ac = parameters(3)
-    ai = parameters(4)
-    ap = parameters(5)
+    real(r_kind), dimension(num_params) :: vec_format
+
+    vec_format = BE_vec(Z,A)
+    BE = dot_product(vec_format,parameters)
+    
     ! Calculate binding energy
-    BE = volume_term(av, N, Z) + &
-            surface_term(as, N, Z) + &
-            coulomb_term(ac, N, Z) + &
-            asymmetry_term(ai, N, Z) - &
-            pairing_term(ap, N, Z)
 end function binding_energy
 
-pure real(r_kind) function volume_term(av, N, Z)
-    real(r_kind), intent(in) :: av
+
+!!For a vector of Zs and As, compute binding energy.
+pure function binding_energies(parameters, Zs, As, num_nuclei) result(BEs)
+    real(r_kind), intent(in) :: parameters(num_params)
+    integer, intent(in), dimension(num_nuclei) :: Zs, As
+    integer, intent(in) :: num_nuclei
+    real(r_kind), dimension(num_nuclei) :: BEs
+    real(r_kind), dimension(num_nuclei,num_params) :: mat_format
+
+    mat_format = BE_mat(Zs,As,num_nuclei)
+    BEs = MATMUL(mat_format,parameters)
+end function
+
+!!Get the Binding energy matrix X. If multiplied by parameters y = Xb, y will be filled with predictions of binding energy
+pure function BE_mat(Zs, As, num_nuclei) result(mat)
+    integer, intent(in), dimension(num_nuclei) :: Zs, As
+    integer, intent(in) :: num_nuclei
+    real(r_kind), dimension(num_nuclei, num_params) :: mat
+    integer :: i
+    do i = 1, num_nuclei
+        mat(i,:) = BE_vec(Zs(i), As(i))
+    end do
+end function
+
+pure function BE_vec(Z,A) result(vec)
+    integer, intent(in) :: Z,A
+    real(r_kind), dimension(num_params) :: vec
+    integer :: N
+    N = A-Z
+    vec = [volume_term(N,Z), surface_term(N,Z), coulomb_term(N,Z), asymmetry_term(N,Z), pairing_term(N,Z)]
+end function
+
+pure elemental real(r_kind) function volume_term(N, Z)
     integer, intent(in) :: N, Z
     integer :: A
     A = N + Z
-    volume_term = av * A
+    volume_term = A
 end function volume_term
 
-pure real(r_kind) function surface_term(as, N, Z)
-    real(r_kind), intent(in) :: as
+pure elemental real(r_kind) function surface_term(N, Z)
     integer, intent(in) :: N, Z
     real(r_kind), parameter :: two_thirds = 2.0/3.0
     integer :: A
     A = N + Z
-    surface_term = as * A**two_thirds
+    surface_term = A**two_thirds
 end function surface_term
-pure real(r_kind) function coulomb_term(ac, N, Z)
-    real(r_kind), intent(in) :: ac
+
+pure elemental real(r_kind) function coulomb_term(N, Z)
     integer, intent(in) :: Z, N
     integer :: A
     real(r_kind), parameter :: one_third = 1.0/3.0
     A = N + Z
-    coulomb_term = ac * Z*Z / A**one_third
+    coulomb_term = Z*Z / A**one_third
 end function coulomb_term
 
-pure real(r_kind) function asymmetry_term(ai, N, Z)
-    real(r_kind), intent(in) :: ai
+pure elemental real(r_kind) function asymmetry_term(N, Z)
     integer, intent(in) :: Z, N
     integer :: A
     A = N + Z
-    asymmetry_term = ai * (N-Z)**2 / A
+    asymmetry_term = (N-Z)**2 / A
 end function asymmetry_term
 
-pure real(r_kind) function pairing_term(ap, N, Z)
-    real(r_kind), intent(in) :: ap
+pure elemental real(r_kind) function pairing_term(N, Z)
     integer, intent(in) :: N, Z
     integer :: A
     integer :: even_ctr
@@ -89,9 +108,9 @@ pure real(r_kind) function pairing_term(ap, N, Z)
         even_ctr = even_ctr + 1
     end if
     if (even_ctr == 2) then
-        pairing_term = ap * A ** (-3.0/4.0)
+        pairing_term = A ** (-3.0/4.0)
     else if (even_ctr == 0) then
-        pairing_term = -ap * A ** (-3.0/4.0)
+        pairing_term = -A ** (-3.0/4.0)
     else
         pairing_term = 0.0
     end if
