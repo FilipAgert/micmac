@@ -5,9 +5,9 @@ program fitting
     implicit none
     
     
-    real(r_kind), dimension(4000)  :: FIT_BE, FIT_BE_unc, FIT_ME, FIT_ME_unc
-    integer, dimension(4000)  :: FIT_Z, FIT_A
-    character(len=3), dimension(4000) :: FIT_EL
+    real(r_kind), dimension(:),allocatable  :: FIT_BE, FIT_BE_unc, FIT_ME, FIT_ME_unc
+    integer, dimension(:),allocatable  :: FIT_Z, FIT_A
+    character(len=3), dimension(:), allocatable :: FIT_EL
     real(r_kind) :: params(num_params)
     integer :: num_fit_vals
     WRITE(*,*)
@@ -27,11 +27,11 @@ program fitting
     WRITE(*,*) "########################################"
     WRITE(*,*) "Fitting parameters to experimental data"
     params = fit_parameters()
-    call write_table(params)
+    !call write_table(params)
     contains
     !!Reads relevant exp data to fit against
     subroutine read_fit_exp_data()
-        integer :: idx, Z, A
+        integer :: idx, Z, A, idx2
         num_fit_vals = 0
         do idx = 1, num_vals
             Z = AME_Z(idx)
@@ -41,48 +41,63 @@ program fitting
             else
                 cycle
             endif
-            
-            FIT_Z(num_fit_vals) = AME_Z(idx)
-            FIT_A(num_fit_vals) = AME_A(idx)
-            FIT_EL(num_fit_vals) = AME_EL(idx)
-            FIT_ME(num_fit_vals) = AME_ME(idx)
-            FIT_ME_unc(num_fit_vals) = AME_ME_unc(idx)
-            FIT_BE(num_fit_vals) = AME_BE(idx)
-            FIT_BE_unc(num_fit_vals) = AME_BE_unc(idx)
+        end do
+        allocate(FIT_Z(num_fit_vals), FIT_A(num_fit_vals), FIT_EL(num_fit_vals), FIT_ME(num_fit_vals))
+        allocate(FIT_ME_unc(num_fit_vals), FIT_BE(num_fit_vals), FIT_BE_unc(num_fit_vals))
+        idx2 = 1
+        do idx = 1, num_vals
+            Z = AME_Z(idx)
+            A = AME_A(idx)
+            if(Z >= Z_fit_minval .and. A >= A_fit_minval) then
+
+            else
+                cycle
+            endif
+            FIT_Z(idx2) = AME_Z(idx)
+            FIT_A(idx2) = AME_A(idx)
+            FIT_EL(idx2) = AME_EL(idx)
+            FIT_ME(idx2) = AME_ME(idx)
+            FIT_ME_unc(idx2) = AME_ME_unc(idx)
+            FIT_BE(idx2) = AME_BE(idx)
+            FIT_BE_unc(idx2) = AME_BE_unc(idx)
+            idx2 = idx2 + 1
         end do
     end subroutine
 
-    real(r_kind) function RMS(parameters) 
+    real(r_kind) function RMS(parameters, X, num_nuclei) 
         ! This function calculates the loss function for the fitting process
         ! It compares the calculated binding energy with the experimental data
         ! and returns the sum of squared differences
         real(r_kind), intent(in) :: parameters(num_params)
+        real(r_kind), intent(in), dimension(num_nuclei, num_params) :: X
+        integer :: num_nuclei
         integer :: idx
+        real(r_kind), dimension(num_nuclei) :: BEs, Diff
         real(r_kind) :: BE, BE_exp
         RMS = 0.0
-        do idx = 1, num_fit_vals
-            BE = binding_energy(parameters, FIT_Z(idx), FIT_A(idx))
-            BE_exp = FIT_BE(idx) * FIT_A(idx)
-            RMS = RMS + ((BE - BE_exp))**2
-        end do
-        RMS = RMS/num_fit_vals
+        BEs = MATMUL(X,parameters)
+        DIFF = BEs-FIT_BE * FIT_A
+        RMS = dot_product(DIFF,DIFF)
+        RMS = RMS/(num_nuclei-num_params)
         RMS = SQRT(RMS)
-
     end function
 
-    function gradient(parameters) result(grad)
+    function gradient(parameters, X, num_nuclei) result(grad)
         ! This function calculates the gradient of the loss function
         ! with respect to the parameters
         real(r_kind), intent(in) :: parameters(num_params)
         real(r_kind), dimension(num_params) :: grad
+        real(r_kind), intent(in), dimension(num_nuclei, num_params) :: X
+        integer,intent(in) :: num_nuclei
         integer :: i
+        
         real(r_kind) :: delta
         real(r_kind) :: fac(num_params)
         delta = 1.0e-6
         fac = 0
         do i = 1, num_params
             fac(i) = delta
-            grad(i) = (RMS(parameters + fac) - RMS(parameters)) / delta
+            grad(i) = (RMS(parameters + fac, X, num_nuclei) - RMS(parameters, X, num_nuclei)) / delta
             fac(i) = 0
         end do
     end function
@@ -91,23 +106,26 @@ program fitting
         real(r_kind), dimension(num_params) :: fit_parameters
         ! This subroutine performs the fitting process
         ! It uses a simple gradient descent method to minimize the loss function
-        real(r_kind), dimension(num_params) :: parameters, grad, delta, prevParam, prevGrad, graddiff
+        real(r_kind), dimension(num_params) :: parameters, grad, prevParam, prevGrad, graddiff
         integer :: i,  max_iter
         real(r_kind) :: learning_rate, tolerance, val, stepsize
+        real(r_kind), dimension(num_fit_vals,num_params) :: X
 
         ! Initialize parameters
-        parameters = [-10.0,10.0, 0.1, 10.0,20.0]![-16.08773,  18.31489,   0.74291,  25.21314,  51.36916]!standard_values - 5 ! Initial guess for the parameters
+        parameters = [-16.08773,  18.31489,   0.74291,  25.21314,  51.36916]!standard_values - 5 ! Initial guess for the parameters
         learning_rate = 0.000001
         tolerance = 1.0e-3
-        max_iter = 1000000
-        delta = [208.0, 35.0, 1135.0, 9.3, 0.02]
+        max_iter = 10000000
+
+        !!Create fit matrix.
+        X = BE_mat(FIT_Z, FIT_A, num_fit_vals)
 
         WRITE(*,*) parameters
-        val = RMS(parameters)
-
+        val = RMS(parameters, X, num_fit_vals)
+        WRITE(*,*) "RMS: ", val
         do i = 1, max_iter
 
-            grad = gradient(parameters)    
+            grad = gradient(parameters, X, num_fit_vals)    
             
             if(i > 1) then
                 graddiff = grad-prevgrad
@@ -123,7 +141,7 @@ program fitting
             prevGrad = grad
             parameters = parameters - stepsize*grad
             
-            VAL = RMS(parameters)
+            VAL = RMS(parameters,X,num_fit_vals)
             if(MOD(i, 10000) == 0) then
                 WRITE(*,*)
                 WRITE(*,'(A,I8)') "Iteration: ", i
@@ -136,12 +154,12 @@ program fitting
         end do
 
         WRITE(*,*) "Standard parameters:"
-        val = RMS(standard_values)
+        val = RMS(standard_values,X,num_fit_vals)
         WRITE(*,*) standard_values, ", RMS = ", val
         WRITE(*,*)
         WRITE(*,*)
         WRITE(*,*) "Fitted Parameters:"
-        val = RMS(parameters)
+        val = RMS(parameters,X,num_fit_vals)
         WRITE(*,*) parameters, ", RMS = ", val
         fit_parameters = parameters
     end function
@@ -150,12 +168,14 @@ program fitting
         real(r_kind), intent(in) :: parameters(num_params)
         integer :: idx
         real(r_kind) :: BE, BE_exp, val, BEA, BEA_exp
+        real(r_kind) :: BEs(num_fit_vals)
         WRITE(*,*)
         WRITE(*,*)
         WRITE(*,*) "Z    A     MicMac BE/A    AME 2020 BE/A "
         WRITE(*,*) "Z    A     (Mev)          (kev)        "
+        BEs = binding_energies(parameters, FIT_Z,FIT_A,num_fit_vals)
         do idx = 1, num_fit_vals
-            BE = binding_energy(parameters, FIT_Z(idx), FIT_A(idx))
+            BE = BEs(idx)
             BE_exp = FIT_BE(idx) * FIT_A(idx)
             BEA = BE/(FIT_A(idx)*1.0)
             BEA_exp = BE_exp/(FIT_A(idx)*1.0)
@@ -163,8 +183,6 @@ program fitting
         end do
         WRITE(*,*) "Z    A         MicMac BE/A    AME 2020 BE/A  DELTA   MicMac BE    AME 2020 BE   DELTA"
         WRITE(*,*) "Z    A         (Mev)          (Mev)          (MEV)     (Mev)          (Mev)       (MeV)"
-        val = RMS(parameters)
-        WRITE(*,*)
-        WRITE(*,*) parameters, ", RMS = ", val, " MeV"
+
     end subroutine write_table
 end program fitting
