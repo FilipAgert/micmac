@@ -91,9 +91,9 @@ program fitting
         real(r_kind), dimension(num_params) :: fit_parameters
         ! This subroutine performs the fitting process
         ! It uses a simple gradient descent method to minimize the loss function
-        real(r_kind), dimension(num_params) :: parameters, grad, delta, step, prevParam, prevGrad, graddiff
+        real(r_kind), dimension(num_params) :: parameters, grad, delta, prevParam, prevGrad, graddiff
         integer :: i,  max_iter
-        real(r_kind) :: learning_rate, tolerance, del, val, stepsize
+        real(r_kind) :: learning_rate, tolerance, val, stepsize
 
         ! Initialize parameters
         parameters = [-10.0,10.0, 0.1, 10.0,20.0]![-16.08773,  18.31489,   0.74291,  25.21314,  51.36916]!standard_values - 5 ! Initial guess for the parameters
