@@ -16,14 +16,14 @@ CC = gfortran $(FLAGS) -J$(DMOD) $(LIBS) -L$(DLIB) -c
 CCL = gfortran -o
 
 # Objects
-OBJECTS = $(DOBJ)/constants.o $(DOBJ)/nucleus_module.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o 
+OBJECTS = $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o 
 MAIN_OBJ = $(DOBJ)/main.o
 FIT_OBJ = $(DOBJ)/fitting.o
 
 # Default target
 all: main fit
 
-$(DOBJ)/main.o: $(DSRC)/main.f90 $(DOBJ)/constants.o $(DOBJ)/nucleus_module.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o #Which files does main depend on?
+$(DOBJ)/main.o: $(DSRC)/main.f90 $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o #Which files does main depend on?
 $(DOBJ)/fitting.o: $(DSRC)/fitting.f90 $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o#Which files does fitting depend on?
 $(DOBJ)/constants.o: $(DSRC)/constants.f90
 $(DOBJ)/nucleus_module.o: $(DSRC)/nucleus_module.f90 $(DOBJ)/constants.o

@@ -8,8 +8,9 @@ program fitting
     real(r_kind), dimension(:),allocatable  :: FIT_BE, FIT_BE_unc, FIT_ME, FIT_ME_unc
     integer, dimension(:),allocatable  :: FIT_Z, FIT_A
     character(len=3), dimension(:), allocatable :: FIT_EL
-    real(r_kind) :: params(num_params), val
-    integer :: num_fit_vals
+    real(r_kind), dimension(:,:), allocatable :: X
+    real(r_kind) :: params(num_params), val, cov(num_params,num_params), stdev, testinv(2,2)
+    integer :: num_fit_vals, idx
     WRITE(*,*)
     WRITE(*,*) "########################################"
     WRITE(*,*) "MicMac - Fitting Binding Energy and Mass Excess"
@@ -26,12 +27,26 @@ program fitting
     WRITE(*,*) "Experimental masses chosen for fit. ", num_fit_vals, " nuclei chosen."
     WRITE(*,*) "########################################"
     WRITE(*,*) "Fitting parameters to experimental data"
-    params = fit_linsys()
+    stdev = 1.0
+
+    call fit_linsys(params, cov)
+    allocate(X(num_fit_vals, num_params))
+    X = BE_mat(FIT_Z, FIT_A, num_fit_vals)
+    
+
     val = RMS(params, BE_mat(FIT_Z, FIT_A, num_fit_vals), num_fit_vals)
-    call write_table(params)
+
     write(*,*)
     write(*,'(A,F10.5,A)') "RMS: ", val, " (MeV)"
     write(*,'(A,5F10.5)') "Parameters: ", params(1), params(2), params(3), params(4), params(5)
+
+    write(*,*)
+    write(*,*) "Covariance matrix:"
+    do idx = 1, num_params
+        write(*,'(5F20.10)') cov(idx,1), cov(idx,2), cov(idx,3), cov(idx,4), cov(idx,5)
+    end do
+
+    call write_table(params,cov,X)
     contains
     !!Reads relevant exp data to fit against
     subroutine read_fit_exp_data()
@@ -92,28 +107,36 @@ program fitting
         integer, intent(in) :: N
         integer :: IPIV(N)
         integer :: LWORK, INFO
-        real(r_kind) :: WORK(N*N)
+        real(r_kind) :: WORK(N)
         external :: dgetrf, dgetri
-        LWORK = N * N
+        LWORK = N
         call dgetrf(N,N,A,N,IPIV,INFO)
+        if(INFO/=0) then
+            WRITE(*,*) "Error in matrix inversion. INFO: ", INFO
+            stop
+        end if
         call dgetri(N,A,N,IPIV,WORK,LWORK,INFO)
-
         if(INFO/=0) then
             WRITE(*,*) "Error in matrix inversion. INFO: ", INFO
             stop
         end if
     end subroutine
 
-    function fit_linsys()
-        real(r_kind), dimension(num_params) :: fit_linsys
+
+    subroutine fit_linsys(fit_parameters, covariance)
+        real(r_kind), dimension(num_params), intent(out) :: fit_parameters
+        real(r_kind), dimension(num_params,num_params), intent(out) :: covariance
+        real(r_kind) ::stdev
         ! This subroutine performs the fitting process
         ! It uses a simple gradient descent method to minimize the loss function
         real(r_kind), dimension(num_params,1) :: B
         real(r_kind), dimension(num_fit_vals,num_params) :: X
         real(r_kind), dimension(num_params, num_fit_vals) :: XT
-        real(r_kind), dimension(num_params,num_params) ::XTX
+        real(r_kind), dimension(num_params,num_params) ::XTX, XTX2
+        real(r_kind), dimension(num_params) :: params2
+
         integer, dimension(num_params) :: ipiv
-        integer ::info
+        integer ::info, idx
         external :: dgesv
 
         X = BE_mat(FIT_Z, FIT_A, num_fit_vals)
@@ -135,28 +158,48 @@ program fitting
             !> 
             stop
         end if
-        fit_linsys = B(:,1)
-    end function fit_linsys
 
-    subroutine write_table(parameters)
-        real(r_kind), intent(in) :: parameters(num_params)
+        fit_parameters = B(:,1)
+        stdev = RMS(fit_parameters, X, num_fit_vals)
+        XTX2=  XTX
+        CALL inverse(XTX,num_params) !!invert XTX to get covariance matrix
+        write(*,*) "Inverted XTX matrix:"
+        do idx = 1, num_params
+            WRITE(*,*) XTX(idx,:)
+        end do
+
+
+
+        params2 = MATMUL(XTX,MATMUL(XT,FIT_BE*FIT_A))
+        write(*,*) "Fitted parameters inv: ", params2   
+        write(*,*) "Prev fitted: ", fit_parameters
+        covariance = XTX * stdev**2
+    end subroutine fit_linsys
+
+    subroutine write_table(parameters, covariance, X)
+        real(r_kind), intent(in) :: parameters(num_params), covariance(num_params,num_params), X(num_fit_vals,num_params)
         integer :: idx
-        real(r_kind) :: BE, BE_exp, BEA, BEA_exp
-        real(r_kind) :: BEs(num_fit_vals)
+        real(r_kind) :: BE, BE_exp, BEA, BEA_exp, UNC
+        real(r_kind) :: BEs(num_fit_vals), BEcov(num_fit_vals,num_fit_vals)
         WRITE(*,*)
         WRITE(*,*)
         WRITE(*,*) "Z    A     MicMac BE/A    AME 2020 BE/A "
         WRITE(*,*) "Z    A     (Mev)          (kev)        "
-        BEs = binding_energies(parameters, FIT_Z,FIT_A,num_fit_vals)
+        BEs = MATMUL(X, parameters)
+        BEcov = MATMUL(X,MATMUL(covariance,TRANSPOSE(X)))
+
+
         do idx = 1, num_fit_vals
             BE = BEs(idx)
+            write(*,*) BEcov(idx,idx)
+            UNC = SQRT(BEcov(idx,idx))
             BE_exp = FIT_BE(idx) * FIT_A(idx)
             BEA = BE/(FIT_A(idx)*1.0)
             BEA_exp = BE_exp/(FIT_A(idx)*1.0)
-            WRITE(*,'(I4, I4,1x, A3, F12.4, 2x,F12.4, 4x,F8.4, 2x, F14.2, 2x, F12.2,2x F6.2)') FIT_Z(idx), FIT_A(idx), FIT_EL(idx), BEA, BEA_exp,ABS(BEA-BEA_exp), BE, BE_exp, abs(BE - BE_exp)
+            WRITE(*,'(I4, I4,1x, A3, F12.4,2x,F12.4, 2x,F12.4, 4x,F8.4, 2x, F14.2, 2x, F12.2,2x F6.2)') FIT_Z(idx), FIT_A(idx), FIT_EL(idx), BEA, UNC/(FIT_A(IDX)*1.0), BEA_exp,ABS(BEA-BEA_exp), BE, UNC, BE_exp, abs(BE - BE_exp)
         end do
-        WRITE(*,*) "Z    A         MicMac BE/A    AME 2020 BE/A  DELTA   MicMac BE    AME 2020 BE   DELTA"
-        WRITE(*,*) "Z    A         (Mev)          (Mev)          (MEV)     (Mev)          (Mev)       (MeV)"
+        WRITE(*,*) "Z    A         MicMac BE/A      UNC       AME 2020 BE/A  DELTA   MicMac BE   UNC          AME 2020 BE   DELTA"
+        WRITE(*,*) "Z    A         (Mev)                      (Mev)          (MEV)     (Mev)                  (Mev)       (MeV)"
 
     end subroutine write_table
 end program fitting
