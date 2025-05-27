@@ -4,13 +4,15 @@ DOBJ = build
 DEXE = app
 DTEST = tests
 DMOD = mod
+DLIB = /lib/x86_64-linux-gnu
 
 EXEN = main.exe
 FIT_EXEN = runfit.exe
 
 # Flags
+LIBS = -llapack -lblas
 FLAGS = -Wall -O3 -I$(DMOD) -ffree-line-length-none -fcheck=all -fbacktrace -g
-CC = gfortran $(FLAGS) -J$(DMOD) -c
+CC = gfortran $(FLAGS) -J$(DMOD) $(LIBS) -L$(DLIB) -c
 CCL = gfortran -o
 
 # Objects
@@ -38,10 +40,10 @@ $(DOBJ)/%.o: $(DSRC)/%.f90 | $(DOBJ) $(DMOD)
 
 # Targets
 $(DEXE)/$(EXEN): $(MAIN_OBJ) $(OBJECTS) | $(DEXE)
-	$(CCL) $@ $(MAIN_OBJ) $(OBJECTS)
+	$(CCL) $@ $(MAIN_OBJ) $(OBJECTS) $(LIBS)
 
 $(DEXE)/$(FIT_EXEN): $(FIT_OBJ) $(OBJECTS) | $(DEXE)
-	$(CCL) $@ $(FIT_OBJ) $(OBJECTS)
+	$(CCL) $@ $(FIT_OBJ) $(OBJECTS) $(LIBS)
 
 main: $(DEXE)/$(EXEN)
 

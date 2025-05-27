@@ -74,7 +74,7 @@ end function volume_term
 
 pure elemental real(r_kind) function surface_term(N, Z)
     integer, intent(in) :: N, Z
-    real(r_kind), parameter :: two_thirds = 2.0/3.0
+    real(r_kind), parameter :: two_thirds = 2.0_r_kind/3.0_r_kind
     integer :: A
     A = N + Z
     surface_term = A**two_thirds
@@ -83,7 +83,7 @@ end function surface_term
 pure elemental real(r_kind) function coulomb_term(N, Z)
     integer, intent(in) :: Z, N
     integer :: A
-    real(r_kind), parameter :: one_third = 1.0/3.0
+    real(r_kind), parameter :: one_third = 1.0_r_kind/3.0_r_kind
     A = N + Z
     coulomb_term = Z*Z / A**one_third
 end function coulomb_term
@@ -92,13 +92,14 @@ pure elemental real(r_kind) function asymmetry_term(N, Z)
     integer, intent(in) :: Z, N
     integer :: A
     A = N + Z
-    asymmetry_term = (N-Z)**2 / A
+    asymmetry_term = (N-Z)**2 *1.0_r_kind/ A
 end function asymmetry_term
 
 pure elemental real(r_kind) function pairing_term(N, Z)
     integer, intent(in) :: N, Z
     integer :: A
     integer :: even_ctr
+    real(r_kind), parameter :: three_fourths = 3.0_r_kind/4.0_r_kind
     even_ctr = 0
     A = N + Z
     if(mod(N,2) == 0) then
@@ -108,9 +109,9 @@ pure elemental real(r_kind) function pairing_term(N, Z)
         even_ctr = even_ctr + 1
     end if
     if (even_ctr == 2) then
-        pairing_term = A ** (-3.0/4.0)
+        pairing_term = A ** (-three_fourths)
     else if (even_ctr == 0) then
-        pairing_term = -A ** (-3.0/4.0)
+        pairing_term = -A ** (-three_fourths)
     else
         pairing_term = 0.0
     end if

@@ -8,7 +8,7 @@ program fitting
     real(r_kind), dimension(:),allocatable  :: FIT_BE, FIT_BE_unc, FIT_ME, FIT_ME_unc
     integer, dimension(:),allocatable  :: FIT_Z, FIT_A
     character(len=3), dimension(:), allocatable :: FIT_EL
-    real(r_kind) :: params(num_params)
+    real(r_kind) :: params(num_params), val
     integer :: num_fit_vals
     WRITE(*,*)
     WRITE(*,*) "########################################"
@@ -26,8 +26,12 @@ program fitting
     WRITE(*,*) "Experimental masses chosen for fit. ", num_fit_vals, " nuclei chosen."
     WRITE(*,*) "########################################"
     WRITE(*,*) "Fitting parameters to experimental data"
-    params = fit_parameters()
-    !call write_table(params)
+    params = fit_linsys()
+    val = RMS(params, BE_mat(FIT_Z, FIT_A, num_fit_vals), num_fit_vals)
+    call write_table(params)
+    write(*,*)
+    write(*,'(A,F10.5,A)') "RMS: ", val, " (MeV)"
+    write(*,'(A,5F10.5)') "Parameters: ", params(1), params(2), params(3), params(4), params(5)
     contains
     !!Reads relevant exp data to fit against
     subroutine read_fit_exp_data()
@@ -71,103 +75,73 @@ program fitting
         real(r_kind), intent(in) :: parameters(num_params)
         real(r_kind), intent(in), dimension(num_nuclei, num_params) :: X
         integer :: num_nuclei
-        integer :: idx
-        real(r_kind), dimension(num_nuclei) :: BEs, Diff
-        real(r_kind) :: BE, BE_exp
+        real(r_kind), dimension(num_nuclei) :: BEs, Diff, BEsold, DIFFTOOLD
         RMS = 0.0
         BEs = MATMUL(X,parameters)
+
         DIFF = BEs-FIT_BE * FIT_A
+        DIFFTOOLD = BEsold- BEs
+
         RMS = dot_product(DIFF,DIFF)
         RMS = RMS/(num_nuclei-num_params)
         RMS = SQRT(RMS)
     end function
 
-    function gradient(parameters, X, num_nuclei) result(grad)
-        ! This function calculates the gradient of the loss function
-        ! with respect to the parameters
-        real(r_kind), intent(in) :: parameters(num_params)
-        real(r_kind), dimension(num_params) :: grad
-        real(r_kind), intent(in), dimension(num_nuclei, num_params) :: X
-        integer,intent(in) :: num_nuclei
-        integer :: i
-        
-        real(r_kind) :: delta
-        real(r_kind) :: fac(num_params)
-        delta = 1.0e-6
-        fac = 0
-        do i = 1, num_params
-            fac(i) = delta
-            grad(i) = (RMS(parameters + fac, X, num_nuclei) - RMS(parameters, X, num_nuclei)) / delta
-            fac(i) = 0
-        end do
-    end function
+    subroutine inverse(A,N)
+        real(r_kind), intent(inout) :: A(N,N)
+        integer, intent(in) :: N
+        integer :: IPIV(N)
+        integer :: LWORK, INFO
+        real(r_kind) :: WORK(N*N)
+        external :: dgetrf, dgetri
+        LWORK = N * N
+        call dgetrf(N,N,A,N,IPIV,INFO)
+        call dgetri(N,A,N,IPIV,WORK,LWORK,INFO)
 
-    function fit_parameters()
-        real(r_kind), dimension(num_params) :: fit_parameters
+        if(INFO/=0) then
+            WRITE(*,*) "Error in matrix inversion. INFO: ", INFO
+            stop
+        end if
+    end subroutine
+
+    function fit_linsys()
+        real(r_kind), dimension(num_params) :: fit_linsys
         ! This subroutine performs the fitting process
         ! It uses a simple gradient descent method to minimize the loss function
-        real(r_kind), dimension(num_params) :: parameters, grad, prevParam, prevGrad, graddiff
-        integer :: i,  max_iter
-        real(r_kind) :: learning_rate, tolerance, val, stepsize
+        real(r_kind), dimension(num_params,1) :: B
         real(r_kind), dimension(num_fit_vals,num_params) :: X
+        real(r_kind), dimension(num_params, num_fit_vals) :: XT
+        real(r_kind), dimension(num_params,num_params) ::XTX
+        integer, dimension(num_params) :: ipiv
+        integer ::info
+        external :: dgesv
 
-        ! Initialize parameters
-        parameters = [-16.08773,  18.31489,   0.74291,  25.21314,  51.36916]!standard_values - 5 ! Initial guess for the parameters
-        learning_rate = 0.000001
-        tolerance = 1.0e-3
-        max_iter = 10000000
-
-        !!Create fit matrix.
         X = BE_mat(FIT_Z, FIT_A, num_fit_vals)
+        XT = TRANSPOSE(X)
+        XTX = MATMUL(XT, X)
+        B(:,1) = MATMUL(XT, FIT_BE * FIT_A) 
 
-        WRITE(*,*) parameters
-        val = RMS(parameters, X, num_fit_vals)
-        WRITE(*,*) "RMS: ", val
-        do i = 1, max_iter
-
-            grad = gradient(parameters, X, num_fit_vals)    
-            
-            if(i > 1) then
-                graddiff = grad-prevgrad
-                stepsize = abs(sum((parameters-prevParam)*(graddiff),1))/sum(graddiff**2,1)
-
-            else
-                stepsize = learning_rate 
-            end if
-            stepsize = min(stepsize, .05)
-            
-            
-            prevParam = parameters 
-            prevGrad = grad
-            parameters = parameters - stepsize*grad
-            
-            VAL = RMS(parameters,X,num_fit_vals)
-            if(MOD(i, 10000) == 0) then
-                WRITE(*,*)
-                WRITE(*,'(A,I8)') "Iteration: ", i
-                WRITE(*,'(A,D15.5)') "stepsize: ", stepsize
-                WRITE(*,'(A,5F10.5)') "PARAMS", parameters(1), parameters(2), parameters(3), parameters(4), parameters(5)
-                WRITE(*,'(A,5F10.5)') "GRAD  ", grad(1), grad(2), grad(3), grad(4), grad(5)
-                WRITE(*,'(A,1F15.4)') "RMS", VAL
-            end if
-
-        end do
-
-        WRITE(*,*) "Standard parameters:"
-        val = RMS(standard_values,X,num_fit_vals)
-        WRITE(*,*) standard_values, ", RMS = ", val
-        WRITE(*,*)
-        WRITE(*,*)
-        WRITE(*,*) "Fitted Parameters:"
-        val = RMS(parameters,X,num_fit_vals)
-        WRITE(*,*) parameters, ", RMS = ", val
-        fit_parameters = parameters
-    end function
+        ! Solve the linear system XTX * parameters = XT * FIT_BE, with 
+        !   XTX (Np, Np).   P: (Np)    Xt(Np,Nv)     BE(Nv)
+        !Call LAPACK routine dgesv to solve the linear system
+        call dgesv(num_params,1,XTX,num_params, ipiv,B,num_params,info)
+        if(info /= 0) then
+            WRITE(*,*) "Error solving linear system. Info: ", info
+            !>          = 0:  successful exit
+            !>          < 0:  if INFO = -i, the i-th argument had an illegal value
+            !>          > 0:  if INFO = i, U(i,i) is exactly zero.  The factorization
+            !>                has been completed, but the factor U is exactly
+            !>                singular, so the solution could not be computed.
+            !> 
+            stop
+        end if
+        fit_linsys = B(:,1)
+    end function fit_linsys
 
     subroutine write_table(parameters)
         real(r_kind), intent(in) :: parameters(num_params)
         integer :: idx
-        real(r_kind) :: BE, BE_exp, val, BEA, BEA_exp
+        real(r_kind) :: BE, BE_exp, BEA, BEA_exp
         real(r_kind) :: BEs(num_fit_vals)
         WRITE(*,*)
         WRITE(*,*)
