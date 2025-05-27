@@ -1,6 +1,5 @@
 # Paths
 DSRC = src
-DINC = include
 DOBJ = build
 DEXE = app
 DTEST = tests
@@ -10,7 +9,7 @@ EXEN = main.exe
 FIT_EXEN = runfit.exe
 
 # Flags
-FLAGS = -Wall -O3 -I$(DINC) -I$(DMOD) -ffree-line-length-none -fcheck=all -fbacktrace -g
+FLAGS = -Wall -O3 -I$(DMOD) -ffree-line-length-none -fcheck=all -fbacktrace -g
 CC = gfortran $(FLAGS) -J$(DMOD) -c
 CCL = gfortran -o
 
