@@ -62,7 +62,7 @@ pure function BE_vec(Z,A) result(vec)
     real(r_kind), dimension(num_params) :: vec
     integer :: N
     N = A-Z
-    vec = [volume_term(N,Z), surface_term(N,Z), coulomb_term(N,Z), asymmetry_term(N,Z), pairing_term(N,Z)]
+    vec = [volume_term(N,Z), surface_term(N,Z), coulomb_term(N,Z), asymmetry_term(N,Z), -pairing_term(N,Z)]
 end function
 
 pure elemental real(r_kind) function volume_term(N, Z)
