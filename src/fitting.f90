@@ -51,11 +51,15 @@ program fitting
     !!Reads relevant exp data to fit against
     subroutine read_fit_exp_data()
         integer :: idx, Z, A, idx2
+        real(r_kind), parameter :: max_unc_mev = 0.1_r_kind
+        real(r_kind) :: unc
         num_fit_vals = 0
+
         do idx = 1, num_vals
             Z = AME_Z(idx)
             A = AME_A(idx)
-            if(Z >= Z_fit_minval .and. A >= A_fit_minval) then
+            unc = AME_BE_unc(idx)*A
+            if(Z >= Z_fit_minval .and. A >= A_fit_minval .and. unc < max_unc_mev) then
                 num_fit_vals = num_fit_vals + 1
             else
                 cycle
@@ -67,7 +71,8 @@ program fitting
         do idx = 1, num_vals
             Z = AME_Z(idx)
             A = AME_A(idx)
-            if(Z >= Z_fit_minval .and. A >= A_fit_minval) then
+            unc = AME_BE_unc(idx)*A
+            if(Z >= Z_fit_minval .and. A >= A_fit_minval .and. unc < max_unc_mev) then
 
             else
                 cycle
@@ -102,6 +107,7 @@ program fitting
         RMS = SQRT(RMS)
     end function
 
+    !!Subroutien uses singular value decomposition to invert a square matrix
     subroutine inverse_SVD(A,N)
         real(r_kind), intent(inout) :: A(N,N)
         integer, intent(in) :: N
@@ -137,31 +143,6 @@ program fitting
 
     end subroutine inverse_SVD
 
-    subroutine inverse(A,N)
-        real(r_kind), intent(inout) :: A(N,N)
-        integer, intent(in) :: N
-        integer :: IPIV(N)
-        integer :: LWORK, INFO
-        real(r_kind) :: WORK(N)
-        external :: dgetrf, dgetri
-        LWORK = N
-        WRITE(*,*) "Input matrix A:"
-        do idx = 1, N
-            WRITE(*,*) A(idx,:)
-        end do
-        call dgetrf(N,N,A,N,IPIV,INFO)
-        if(INFO/=0) then
-            WRITE(*,*) "Error in matrix inversion. INFO: ", INFO
-            stop
-        end if
-        call dgetri(N,A,N,IPIV,WORK,LWORK,INFO)
-        if(INFO/=0) then
-            WRITE(*,*) "Error in matrix inversion. INFO: ", INFO
-            stop
-        end if
-    end subroutine
-
-
     subroutine fit_linsys(fit_parameters, covariance)
         real(r_kind), dimension(num_params), intent(out) :: fit_parameters
         real(r_kind), dimension(num_params,num_params), intent(out) :: covariance
@@ -171,7 +152,7 @@ program fitting
         real(r_kind), dimension(num_params,1) :: B
         real(r_kind), dimension(num_fit_vals,num_params) :: X
         real(r_kind), dimension(num_params, num_fit_vals) :: XT
-        real(r_kind), dimension(num_params,num_params) ::XTX, XTX2
+        real(r_kind), dimension(num_params,num_params) ::XTX, XTX_copy
         real(r_kind), dimension(num_params) :: params2
 
         integer, dimension(num_params) :: ipiv
@@ -186,6 +167,7 @@ program fitting
         ! Solve the linear system XTX * parameters = XT * FIT_BE, with 
         !   XTX (Np, Np).   P: (Np)    Xt(Np,Nv)     BE(Nv)
         !Call LAPACK routine dgesv to solve the linear system
+        XTX_copy=  XTX
         call dgesv(num_params,1,XTX,num_params, ipiv,B,num_params,info)
         if(info /= 0) then
             WRITE(*,*) "Error solving linear system. Info: ", info
@@ -200,25 +182,18 @@ program fitting
 
         fit_parameters = B(:,1)
         stdev = RMS(fit_parameters, X, num_fit_vals)
-        XTX2=  XTX
-        CALL inverse_SVD(XTX,num_params) !!invert XTX to get covariance matrix
-        write(*,*) "Inverted XTX matrix:"
-        do idx = 1, num_params
-            WRITE(*,*) XTX(idx,:)
-        end do
 
-
-
-        params2 = MATMUL(XTX,MATMUL(XT,FIT_BE*FIT_A))
-        write(*,*) "Fitted parameters inv: ", params2   
-        write(*,*) "Prev fitted: ", fit_parameters
-        covariance = XTX * stdev**2
+        CALL inverse_SVD(XTX_copy,num_params) !!invert XTX to get covariance matrix
+        !! XTX_copy is now the inverse of XTX. 
+        
+        !!Alternatively, parameters could have been calculated using the inverse.
+        covariance = XTX_copy * stdev**2
     end subroutine fit_linsys
 
     subroutine write_table(parameters, covariance, X)
         real(r_kind), intent(in) :: parameters(num_params), covariance(num_params,num_params), X(num_fit_vals,num_params)
         integer :: idx
-        real(r_kind) :: BE, BE_exp, BEA, BEA_exp, UNC
+        real(r_kind) :: BE, BE_exp, BEA, BEA_exp, UNC, unc_per_a
         real(r_kind) :: BEs(num_fit_vals), BEcov(num_fit_vals,num_fit_vals)
         WRITE(*,*)
         WRITE(*,*)
@@ -230,15 +205,17 @@ program fitting
 
         do idx = 1, num_fit_vals
             BE = BEs(idx)
-            write(*,*) BEcov(idx,idx)
             UNC = SQRT(BEcov(idx,idx))
+            unc_per_a = UNC/(FIT_A(idx)*1.0)
             BE_exp = FIT_BE(idx) * FIT_A(idx)
             BEA = BE/(FIT_A(idx)*1.0)
             BEA_exp = BE_exp/(FIT_A(idx)*1.0)
-            WRITE(*,'(I4, I4,1x, A3, F12.4,2x,F12.4, 2x,F12.4, 4x,F8.4, 2x, F14.2, 2x, F12.2,2x F6.2)') FIT_Z(idx), FIT_A(idx), FIT_EL(idx), BEA, UNC/(FIT_A(IDX)*1.0), BEA_exp,ABS(BEA-BEA_exp), BE, UNC, BE_exp, abs(BE - BE_exp)
+            WRITE(*,'(I4, I4,1x,      A3,       F12.4,2x,F12.4, 2x,F12.4, 4x,F8.4, 4x,         F10.2, 1x, F5.2,2x F12.2, 2x,F6.2)') &
+            FIT_Z(idx), FIT_A(idx), FIT_EL(idx), BEA,    unc_per_a, BEA_exp, ABS(BEA-BEA_exp), BE,        UNC,      BE_exp, abs(BE - BE_exp)
         end do
-        WRITE(*,*) "Z    A         MicMac BE/A      UNC       AME 2020 BE/A  DELTA   MicMac BE   UNC          AME 2020 BE   DELTA"
-        WRITE(*,*) "Z    A         (Mev)                      (Mev)          (MEV)     (Mev)                  (Mev)       (MeV)"
+        write(*,*)
+        WRITE(*,*) "Z    A           MicMac BE/A   UNC          EXP BE/A     DELTA         MicMac BE UNC      EXP BE   DELTA"
+        WRITE(*,*) "Z    A           (Mev)                      (Mev)        (MEV)         (Mev)              (Mev)    (MeV)"
 
     end subroutine write_table
 end program fitting
