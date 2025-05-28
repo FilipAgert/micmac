@@ -106,6 +106,35 @@ program fitting
         real(r_kind), intent(inout) :: A(N,N)
         integer, intent(in) :: N
 
+        character(len=1) :: JOBU, JOBVT
+        integer :: LDA, LDU, LDVT, INFO, LWORK
+        integer :: i
+        real(r_kind) :: S(N)
+        real(r_kind) :: WORK(5*N), U(N,N), VT(N,N), SIGMAINV(N,N), V(N,N)
+        external :: dgesvd
+        JOBU = 'A'  ! Compute all left singular vectors
+        JOBVT = 'A' ! Compute all right singular vectors
+        LDA = N
+        LDVT = N
+        LDU = N
+        LWORK = 5*N
+        call dgesvd(JOBU, JOBVT, N, N, A, LDA, S, U, LDU, VT, LDVT, WORK, LWORK, INFO)
+        if(INFO /= 0) then
+            WRITE(*,*) "Error in SVD computation. INFO: ", INFO
+            stop
+        end if
+        SIGMAINV = 0.0_r_kind
+        do i = 1,N
+            SIGMAINV(i,i) = 1.0_r_kind/S(i)
+        end do
+        V = transpose(VT)
+
+        A = MATMUL(V, MATMUL(SIGMAINV, TRANSPOSE(U)))
+        WRITE(*,*) "SVD Inverse matrix A:"
+        do i = 1, N
+            WRITE(*,*) A(i,:)
+        end do
+
     end subroutine inverse_SVD
 
     subroutine inverse(A,N)
@@ -172,7 +201,7 @@ program fitting
         fit_parameters = B(:,1)
         stdev = RMS(fit_parameters, X, num_fit_vals)
         XTX2=  XTX
-        CALL inverse(XTX,num_params) !!invert XTX to get covariance matrix
+        CALL inverse_SVD(XTX,num_params) !!invert XTX to get covariance matrix
         write(*,*) "Inverted XTX matrix:"
         do idx = 1, num_params
             WRITE(*,*) XTX(idx,:)
