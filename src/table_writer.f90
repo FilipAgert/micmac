@@ -9,7 +9,7 @@ module table_writer
 
 
     contains
-
+    
     subroutine write_mass_table(params, Zs, As, write_to_file)
         ! Write the table to a file
         real(r_kind), intent(in) :: params(num_params)

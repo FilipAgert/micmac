@@ -7,6 +7,7 @@ DMOD = mod
 DLIB = /lib/x86_64-linux-gnu
 
 EXEN = main.exe
+TEST_EXE = test.exe
 FIT_EXEN = runfit.exe
 
 # Flags
@@ -17,8 +18,11 @@ CCL = gfortran -o
 
 # Objects
 OBJECTS = $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o $(DOBJ)/table_writer.o
+TEST_OBJECTS = $(DOBJ)/test_micmac.o $(DOBJ)/test_utils.o
 MAIN_OBJ = $(DOBJ)/main.o
+TEST_OBJ = $(DOBJ)/run_tests.o
 FIT_OBJ = $(DOBJ)/fitting.o
+VPATH = $(DSRC):$(DTEST)
 
 # Default target
 all: main fit
@@ -29,14 +33,17 @@ $(DOBJ)/constants.o: $(DSRC)/constants.f90
 $(DOBJ)/nucleus_module.o: $(DSRC)/nucleus_module.f90 $(DOBJ)/constants.o
 $(DOBJ)/micmac.o: $(DSRC)/micmac.f90 $(DOBJ)/constants.o
 $(DOBJ)/mass_table.o: $(DSRC)/mass_table.f90 $(DOBJ)/constants.o
+$(DOBJ)/test_micmac.o: $(DOBJ)/micmac.o $(DOBJ)/constants.o $(DOBJ)/test_utils.o
+$(DOBJ)/run_tests.o: $(DOBJ)/test_micmac.o
 
 # Ensure required directories exist
-$(DOBJ) $(DEXE) $(DMOD):
+$(DOBJ) $(DEXE) $(DMOD) $(DTEST):
 	mkdir -p $@
 
 # Build rules
-$(DOBJ)/%.o: $(DSRC)/%.f90 | $(DOBJ) $(DMOD)
+$(DOBJ)/%.o: %.f90 | $(DOBJ) $(DMOD)
 	$(CC) $< -o $@
+
 
 # Targets
 $(DEXE)/$(EXEN): $(MAIN_OBJ) $(OBJECTS) | $(DEXE)
@@ -45,12 +52,18 @@ $(DEXE)/$(EXEN): $(MAIN_OBJ) $(OBJECTS) | $(DEXE)
 $(DEXE)/$(FIT_EXEN): $(FIT_OBJ) $(OBJECTS) | $(DEXE)
 	$(CCL) $@ $(FIT_OBJ) $(OBJECTS) $(LIBS)
 
+$(DEXE)/$(TEST_EXE): $(TEST_OBJ) $(OBJECTS) $(TEST_OBJECTS) | $(DEXE)
+	$(CCL) $@ $(TEST_OBJ) $(OBJECTS) $(TEST_OBJECTS) $(LIBS)
+
 main: $(DEXE)/$(EXEN)
 
 fit: $(DEXE)/$(FIT_EXEN)
 
 run:
 	$(DEXE)/$(EXEN)
+
+test: $(DEXE)/$(TEST_EXE)
+	$(DEXE)/$(TEST_EXE)
 
 runfit: fit
 	$(DEXE)/$(FIT_EXEN)

@@ -1,7 +1,6 @@
 program main
     use constants
     use micmac
-    use nucleus_module
     use mass_table
 
 

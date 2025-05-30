@@ -10,8 +10,8 @@ program fitting
     integer, dimension(:),allocatable  :: FIT_Z, FIT_A
     character(len=3), dimension(:), allocatable :: FIT_EL
     real(r_kind), dimension(:,:), allocatable :: X
-    real(r_kind) :: params(num_params), val, cov(num_params,num_params), stdev
-    integer :: num_fit_vals, idx
+    real(r_kind) :: params(num_params), val, cov(num_params,num_params), stdev, cor(num_params,num_params)
+    integer :: num_fit_vals, idx, i,j
     WRITE(*,*)
     WRITE(*,*) "########################################"
     WRITE(*,*) "MicMac - Fitting Binding Energy and Mass Excess"
@@ -37,31 +37,38 @@ program fitting
 
     val = RMS(params, BE_mat(FIT_Z, FIT_A, num_fit_vals), num_fit_vals)
 
-    write(*,*)
-    write(*,'(A,F10.5,A)') "RMS: ", val, " (MeV)"
-    write(*,'(A,5F10.5)') "Parameters: ", params(1), params(2), params(3), params(4), params(5)
 
-    write(*,*)
-    write(*,*) "Covariance matrix:"
-    do idx = 1, num_params
-        write(*,'(5F20.10)') cov(idx,1), cov(idx,2), cov(idx,3), cov(idx,4), cov(idx,5)
-    end do
 
     call write_table(params,cov,X)
     call write_mass_table(params, FIT_Z, FIT_A, .true.)
+
+        write(*,*)
+    write(*,'(A,F10.5,A)') "RMS: ", val, " (MeV)"
+    write(*,'(A,6E13.5)') "Parameters: ", params
+    do i = 1,num_params
+        do j = 1, num_params
+            cor(i,j) = cov(i,j)/(SQRT(cov(i,i))*SQRT(cov(j,j)))
+        end do
+    end do
+    write(*,*)
+    write(*,*) "Correlation matrix:"
+    do idx = 1, num_params
+        write(*,'(6f10.3)') cor(idx,:)
+    end do
+
     contains
     !!Reads relevant exp data to fit against
     subroutine read_fit_exp_data()
-        integer :: idx, Z, A, idx2
-        real(r_kind), parameter :: max_unc_mev = 0.1_r_kind
+        integer :: idx, Z, A, idx2,N
         real(r_kind) :: unc
         num_fit_vals = 0
 
         do idx = 1, num_vals
             Z = AME_Z(idx)
             A = AME_A(idx)
+            N = A-Z
             unc = AME_BE_unc(idx)*A
-            if(Z >= Z_fit_minval .and. A >= A_fit_minval .and. unc < max_unc_mev) then
+            if(Z >= Z_fit_minval .and. N >= N_fit_minval .and. unc < max_unc_mev) then
                 num_fit_vals = num_fit_vals + 1
             else
                 cycle
@@ -73,8 +80,9 @@ program fitting
         do idx = 1, num_vals
             Z = AME_Z(idx)
             A = AME_A(idx)
+            N = A - Z
             unc = AME_BE_unc(idx)*A
-            if(Z >= Z_fit_minval .and. A >= A_fit_minval .and. unc < max_unc_mev) then
+            if(Z >= Z_fit_minval .and. N >= N_fit_minval .and. unc < max_unc_mev) then
 
             else
                 cycle
@@ -138,11 +146,6 @@ program fitting
         V = transpose(VT)
 
         A = MATMUL(V, MATMUL(SIGMAINV, TRANSPOSE(U)))
-        WRITE(*,*) "SVD Inverse matrix A:"
-        do i = 1, N
-            WRITE(*,*) A(i,:)
-        end do
-
     end subroutine inverse_SVD
 
     subroutine fit_linsys(fit_parameters, covariance)

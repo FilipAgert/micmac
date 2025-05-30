@@ -5,7 +5,7 @@ module micmac
 
 
     private
-    public :: binding_energy, mass_excess, binding_energies, BE_mat, shell_correction, mass_excesses
+    public :: binding_energy, mass_excess, binding_energies, BE_mat, shell_correction, mass_excesses, staircase
     contains
 
 pure function mass_excess(BE, Z, A) result(ME)
@@ -33,15 +33,6 @@ pure function mass_excesses(parameters, Zs, As) result(MEs)
         MEs(i) = mass_excess(BEs(i), Zs(i), As(i))
     end do
 end function
-
-pure function shell_correction(Z, A) result(shell_corr)
-    integer, intent(in) :: Z, A
-    real(r_kind) :: shell_corr
-    integer :: N
-    N = A - Z
-
-    shell_corr = 0.0_r_kind
-end function shell_correction
 
 
 pure function binding_energy(parameters, Z, A) result(BE)
@@ -86,7 +77,7 @@ pure function BE_vec(Z,A) result(vec)
     real(r_kind), dimension(num_params) :: vec
     integer :: N
     N = A-Z
-    vec = [volume_term(N,Z), surface_term(N,Z), coulomb_term(N,Z), asymmetry_term(N,Z), -pairing_term(N,Z)]
+    vec = [volume_term(N,Z), surface_term(N,Z), vol_as_term(N,Z), sur_as_term(N,Z),col_term(N,Z),pairing_term(N,Z)]
 end function
 
 pure elemental real(r_kind) function volume_term(N, Z)
@@ -104,41 +95,107 @@ pure elemental real(r_kind) function surface_term(N, Z)
     surface_term = A**two_thirds
 end function surface_term
 
-pure elemental real(r_kind) function coulomb_term(N, Z)
+pure elemental real(r_kind) function col_term(N, Z)
     integer, intent(in) :: Z, N
     integer :: A
     real(r_kind), parameter :: one_third = 1.0_r_kind/3.0_r_kind
     A = N + Z
-    coulomb_term = Z*Z / A**one_third
-end function coulomb_term
+    col_term = Z*(Z-1) / A**one_third
+end function col_term
 
-pure elemental real(r_kind) function asymmetry_term(N, Z)
+pure elemental real(r_kind) function vol_as_term(N,Z)
     integer, intent(in) :: Z, N
     integer :: A
+    real(r_kind) :: I
     A = N + Z
-    asymmetry_term = (N-Z)**2 *1.0_r_kind/ A
-end function asymmetry_term
+    I = (N-Z)*1.0_r_kind/A
+    vol_as_term = I*I * A
+end function
+
+pure elemental real(r_kind) function sur_as_term(N,Z)
+    integer, intent(in) :: Z, N
+    integer :: A
+    real(r_kind) :: I
+    A = N + Z
+    I = (N-Z)*1.0_r_kind/A
+    sur_as_term = I*I * A**(2.0_r_kind/3.0_r_kind)
+end function
+
 
 pure elemental real(r_kind) function pairing_term(N, Z)
     integer, intent(in) :: N, Z
     integer :: A
-    integer :: even_ctr
     real(r_kind), parameter :: three_fourths = 3.0_r_kind/4.0_r_kind
-    even_ctr = 0
+    real(r_kind) :: p
     A = N + Z
-    if(mod(N,2) == 0) then
-        even_ctr = even_ctr + 1
-    end if
-    if(mod(Z,2) == 0) then
-        even_ctr = even_ctr + 1
-    end if
-    if (even_ctr == 2) then
-        pairing_term = A ** (-three_fourths)
-    else if (even_ctr == 0) then
-        pairing_term = -A ** (-three_fourths)
-    else
-        pairing_term = 0.0
-    end if
+    p = ((-1)**(N) + (-1)**(Z))/2.0_r_kind
+    pairing_term = p / sqrt(A*1.0_r_kind)
 end function pairing_term
+
+
+
+pure elemental real(r_kind) function shell_correction(N,Z)
+    integer, intent(in) :: N, Z
+    integer :: A
+    shell_correction = 0.0_r_kind
+end function
+
+pure elemental real(r_kind) function F(N,proton)
+    integer, intent(in) :: N !!Nucleon number
+    logical,intent(in) :: proton !!proton or neutron
+
+    F = intstaircase(N, proton) - intn23(N)
+
+end function
+
+pure real(r_kind) function intn23(N) !!Integrate from 0 to N n^(2/3)
+    integer, intent(in) :: N
+    intn23 = real(N,kind=r_kind)**(5.0_r_kind/3.0_r_kind) *3.0_r_kind/5.0_r_kind
+end function
+
+!!Integrate staircase function from 0 to n
+pure real(r_kind) function intstaircase(N,proton)
+    integer, intent(in) :: N !!Nucleon number
+    logical,intent(in) :: proton !!proton or neutron
+    integer ::ii, nbr, sz, delta
+    integer, dimension(:), allocatable :: magics
+    real(r_kind) :: height, rolling
+    if(proton) then
+        sz = size(magic_num_Z)
+        allocate(magics(sz))
+        magics = magic_num_Z
+    else
+        sz = size(magic_num_N)
+        allocate(magics(sz))
+        magics = magic_num_N
+    endif
+    ii = 2
+    rolling=0.0_r_kind
+    do while(magics(ii) < N)
+        delta = magics(ii) - magics(ii-1)
+        height = staircase(real(magics(ii-1),r_kind),magics)
+        rolling = rolling + height*delta
+        ii = ii + 1
+    end do
+    !!Okay so now the magic number is greater than N. 
+    delta = N - magics(ii-1)
+    height = staircase(real(N,kind=r_kind),magics)
+    rolling = rolling + height*delta
+end function
+
+pure real(r_kind) function staircase(n, magics) !!Gets staircase function at value. If value exactly equals a magic number, use that as the lower bound
+    real(r_kind), intent(in) :: n
+    integer, intent(in), dimension(:) :: magics
+    integer :: num_l, num_gr, ii
+
+    do ii = 1, size(magics)
+        if(magics(ii) >= n) then
+            num_l = magics(ii-1)
+            num_gr = magics(ii)
+            exit
+        endif
+    end do
+    staircase = 3.0_r_kind/5.0_r_kind * (num_gr**(5.0_r_kind/3.0_r_kind) - num_l**(5.0_r_kind/3.0_r_kind)) / (num_gr-num_l)
+end function
 
 end module micmac
