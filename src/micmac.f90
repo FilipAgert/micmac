@@ -5,7 +5,7 @@ module micmac
 
 
     private
-    public :: binding_energy, mass_excess, binding_energies, BE_mat
+    public :: binding_energy, mass_excess, binding_energies, BE_mat, shell_correction, mass_excesses
     contains
 
 pure function mass_excess(BE, Z, A) result(ME)
@@ -15,9 +15,33 @@ pure function mass_excess(BE, Z, A) result(ME)
     integer :: N
     N = A - Z
 
-    ME = BE + (N*mn + Z*mp) - dalton*(N+Z)
+    ME = BE + (N*mass_n + Z*(mass_p+mass_e)) - dalton*(N+Z)
 
 end function mass_excess    
+
+pure function mass_excesses(parameters, Zs, As) result(MEs)
+    real(r_kind), intent(in) :: parameters(num_params)
+    integer, intent(in), dimension(:) :: Zs, As
+    integer :: num_nuclei
+    real(r_kind), dimension(size(Zs)) :: MEs, BEs
+    integer :: i
+
+    num_nuclei = size(Zs)
+    BEs = binding_energies(parameters, Zs, As, num_nuclei)
+    MEs = 0.0_r_kind
+    do i = 1, num_nuclei
+        MEs(i) = mass_excess(BEs(i), Zs(i), As(i))
+    end do
+end function
+
+pure function shell_correction(Z, A) result(shell_corr)
+    integer, intent(in) :: Z, A
+    real(r_kind) :: shell_corr
+    integer :: N
+    N = A - Z
+
+    shell_corr = 0.0_r_kind
+end function shell_correction
 
 
 pure function binding_energy(parameters, Z, A) result(BE)

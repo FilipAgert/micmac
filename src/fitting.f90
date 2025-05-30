@@ -2,6 +2,7 @@ program fitting
     use constants
     use micmac
     use mass_table
+    use table_writer
     implicit none
     
     
@@ -9,7 +10,7 @@ program fitting
     integer, dimension(:),allocatable  :: FIT_Z, FIT_A
     character(len=3), dimension(:), allocatable :: FIT_EL
     real(r_kind), dimension(:,:), allocatable :: X
-    real(r_kind) :: params(num_params), val, cov(num_params,num_params), stdev, testinv(2,2)
+    real(r_kind) :: params(num_params), val, cov(num_params,num_params), stdev
     integer :: num_fit_vals, idx
     WRITE(*,*)
     WRITE(*,*) "########################################"
@@ -47,6 +48,7 @@ program fitting
     end do
 
     call write_table(params,cov,X)
+    call write_mass_table(params, FIT_Z, FIT_A, .true.)
     contains
     !!Reads relevant exp data to fit against
     subroutine read_fit_exp_data()
@@ -153,8 +155,6 @@ program fitting
         real(r_kind), dimension(num_fit_vals,num_params) :: X
         real(r_kind), dimension(num_params, num_fit_vals) :: XT
         real(r_kind), dimension(num_params,num_params) ::XTX, XTX_copy
-        real(r_kind), dimension(num_params) :: params2
-
         integer, dimension(num_params) :: ipiv
         integer ::info, idx
         external :: dgesv
