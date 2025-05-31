@@ -12,29 +12,29 @@ FIT_EXEN = runfit.exe
 
 # Flags
 LIBS = -llapack -lblas
-FLAGS = -Wall -O3 -I$(DMOD) -ffree-line-length-none -fcheck=all -fbacktrace -g
+FLAGS = -Wall -O3 -I$(DOBJ) -ffree-line-length-none -fcheck=all -fbacktrace -g
 CC = gfortran $(FLAGS) -J$(DMOD) $(LIBS) -L$(DLIB) -c
 CCL = gfortran -o
 
 # Objects
-OBJECTS = $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o $(DOBJ)/table_writer.o
-TEST_OBJECTS = $(DOBJ)/test_micmac.o $(DOBJ)/test_utils.o
+OBJECTS = $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o $(DOBJ)/table_writer.o $(DOBJ)/fitting.o
+TEST_OBJECTS = $(DOBJ)/test_micmac.o $(DOBJ)/test_utils.o $(DOBJ)/test_fitting.o
 MAIN_OBJ = $(DOBJ)/main.o
 TEST_OBJ = $(DOBJ)/run_tests.o
-FIT_OBJ = $(DOBJ)/fitting.o
+FIT_OBJ = $(DOBJ)/runfit.o
 VPATH = $(DSRC):$(DTEST)
 
 # Default target
 all: main fit
 
 $(DOBJ)/main.o: $(DSRC)/main.f90 $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o #Which files does main depend on?
-$(DOBJ)/fitting.o: $(DSRC)/fitting.f90 $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o#Which files does fitting depend on?
+$(DOBJ)/fitting.o: $(DSRC)/fitting.f90 $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o $(DOBJ)/table_writer.o#Which files does fitting depend on?
 $(DOBJ)/constants.o: $(DSRC)/constants.f90
 $(DOBJ)/nucleus_module.o: $(DSRC)/nucleus_module.f90 $(DOBJ)/constants.o
 $(DOBJ)/micmac.o: $(DSRC)/micmac.f90 $(DOBJ)/constants.o
 $(DOBJ)/mass_table.o: $(DSRC)/mass_table.f90 $(DOBJ)/constants.o
 $(DOBJ)/test_micmac.o: $(DOBJ)/micmac.o $(DOBJ)/constants.o $(DOBJ)/test_utils.o
-$(DOBJ)/run_tests.o: $(DOBJ)/test_micmac.o
+$(DOBJ)/run_tests.o: $(DOBJ)/test_micmac.o $(DOBJ)/test_utils.o $(DOBJ)/test_fitting.o
 
 # Ensure required directories exist
 $(DOBJ) $(DEXE) $(DMOD) $(DTEST):
@@ -59,7 +59,7 @@ main: $(DEXE)/$(EXEN)
 
 fit: $(DEXE)/$(FIT_EXEN)
 
-run:
+run: $(DEXE)/$(EXEN)
 	$(DEXE)/$(EXEN)
 
 test: $(DEXE)/$(TEST_EXE)

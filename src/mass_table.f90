@@ -68,10 +68,10 @@ module mass_table
                 AME_EL(idx) = El
                 AME_Z(idx) = Z
                 AME_A(idx) = A
-                AME_BE(idx) = -BE / 1000 ! divide by 1000 to convert to MeV
-                AME_BE_unc(idx) = BE_unc / 1000
-                AME_ME(idx) = -ME / 1000
-                AME_ME_unc(idx) = ME_unc / 1000
+                AME_BE(idx) = -BE * A / 1000 ! divide by 1000 to convert to MeV
+                AME_BE_unc(idx) = BE_unc * A / 1000
+                AME_ME(idx) = -ME * A/ 1000
+                AME_ME_unc(idx) = ME_unc * A / 1000
                 idx = idx + 1
             else
                 exit

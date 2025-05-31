@@ -56,5 +56,10 @@ contains
         end if
     end subroutine test_staircase_mid
 
+    subroutine test_table()
+        
+
+    end subroutine
+
     
 end module test_micmac

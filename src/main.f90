@@ -2,18 +2,18 @@ program main
     use constants
     use micmac
     use mass_table
+    implicit none
 
 
-
-    real(r_kind) :: BE, ME, ME_exp, BE_exp, BE_exp_unc, ME_exp_unc
+    real(r_kind) :: BE, ME, ME_exp, BE_exp, BE_exp_unc, ME_exp_unc, params(num_params)
     character(len=3) :: El
     integer :: idx
-    integer :: Z, A
+    integer :: Z, A, N
     Z = 20
     A = 48
     N = A - Z
-
-    BE = binding_energy(standard_values, Z,A)
+    params = starting_params
+    BE = binding_energy(params, Z,A)
     ME = mass_excess(BE, Z,A)
     WRITE(*,*)
     WRITE(*,*) "########################################"
@@ -35,14 +35,14 @@ program main
     call read_elem(BE_exp, BE_exp_unc, ME_exp, ME_exp_unc, El, Z, A)
     WRITE(*,'(A, I3, A, I3, A, A)') "Z = ", Z, ", A = ", A, ", ", El
     WRITE(*,*) "CALC         EXP      EXP UNC"
-    WRITE(*,*) "(MeV)        (MeV)    (MEV)"
-    WRITE(*,'(F10.5,2x, F10.5, F10.5)')  BE/A, BE_exp/1000, BE_exp_unc/1000
+    WRITE(*,*) "(MeV)        (MeV)    (keV)"
+    WRITE(*,'(F10.5,2x, F10.5, F10.5)')  BE/A, BE_exp/A, 1000*BE_exp_unc/A
 
 
     WRITE(*,'(A, F10.3, A)') "Binding Energy = ", BE, " MeV"
     WRITE(*,'(A, F8.3, A)') "Binding Energy per nucleon = ", BE/A, " MeV"
     WRITE(*,*)
-    WRITE(*,'(A, F8.3, A)') "Mass Excess = ", ME, " MeV"
+    WRITE(*,'(A, F8.3, A)') "Mass Excess = ", ME, " MeV/c^2"
     WRITE(*,'(A, F8.3, A)') "Mass Excess = ", ME/dalton, " u"
     WRITE(*,'(A, F8.3, A)') "Mass Excess per nucleon = ", ME/A, " MeV"
 

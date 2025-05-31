@@ -16,7 +16,7 @@ module table_writer
         logical, intent(in) :: write_to_file
         integer, intent(in), dimension(:) :: Zs, As 
         integer :: iunit, i
-        real(r_kind) :: BE, ME, shell_corr
+        real(r_kind) :: BE, ME, Esh
         iunit = 20  ! Output unit number
         if(write_to_file) then 
             open(unit=iunit, file='data/out/table.dat', status='replace')
@@ -30,11 +30,11 @@ module table_writer
 
             BE = binding_energy(params, Zs(i), As(i))
             ME = mass_excess(BE, Zs(i), As(i))
-            shell_corr = shell_correction(Zs(i), As(i))
+            Esh = shell_corr(Zs(i), As(i), params)
 
             ! Write the data for each nucleus
             write(iunit, '(I3, 3x,I3,3x, F10.3,5x, F10.3,6x, F5.2, 4x, F5.2,4x, F5.2)') &
-                Zs(i), As(i), ME, shell_corr, 0.0,0.0,0.0
+                Zs(i), As(i), ME, Esh, 0.0,0.0,0.0
             end do
 
         if(write_to_file) then

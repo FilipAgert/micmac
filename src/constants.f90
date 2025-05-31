@@ -3,8 +3,10 @@ module constants
 
 
     integer, parameter :: r_kind = 8
-    integer, parameter :: num_params = 6
-    real(r_kind), parameter :: standard_values(num_params) = [-15.68, 18.56, 28.0,28.0,0.717, 34.0]
+    integer, parameter :: num_params = 8
+    integer, parameter :: num_lin_params = 6
+    !! volume, surf, coul, asym, pairing: -15.46541  15.94866   0.71158  24.03928  50.66491
+    real(r_kind), parameter :: starting_params(num_params) = [-15.465, 15.95866, 24.03928,0.0,0.71158,50.66491,0.0,0.0]
     real(r_kind), parameter :: mass_p = 938.27208943
     real(r_kind), parameter :: mass_e = 0.5109989461
     real(r_kind), parameter :: mass_n = 939.56542194

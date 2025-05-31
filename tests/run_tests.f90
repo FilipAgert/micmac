@@ -1,5 +1,6 @@
 program run_tests
   use test_micmac
+  use test_fitting
   implicit none
 
   print *, "==============================="
@@ -7,6 +8,7 @@ program run_tests
   print *, "==============================="
 
   call run_tests_micmac()
+  call run_tests_fitting()
 
   print *, "==============================="
   print *, "         TESTING DONE"
