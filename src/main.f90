@@ -5,15 +5,21 @@ program main
     implicit none
 
 
-    real(r_kind) :: BE, ME, ME_exp, BE_exp, BE_exp_unc, ME_exp_unc, params(num_params)
+    real(r_kind) :: BE, ME, ME_exp, BE_exp, BE_exp_unc, ME_exp_unc, params(num_params), BE2
     character(len=3) :: El
     integer :: idx
     integer :: Z, A, N
     Z = 20
     A = 48
     N = A - Z
+
     params = starting_params
+    params(3) = 50000
     BE = binding_energy(params, Z,A)
+    params(3)=0
+    BE2 = binding_energy(params,Z,A)
+    WRITE(*,*) "DIFF:"
+    WRITE(*,*) BE-BE2
     ME = mass_excess(BE, Z,A)
     WRITE(*,*)
     WRITE(*,*) "########################################"
@@ -25,7 +31,7 @@ program main
     WRITE(*,*)"Z    A     (kev)          (kev)        (kev)     (kev)"
     do idx = 1, num_vals
 
-        WRITE(*, '(I4, I4,1x, A3, F14.6,F12.6, F13.5, 1x, F10.5)') AME_Z(idx), AME_A(idx), AME_EL(idx), AME_ME(idx), AME_ME_unc(idx), AME_BE(idx), AME_BE_unc(idx)
+        !WRITE(*, '(I4, I4,1x, A3, F14.6,F12.6, F13.5, 1x, F10.5)') AME_Z(idx), AME_A(idx), AME_EL(idx), AME_ME(idx), AME_ME_unc(idx), AME_BE(idx), AME_BE_unc(idx)
 
     end do
 
