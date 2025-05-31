@@ -56,8 +56,8 @@ module fitting
 
     !!Subroutien uses singular value decomposition to invert a square matrix
     subroutine inverse_SVD(A,N)
-        real(r_kind), intent(inout) :: A(N,N)
-        integer, intent(in) :: N
+        real(r_kind), intent(inout) :: A(N,N) !!Matrix to invert A(N,N)
+        integer, intent(in) :: N !!Size of matrix to invert
 
         character(len=1) :: JOBU, JOBVT
         integer :: LDA, LDU, LDVT, INFO, LWORK
@@ -105,6 +105,40 @@ module fitting
         b = Bmat(:,1)
     end subroutine
 
+    !!Covariances of fit parameters
+    function fit_param_cov(params, num_nuclei, Zs, As) result(cov)
+        real(kind=r_kind), intent(in) :: params(num_params)
+        real(kind=r_kind) :: cov(num_params,num_params)
+        integer, dimension(num_nuclei), intent(in) :: Zs, As
+        integer, intent(in) :: num_nuclei
+        real(kind=r_kind) ::  J(num_nuclei,num_params), JT(num_params,num_nuclei), JTJ(num_params,num_params), rms, res(num_nuclei), sqsum
+        J = J_mat(Zs,As,num_nuclei,params)
+        JT = transpose(J)
+        JTJ = matmul(JT,J)
+
+        !!Get RMS error
+        res = exp_be-binding_energies(params, Zs, As, num_nuclei)
+        sqsum = dot_product(res,res)
+        rms = sqrt(sqsum/(num_nuclei-num_params))
+
+        call inverse_SVD(JTJ,num_params)
+        cov = JTJ * rms
+    end function
+
+    !!Returns covariances of BE predictions
+    function be_cov(params, num_nuclei, Zs, As) 
+        real(kind=r_kind), intent(in) :: params(num_params)
+        real(kind=r_kind) :: cov(num_params,num_params), be_cov(num_nuclei,num_nuclei)
+        integer, dimension(num_nuclei), intent(in) :: Zs, As
+        integer, intent(in) :: num_nuclei
+        real(kind=r_kind) ::  J(num_nuclei,num_params), JT(num_params,num_nuclei), JTJ(num_params,num_params), rms, res(num_nuclei), sqsum
+        J = J_mat(Zs,As,num_nuclei,params)
+        JT = transpose(J)
+        cov = fit_param_cov(params, num_nuclei, zs, as)
+
+        be_cov = matmul(J, matmul(cov, JT))
+    end function
+
 
     subroutine fit_iterative(params)
         real(kind=r_kind), intent(inout) :: params(num_params) !!In: Starting guess of parameters. Out: Converged solution
@@ -114,7 +148,7 @@ module fitting
         integer :: num_nuclei, maxitr, ii
         logical :: converged
         converged = .false.
-        maxitr =100000
+        maxitr =1000
         num_nuclei = num_fit_vals
         Jmat =J_mat(exp_Z,exp_A,num_nuclei,params)
         oldrms = huge(oldrms)

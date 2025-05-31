@@ -15,8 +15,8 @@ module constants
     real(r_kind), parameter :: pi = ACOS(-1.0_r_kind)
     real(r_kind), parameter :: pi2 = pi*pi
 
-    integer, parameter :: Z_fit_minval = 84
-    integer, parameter :: N_fit_minval = 126
+    integer, parameter :: Z_fit_minval = 8 !!84
+    integer, parameter :: N_fit_minval = 8 !!126
     real(r_kind), parameter :: max_unc_mev = 0.15_r_kind
 
 
