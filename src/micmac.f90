@@ -19,7 +19,7 @@ pure function mass_excess(BE, Z, A) result(ME)
 
 end function mass_excess    
 
-pure function mass_excesses(parameters, Zs, As) result(MEs)
+function mass_excesses(parameters, Zs, As) result(MEs)
     real(r_kind), intent(in) :: parameters(num_params)
     integer, intent(in), dimension(:) :: Zs, As
     integer :: num_nuclei
@@ -35,7 +35,7 @@ pure function mass_excesses(parameters, Zs, As) result(MEs)
 end function
 
 
-pure function binding_energy(parameters, Z, A) result(BE)
+function binding_energy(parameters, Z, A) result(BE)
     ! This function calculates the binding energy of a nucleus
     real(r_kind), intent(in) :: parameters(num_params)
     integer, intent(in) :: Z, A
@@ -51,7 +51,7 @@ end function binding_energy
 
 
 !!For a vector of Zs and As, compute binding energy.
-pure function binding_energies(parameters, Zs, As, num_nuclei) result(BEs)
+function binding_energies(parameters, Zs, As, num_nuclei) result(BEs)
     real(r_kind), intent(in) :: parameters(num_params)
     integer, intent(in), dimension(num_nuclei) :: Zs, As
     integer, intent(in) :: num_nuclei
@@ -101,7 +101,7 @@ pure elemental real(r_kind) function col_term(N, Z)
     integer :: A
     real(r_kind), parameter :: one_third = 1.0_r_kind/3.0_r_kind
     A = N + Z
-    col_term = Z*(Z-1) / A**one_third
+    col_term = Z*(Z-1)*1.0_r_kind / A**one_third
 end function col_term
 
 pure elemental real(r_kind) function vol_as_term(N,Z)
@@ -135,7 +135,7 @@ end function pairing_term
 
 
 
-pure function J_mat(Zs, As, num_nuclei, params)
+function J_mat(Zs, As, num_nuclei, params)
     integer, intent(in), dimension(num_nuclei) :: As, Zs
     integer,intent(in) :: num_nuclei
     real(r_kind), intent(in) :: params(num_params)
@@ -151,7 +151,7 @@ pure function J_mat(Zs, As, num_nuclei, params)
 
 end function
 
-pure function J_shell_part(As,Zs,params, num_nuclei)
+function J_shell_part(As,Zs,params, num_nuclei)
     integer, intent(in), dimension(num_nuclei) :: As, Zs
     real(r_kind), intent(in) :: params(num_params)
     integer,intent(in) :: num_nuclei
@@ -178,7 +178,7 @@ pure elemental real(r_kind) function shell_corr_dsmallC(N,Z,C)
 end function shell_corr_dsmallC
 
 !!Partial derivate of shell correction with respect to C
-pure elemental real(r_kind) function shell_corr_dC(N,Z,smallC)
+real(r_kind) function shell_corr_dC(N,Z,smallC)
     integer, intent(in) :: N, Z
     real(r_kind), intent(in) :: smallC
     integer :: A
@@ -186,7 +186,7 @@ pure elemental real(r_kind) function shell_corr_dC(N,Z,smallC)
     shell_corr_dC = (F(Z,.true.) + F(N,.false.)) / ((A*1.0_r_kind/2.0_r_kind)**(2.0_r_kind/3.0_r_kind)) - smallC * A**(1.0_r_kind/3.0_r_kind)
 end function shell_corr_dC
 !! ########################## Shell correction Part
-pure real(r_kind) function shell_corr(N,Z, params)
+real(r_kind) function shell_corr(N,Z, params)
     integer, intent(in) :: N, Z
     real(r_kind), intent(in) :: params(num_params)
     real(r_kind) :: C, smallC
@@ -198,12 +198,36 @@ pure real(r_kind) function shell_corr(N,Z, params)
 end function
 
 
-pure elemental real(r_kind) function F(N,proton)
+real(r_kind) function F(N,proton)
     integer, intent(in) :: N !!Nucleon number
     logical,intent(in) :: proton !!proton or neutron
+    real(r_kind) ::fold
+    integer, allocatable :: magics(:)
+    integer ::sz, ii, magic
+    fold = intstaircase(N, proton) - intn23(N)
+    if(proton) then
+        sz = size(magic_num_Z)
+        allocate(magics(sz))
+        magics = magic_num_Z
+    else
+        sz = size(magic_num_N)
+        allocate(magics(sz))
+        magics = magic_num_N
+    endif
+    do ii = 1,sz
+        magic = magics(ii)
+        if(magic > N) then
+            magic = magics(ii-1)
+            exit
+        endif
+    end do
+    F = staircase(real(N,r_kind), magics)*(N-magic) - 3.0_r_kind/5.0_r_kind * (N**(5.0_r_kind/3.0_r_kind) - magic**(5.0_r_kind/3.0_r_kind))
+    ! if(abs(F-fold) > 1e-6_r_kind) then
+    !     write(*,*) "F(N=",N,", proton=",proton,") = ", F, " but expected ", fold
+    !     write(*,*) "Difference: ", abs(F-fold)
+    ! endif
 
-    F = intstaircase(N, proton) - intn23(N)
-
+    
 end function
 
 pure real(r_kind) function intn23(N) !!Integrate from 0 to N n^(2/3)

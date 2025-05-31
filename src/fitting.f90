@@ -171,14 +171,14 @@ module fitting
         real(kind=r_kind), intent(inout) :: params(num_params) !!In: Starting guess of parameters. Out: Converged solution
         !!Assume that we have already read exp data.
         real(kind=r_kind) :: Jmat(num_fit_vals,num_params), Xmat(num_fit_vals,num_lin_params), resid(num_fit_vals)
-        real(kind=r_kind) :: sum_sq_err, JT(num_params, num_fit_vals), JTJ(num_params, num_params), RHS(num_params), rms
+        real(kind=r_kind) :: sum_sq_err, JT(num_params, num_fit_vals), JTJ(num_params, num_params), RHS(num_params), rms, oldrms
         integer :: num_nuclei, maxitr, ii
-        maxitr =3
+        maxitr =10000
         num_nuclei = num_fit_vals
         Xmat = X_mat(exp_Z,exp_A,num_nuclei)
         Jmat(:,1:num_lin_params) = Xmat
         Jmat(:,num_lin_params+1:num_params) = J_shell_part(exp_A,exp_Z,params,num_nuclei)
-
+        oldrms = huge(oldrms)
 
         resid = exp_be - matmul(Jmat,params)
         sum_sq_err = dot_product(resid, resid)
@@ -187,43 +187,56 @@ module fitting
         WRITE(*,'(A,E10.3)') "Rms: ", rms
         do ii = 1,maxitr
             Jmat(:,num_lin_params+1:num_params) = J_shell_part(exp_A,exp_Z,params,num_nuclei) !!Setup matrix.
+            resid = exp_be  - matmul(Jmat,params)
+            ! call write_table(params, Jmat)
             JT = transpose(Jmat)
             JTJ = matmul(JT,Jmat)
             RHS = matmul(JTJ, params) + matmul(JT, resid) 
             !!We have to solve J^T J * P' = JTJ*P + JT*resid for P' 
             call solve_linsys(JTJ,RHS,num_params)
-            params = RHS
+            params = params + (RHS-params)/5.0
+
+            Jmat(:,num_lin_params+1:num_params) = J_shell_part(exp_A,exp_Z,params,num_nuclei) !!Setup matrix.
             resid = exp_be  - matmul(Jmat,params)
             sum_sq_err = dot_product(resid,resid)
             rms = sqrt(sum_sq_err/(num_nuclei-num_params))
+
+            if(abs(oldrms-rms) < 1e-6) then
+                exit
+            endif
+
             write(*,*)
             write(*,*)
             write(*,*) ii
-            WRITE(*,'(8E15.3)') params
-            WRITE(*,'(A,E10.3)') "Rms: ", rms
+            WRITE(*,'(8F15.3)') params
+            WRITE(*,'(A,F10.3)') "Rms: ", rms
+            oldrms = rms
         end do
-        
+        call write_table(params, Jmat)
+        WRITE(*,*)
+        WRITE(*,*) "Fit converged after ", ii, " iterations with parameters:"
+        WRITE(*,'(8F15.3)') params
+        WRITE(*,'(A,F10.3)') "Rms: ", rms
+        oldrms = rms
 
     end subroutine
 
-    subroutine write_table(parameters, covariance, X)
-        real(r_kind), intent(in) :: parameters(num_params), covariance(num_params,num_params), X(num_fit_vals,num_params)
+    subroutine write_table(parameters, J_mat)
+        real(r_kind), intent(in) :: parameters(num_params), J_mat(num_fit_vals,num_params)
         integer :: idx
         real(r_kind) :: BE, BE_exp, BEA, BEA_exp, UNC, unc_per_a
         real(r_kind) :: BEs(num_fit_vals), BEcov(num_fit_vals,num_fit_vals)
         WRITE(*,*)
         WRITE(*,*)
-        WRITE(*,*) "Z    A     MicMac BE/A    AME 2020 BE/A "
-        WRITE(*,*) "Z    A     (Mev)          (kev)        "
-        BEs = MATMUL(X, parameters)
-        BEcov = MATMUL(X,MATMUL(covariance,TRANSPOSE(X)))
-
+        WRITE(*,*) "Z    A           MicMac BE/A   UNC          EXP BE/A     DELTA         MicMac BE UNC      EXP BE   DELTA"
+        WRITE(*,*) "Z    A           (Mev)                      (Mev)        (MEV)         (Mev)              (Mev)    (MeV)"
+        BEs = MATMUL(J_mat, parameters)
 
         do idx = 1, num_fit_vals
             BE = BEs(idx)
-            UNC = SQRT(BEcov(idx,idx))
+            UNC = 0.0
             unc_per_a = UNC/(exp_A(idx)*1.0)
-            BE_exp = exp_be(idx) * exp_A(idx)
+            BE_exp = exp_be(idx)
             BEA = BE/(exp_A(idx)*1.0)
             BEA_exp = BE_exp/(exp_A(idx)*1.0)
             WRITE(*,'(I4, I4,1x,      A3,       F12.4,2x,F12.4, 2x,F12.4, 4x,F8.4, 4x,         F10.2, 1x, F5.2,2x F12.2, 2x,F6.2)') &
