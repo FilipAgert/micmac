@@ -17,8 +17,8 @@ CC = gfortran $(FLAGS) -J$(DMOD) $(LIBS) -L$(DLIB) -c
 CCL = gfortran -o
 
 # Objects
-OBJECTS = $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o $(DOBJ)/table_writer.o $(DOBJ)/fitting.o
-TEST_OBJECTS = $(DOBJ)/test_micmac.o $(DOBJ)/test_utils.o $(DOBJ)/test_fitting.o
+OBJECTS = $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o $(DOBJ)/table_writer.o $(DOBJ)/fitting.o $(DOBJ)/minimise.o
+TEST_OBJECTS = $(DOBJ)/test_micmac.o $(DOBJ)/test_utils.o $(DOBJ)/test_fitting.o $(DOBJ)/test_minimise.o
 MAIN_OBJ = $(DOBJ)/main.o
 TEST_OBJ = $(DOBJ)/run_tests.o
 FIT_OBJ = $(DOBJ)/runfit.o
@@ -34,7 +34,7 @@ $(DOBJ)/nucleus_module.o: $(DSRC)/nucleus_module.f90 $(DOBJ)/constants.o
 $(DOBJ)/micmac.o: $(DSRC)/micmac.f90 $(DOBJ)/constants.o
 $(DOBJ)/mass_table.o: $(DSRC)/mass_table.f90 $(DOBJ)/constants.o
 $(DOBJ)/test_micmac.o: $(DOBJ)/micmac.o $(DOBJ)/constants.o $(DOBJ)/test_utils.o
-$(DOBJ)/run_tests.o: $(DOBJ)/test_micmac.o $(DOBJ)/test_utils.o $(DOBJ)/test_fitting.o
+$(DOBJ)/run_tests.o: $(DOBJ)/test_micmac.o $(DOBJ)/test_utils.o $(DOBJ)/test_fitting.o $(DOBJ)/test_minimise.o
 
 # Ensure required directories exist
 $(DOBJ) $(DEXE) $(DMOD) $(DTEST):

@@ -30,7 +30,7 @@ module table_writer
 
             BE = binding_energy(params, Zs(i), As(i))
             ME = mass_excess(BE, Zs(i), As(i))
-            Esh = shell_corr(Zs(i), As(i), params)
+            Esh = shell_corr(Zs(i), As(i), params(5),params(6))
 
             ! Write the data for each nucleus
             write(iunit, '(I3, 3x,I3,3x, F10.3,5x, F10.3,6x, F5.2, 4x, F5.2,4x, F5.2)') &

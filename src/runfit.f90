@@ -7,6 +7,7 @@ program runfit
     implicit none
     real(kind=r_kind) :: params(num_params), param_cov(num_params,num_params)
     integer :: i
+    logical :: converged
     WRITE(*,*)
     WRITE(*,*) "########################################"
     WRITE(*,*) "MicMac - Fitting Binding Energy and Mass Excess"
@@ -24,12 +25,20 @@ program runfit
     WRITE(*,*) "########################################"
     WRITE(*,*) "Fitting parameters to experimental data"
     params = starting_params
-    call fit_iterative(params)
+    call fit_iterative(params, converged)
+
     param_cov = fit_param_cov(params, num_fit_vals, exp_Z,exp_A)
+    call write_table(params)
+    write(*,*)
+    if(.not. converged) then
+        write(*,*) "ERROR: Fit did not converge"
+    endif
+    WRITE(*,'(A,F10.3, A)') "Rms: ", fit_rms(params), " (MeV)"
+
     write(*,*)
     write(*,*) "        a_vol      a_sur       k         r0        C         c"
     write(*,*) "       (MeV)      (MeV)                (fm)      (MeV)       "
     write(*,'(A, 6F10.3)') "val: ", params
-    write(*,'(A, 6F10.3)') "unc: ", param_cov(1,1), param_cov(2,2), param_cov(3,3), param_cov(4,4), param_cov(5,5), param_cov(6,6)
+    write(*,'(A, 6F10.3)') "unc: ", sqrt(param_cov(1,1)), sqrt(param_cov(2,2)), sqrt(param_cov(3,3)), sqrt(param_cov(4,4)), sqrt(param_cov(5,5)), sqrt(param_cov(6,6))
 
 end program runfit

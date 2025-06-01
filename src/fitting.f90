@@ -117,12 +117,10 @@ module fitting
         JTJ = matmul(JT,J)
 
         !!Get RMS error
-        res = exp_be-binding_energies(params, Zs, As, num_nuclei)
-        sqsum = dot_product(res,res)
-        rms = sqrt(sqsum/(num_nuclei-num_params))
+        rms = fit_rms(params)
 
         call inverse_SVD(JTJ,num_params)
-        cov = JTJ * rms
+        cov = JTJ * rms**2
     end function
 
     !!Returns covariances of BE predictions
@@ -139,23 +137,27 @@ module fitting
         be_cov = matmul(J, matmul(cov, JT))
     end function
 
+    function fit_rms(params)
+        real(r_kind), intent(in) :: params(num_params)
+        real(r_kind) :: resid(num_fit_vals), sum_sq_err, fit_rms
+        resid = exp_be - binding_energies(params,exp_Z,exp_A,num_fit_vals)
+        sum_sq_err = dot_product(resid, resid)
+        fit_rms = sqrt(sum_sq_err/(num_fit_vals-num_params))
+    end function
 
-    subroutine fit_iterative(params)
+    subroutine fit_iterative(params, converged)
         real(kind=r_kind), intent(inout) :: params(num_params) !!In: Starting guess of parameters. Out: Converged solution
         !!Assume that we have already read exp data.
         real(kind=r_kind) :: Jmat(num_fit_vals,num_params), resid(num_fit_vals)
         real(kind=r_kind) :: sum_sq_err, JT(num_params, num_fit_vals), JTJ(num_params, num_params), RHS(num_params), rms, oldrms
         integer :: num_nuclei, maxitr, ii
-        logical :: converged
+        logical, intent(out) :: converged
         converged = .false.
         maxitr =1000
         num_nuclei = num_fit_vals
         Jmat =J_mat(exp_Z,exp_A,num_nuclei,params)
         oldrms = huge(oldrms)
-
-        resid = exp_be - binding_energies(params,exp_Z,exp_A,num_nuclei)
-        sum_sq_err = dot_product(resid, resid)
-        rms = sqrt(sum_sq_err/(num_nuclei-num_params))
+        rms = fit_rms(params)
         WRITE(*,'(8E15.3)') params
         WRITE(*,'(A,F10.3)') "Rms: ", rms
         do ii = 1,maxitr
@@ -169,10 +171,7 @@ module fitting
             call solve_linsys(JTJ,RHS,num_params)
             params = params + (RHS-params)/2.0
 
-            Jmat =J_mat(exp_Z,exp_A,num_nuclei,params) !!Setup matrix.
-            resid = exp_be  - binding_energies(params,exp_Z,exp_A,num_nuclei)
-            sum_sq_err = dot_product(resid,resid)
-            rms = sqrt(sum_sq_err/(num_nuclei-num_params))
+            rms = fit_rms(params)
 
             if(abs(oldrms-rms) < 1e-12) then
                 converged = .true.
@@ -188,18 +187,6 @@ module fitting
             endif
             oldrms = rms
         end do
-        call write_table(params)
-        WRITE(*,*)
-        if(converged) then
-            WRITE(*,*) "Fit converged after ", ii, " iterations with parameters:"
-        else
-            WRITE(*,*) "Err: Fit did not converge after ", ii, " iterations. Parameters:"
-        endif
-        WRITE(*,'(6F15.3)') params
-        WRITE(*,*) "Starting parameters:"
-        WRITE(*,'(6F15.3)') starting_params
-        WRITE(*,'(A,F10.3)') "Rms: ", rms
-        oldrms = rms
 
     end subroutine
 
@@ -213,10 +200,10 @@ module fitting
         WRITE(*,*) "Z    A           MicMac BE/A   UNC          EXP BE/A     DELTA         MicMac BE UNC      EXP BE   DELTA"
         WRITE(*,*) "Z    A           (Mev)                      (Mev)        (MEV)         (Mev)              (Mev)    (MeV)"
         BEs = binding_energies(params,exp_Z,exp_A,num_fit_vals)
-
+        BEcov = be_cov(params, num_fit_vals, exp_Z, exp_A)
         do idx = 1, num_fit_vals
             BE = BEs(idx)
-            UNC = 0.0
+            UNC = sqrt(BEcov(idx,idx))
             unc_per_a = UNC/(exp_A(idx)*1.0)
             BE_exp = exp_be(idx)
             BEA = BE/(exp_A(idx)*1.0)

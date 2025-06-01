@@ -231,6 +231,8 @@ pure elemental real(r_kind) function shell_corr(N,Z, C, smallC)
 end function
 
 
+
+
 pure real(r_kind) function F(N,proton)
     integer, intent(in) :: N !!Nucleon number
     logical,intent(in) :: proton !!proton or neutron
@@ -255,48 +257,6 @@ pure real(r_kind) function F(N,proton)
         endif
     end do
     F = staircase(real(N,r_kind), magics)*(N-magic) - 3.0_r_kind/5.0_r_kind * (N**(5.0_r_kind/3.0_r_kind) - magic**(5.0_r_kind/3.0_r_kind))
-    ! if(abs(F-fold) > 1e-6_r_kind) then
-    !     write(*,*) "F(N=",N,", proton=",proton,") = ", F, " but expected ", fold
-    !     write(*,*) "Difference: ", abs(F-fold)
-    ! endif
-
-    
-end function
-
-pure real(r_kind) function intn23(N) !!Integrate from 0 to N n^(2/3)
-    integer, intent(in) :: N
-    intn23 = real(N,kind=r_kind)**(5.0_r_kind/3.0_r_kind) *3.0_r_kind/5.0_r_kind
-end function
-
-!!Integrate staircase function from 0 to n
-pure real(r_kind) function intstaircase(N,proton)
-    integer, intent(in) :: N !!Nucleon number
-    logical,intent(in) :: proton !!proton or neutron
-    integer ::ii, nbr, sz, delta
-    integer, dimension(:), allocatable :: magics
-    real(r_kind) :: height, rolling
-    if(proton) then
-        sz = size(magic_num_Z)
-        allocate(magics(sz))
-        magics = magic_num_Z
-    else
-        sz = size(magic_num_N)
-        allocate(magics(sz))
-        magics = magic_num_N
-    endif
-    ii = 2
-    rolling=0.0_r_kind
-    do while(magics(ii) < N)
-        delta = magics(ii) - magics(ii-1)
-        height = staircase(real(magics(ii-1),r_kind),magics)
-        rolling = rolling + height*delta
-        ii = ii + 1
-    end do
-    !!Okay so now the magic number is greater than N. 
-    delta = N - magics(ii-1)
-    height = staircase(real(N,kind=r_kind),magics)
-    rolling = rolling + height*delta
-    intstaircase = rolling
 end function
 
 pure real(r_kind) function staircase(n, magics) !!Gets staircase function at value. If value exactly equals a magic number, use that as the lower bound

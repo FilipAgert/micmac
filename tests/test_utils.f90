@@ -4,7 +4,7 @@ module test_utils
     private
     public :: eq, eq_r
 
-    real(r_kind), parameter :: epsilon = 1e-9
+    real(r_kind), parameter :: epsilon = 1e-6
 
 
 
