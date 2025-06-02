@@ -3,7 +3,7 @@ module minimise
     implicit none
     !!Module for finding ground state of a nucleus by minimising BE through deformation
     private
-    public :: find_min
+    public :: find_min, one_dim
     interface
         function one_dim(x)
             import r_kind
@@ -29,7 +29,7 @@ module minimise
         real(r_kind) :: df, d2f
         real(r_kind), parameter :: dx = 1e-6 !!step size for numerical derivatives
         real(r_kind), parameter :: gamma = 0.5_r_kind !!Damping factor for Newton's method
-        integer, parameter :: max_iter = 1000
+        integer, parameter :: max_iter = 100
         real(r_kind) :: x, xprev
         integer, intent(out) :: iter
         x = x_start
@@ -37,8 +37,6 @@ module minimise
    
             if (x < x0) x = x0
             if (x > x1) x = x1
-
-
 
             ! Calculate the function value and its derivatives
             df = (f(x + dx) - f(x - dx)) / (2.0_r_kind * dx)

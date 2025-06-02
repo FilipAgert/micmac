@@ -1,11 +1,12 @@
 module micmac
 
     use constants
+    use minimise, only: find_min, one_dim
     implicit none
 
 
     private
-    public :: binding_energy, mass_excess, binding_energies, shell_corr, mass_excesses, staircase, J_mat
+    public :: binding_energy, mass_excess, binding_energies, shell_corr, mass_excesses, staircase, J_mat, find_gs, binding_energy_def
     contains
 
 pure function mass_excess(BE, Z, A) result(ME)
@@ -17,7 +18,7 @@ pure function mass_excess(BE, Z, A) result(ME)
 
     ME = BE + (N*mass_n + Z*(mass_p+mass_e)) - dalton*(N+Z)
 
-end function mass_excess    
+end function mass_excess
 
 function mass_excesses(parameters, Zs, As) result(MEs)
     real(r_kind), intent(in) :: parameters(num_params)
@@ -54,6 +55,46 @@ pure function binding_energy(params, Z, A) result(BE)
     ! Calculate binding energy
 end function binding_energy
 
+function binding_energy_def(params, Z, A, def) result(BE)
+    ! This function calculates the binding energy of a nucleus
+    real(r_kind), intent(in) :: params(num_params), def
+    integer, intent(in) :: Z, A
+    real(r_kind) :: BE
+    
+    integer :: N
+    real(r_kind) :: av, as, r0, k, smallC, C, adef, alph0sq
+    av = params(1)
+    as = params(2)
+    k = params(3)
+    r0 = params(4)
+    C = params(5)
+    smallC = params(6)
+    adef = aparam
+    alph0sq = alpha0sq(adef, r0, A)
+    ! write(*,*) "alpha0: ", sqrt(alph0sq)
+    
+    N = A - Z
+    BE = volume_term(N,Z,av,k) + surface_term(N,Z,as,k)*def_f(def) + col_vol_term(N,Z,r0)*def_g(def) + col_corr_term(N,Z,r0) + pairing_term(N,Z) + shell_corr(N,Z,C, smallC)*exp(-(def**2)/alph0sq)
+    ! WRITE(*,*) "Def:", def, ", BE:", BE
+    ! write(*,*) volume_term(N,Z,av,k), surface_term(N,Z,as,k)*def_f(def), col_vol_term(N,Z,r0)*def_g(def), col_corr_term(N,Z,r0),pairing_term(N,Z), shell_corr(N,Z,C, smallC)*exp(-(def**2)/alph0sq)
+    ! Calculate binding energy
+end function binding_energy_def
+
+pure function def_f(alpha)
+    real(r_kind), intent(in) :: alpha
+    real(r_kind) :: def_f
+    def_f = 1+(alpha**2)*2.0_r_kind/5.0_r_kind - alpha**3 * 4.0_r_kind/105.0_r_kind
+
+end function
+
+pure function def_g(alpha)
+    real(r_kind), intent(in) :: alpha
+    real(r_kind) :: def_g
+    def_g = 1-(alpha**2)/5.0_r_kind - alpha**3 * 4.0_r_kind/105.0_r_kind
+
+end function
+
+
 
 !!For a vector of Zs and As, compute binding energy.
 pure function binding_energies(parameters, Zs, As, num_nuclei) result(BEs)
@@ -66,6 +107,90 @@ pure function binding_energies(parameters, Zs, As, num_nuclei) result(BEs)
     do i = 1, num_nuclei
         BEs(i) = binding_energy(parameters, Zs(i), As(i))
     end do
+end function
+
+subroutine find_gs(BE, def, params, Z, A)
+    real(r_kind), intent(out) :: BE, def
+    real(r_kind), intent(in) :: params(num_params)
+    integer, intent(in) :: Z,A
+    integer :: Niters
+    procedure(one_dim), pointer  :: func_def
+    func_def => be_def_func(params, Z, A)
+
+    call find_min(def, BE, Niters, func_def, -1.0_r_kind, 1.0_r_kind,0.2_r_kind)
+    ! write(*,'(A,I5, A)') "Found ground state after ", Niters, " iterations"
+    ! write(*,'(A, f10.3, A, f10.3, A)') "Deformation: ", def, ", binding energy: ", BE, " MeV"
+end subroutine
+
+function be_def_func(parameters, Z, A) result(func)
+    procedure(one_dim), pointer :: func
+    real(r_kind), intent(in) :: parameters(:)
+    integer, intent(in) :: Z, A
+
+    ! Local variables
+    real(r_kind) :: av, as, k, r0, C, smallC, adef
+    real(r_kind) :: constant, quadratic, cubic, exponent, expconst
+    real(r_kind) :: surf, colvol
+    integer :: N
+
+    ! Internal function pointer
+    procedure(one_dim), pointer :: f_ptr
+
+    ! Assign parameter values
+    av = parameters(1)
+    as = parameters(2)
+    k = parameters(3)
+    r0 = parameters(4)
+    C = parameters(5)
+    smallC = parameters(6)
+    adef = aparam
+    N = A - Z
+
+    ! Compute components of the function
+    surf     = surface_term(N, Z, as, k)
+    colvol   = col_vol_term(N, Z, r0)
+    constant = volume_term(N,Z,av,k) + surf + col_term(N,Z,r0) + pairing_term(N,Z)
+    quadratic = 2.0_r_kind / 5.0_r_kind * surf - colvol / 5.0_r_kind
+    cubic     = -(surf + colvol) * 4.0_r_kind / 105.0_r_kind
+    expconst  = shell_corr(N, Z, C, smallC)
+    exponent  = -1.0_r_kind / (alpha0sq(adef, r0, A))
+
+    ! write(*,*) "const", constant
+    ! write(*,*) "quad", quadratic
+    ! write(*,*) "cubic", cubic
+    ! write(*,*) "exp", exponent
+    ! write(*,*) "shellcorr", expconst
+    f_ptr => make_func(constant, quadratic, cubic, exponent, expconst)
+    func => f_ptr
+end function be_def_func
+
+
+function make_func(constant, quadratic, cubic, exponent, expconst) result(f_ptr)
+    procedure(one_dim), pointer :: f_ptr
+    real(r_kind), intent(in) :: constant, quadratic, cubic, exponent, expconst
+
+    procedure(one_dim), pointer :: f
+    f => internal_f
+    f_ptr => f
+
+    contains
+
+    function internal_f(x) result(res)
+        real(r_kind), intent(in) :: x
+        real(r_kind) :: res
+        res = constant + x**2 * quadratic + x**3 * cubic + expconst * exp(exponent * x**2)
+    end function internal_f
+
+end function make_func
+
+
+pure function alpha0sq(adef, r0, A)
+    real(r_kind), intent(in) :: adef, r0
+    integer, intent(in) :: A
+    real(r_kind) :: alpha0sq
+
+    alpha0sq = 5.0_r_kind * (adef/r0)**2 * A**(-2.0_r_kind/3.0_r_kind)
+
 end function
 
 pure elemental real(r_kind) function volume_term(N, Z,av,k)
@@ -97,10 +222,31 @@ pure elemental real(r_kind) function col_term(N, Z, r0)
     integer :: A
     real(r_kind), parameter :: one_third = 1.0_r_kind/3.0_r_kind
     A = N + Z
-    col_term = Z*Z *1.0_r_kind / (A**(one_third)) * 3.0_r_kind * e_squared / (5.0_r_kind * r0)
-
-    col_term = col_term - pi2/2 * (d/r0)**2 * e_squared/r0 * Z * Z / A
+    col_term = col_vol_term(N,Z,r0) + col_corr_term(N,Z,r0)
 end function col_term
+
+pure elemental real(r_kind) function col_vol_term(N,Z,r0)
+    implicit none
+    integer, intent(in) :: Z, N
+    real(r_kind), intent(in) :: r0
+    integer :: A
+    real(r_kind), parameter :: one_third = 1.0_r_kind/3.0_r_kind
+    A = N + Z
+    col_vol_term = Z*Z *1.0_r_kind / (A**(one_third)) * 3.0_r_kind * e_squared / (5.0_r_kind * r0)
+
+
+end function
+
+pure elemental real(r_kind) function col_corr_term(N,Z,r0)
+    implicit none
+    integer, intent(in) :: Z, N
+    real(r_kind), intent(in) :: r0
+    integer :: A
+    real(r_kind), parameter :: one_third = 1.0_r_kind/3.0_r_kind
+    A = N + Z
+    col_corr_term = - (Z * Z * 1.0_r_kind / A) * pi2/2 * (d/r0)**2 * e_squared/r0 
+
+end function
 
 pure elemental real(r_kind) function pairing_term(N, Z)
     implicit none
