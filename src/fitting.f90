@@ -23,7 +23,7 @@ module fitting
             A = AME_A(idx)
             N = A-Z
             unc = AME_BE_unc(idx)
-            if(Z >= Z_fit_minval .and. N >= N_fit_minval .and. unc < max_unc_mev) then
+            if(Z >= Z_fit_minval .and. N >= N_fit_minval .and. unc < max_unc_mev ) then
                 num_fit_vals = num_fit_vals + 1
             else
                 cycle
@@ -106,13 +106,13 @@ module fitting
     end subroutine
 
     !!Covariances of fit parameters
-    function fit_param_cov(params, num_nuclei, Zs, As) result(cov)
+    function fit_param_cov(params, num_nuclei, Zs, As, defs) result(cov)
         real(kind=r_kind), intent(in) :: params(num_params)
         real(kind=r_kind) :: cov(num_params,num_params)
         integer, dimension(num_nuclei), intent(in) :: Zs, As
         integer, intent(in) :: num_nuclei
-        real(kind=r_kind) ::  J(num_nuclei,num_params), JT(num_params,num_nuclei), JTJ(num_params,num_params), rms, res(num_nuclei), sqsum
-        J = J_mat(Zs,As,num_nuclei,params)
+        real(kind=r_kind) ::  J(num_nuclei,num_params), JT(num_params,num_nuclei), JTJ(num_params,num_params), rms, res(num_nuclei), sqsum, defs(num_nuclei)
+        J = J_mat(Zs,As,defs, num_nuclei,params)
         JT = transpose(J)
         JTJ = matmul(JT,J)
 
@@ -124,23 +124,23 @@ module fitting
     end function
 
     !!Returns covariances of BE predictions
-    function be_cov(params, num_nuclei, Zs, As) 
+    function be_cov(params, num_nuclei, Zs, As, defs) 
         real(kind=r_kind), intent(in) :: params(num_params)
         real(kind=r_kind) :: cov(num_params,num_params), be_cov(num_nuclei,num_nuclei)
         integer, dimension(num_nuclei), intent(in) :: Zs, As
         integer, intent(in) :: num_nuclei
-        real(kind=r_kind) ::  J(num_nuclei,num_params), JT(num_params,num_nuclei), JTJ(num_params,num_params), rms, res(num_nuclei), sqsum
-        J = J_mat(Zs,As,num_nuclei,params)
+        real(kind=r_kind) ::  J(num_nuclei,num_params), JT(num_params,num_nuclei), JTJ(num_params,num_params), rms, res(num_nuclei), sqsum, defs(num_nuclei)
+        J = J_mat(Zs,As,defs, num_nuclei,params)
         JT = transpose(J)
-        cov = fit_param_cov(params, num_nuclei, zs, as)
+        cov = fit_param_cov(params, num_nuclei, zs, as, defs)
 
         be_cov = matmul(J, matmul(cov, JT))
     end function
 
-    function fit_rms(params)
-        real(r_kind), intent(in) :: params(num_params)
+    function fit_rms(BEs)
+        real(r_kind), intent(in) :: BEs(num_fit_vals)
         real(r_kind) :: resid(num_fit_vals), sum_sq_err, fit_rms
-        resid = exp_be - binding_energies(params,exp_Z,exp_A,num_fit_vals)
+        resid = exp_be - BEs
         sum_sq_err = dot_product(resid, resid)
         fit_rms = sqrt(sum_sq_err/(num_fit_vals-num_params))
     end function
@@ -148,32 +148,37 @@ module fitting
     subroutine fit_iterative(params, converged)
         real(kind=r_kind), intent(inout) :: params(num_params) !!In: Starting guess of parameters. Out: Converged solution
         !!Assume that we have already read exp data.
-        real(kind=r_kind) :: Jmat(num_fit_vals,num_params), resid(num_fit_vals)
+        real(kind=r_kind) :: Jmat(num_fit_vals,num_params), resid(num_fit_vals), BEs(num_fit_vals), defs(num_fit_vals)
         real(kind=r_kind) :: sum_sq_err, JT(num_params, num_fit_vals), JTJ(num_params, num_params), RHS(num_params), rms, oldrms
         integer :: num_nuclei, maxitr, ii
         logical, intent(out) :: converged
         converged = .false.
         maxitr =1000
         num_nuclei = num_fit_vals
-        Jmat =J_mat(exp_Z,exp_A,num_nuclei,params)
-        oldrms = huge(oldrms)
-        rms = fit_rms(params)
-        WRITE(*,'(8E15.3)') params
-        WRITE(*,'(A,F10.3)') "Rms: ", rms
+        
+        WRITE(*,'(8F15.3)') params
         do ii = 1,maxitr
-            Jmat =J_mat(exp_Z,exp_A,num_nuclei,params) !!Setup matrix.
-            resid = exp_be  - binding_energies(params,exp_Z,exp_A,num_nuclei)
+            ! write(*,*) 
+            ! write(*,*) 
+            ! write(*,*) "############################"
+            ! write(*,'(A,I5)') "ITER: ", ii
+            ! write(*,'(A,7F10.3)')"Params: ", params
+            call find_gs_multiple(BEs, defs, params, exp_Z, exp_A, num_nuclei)
+            Jmat =J_mat(exp_Z,exp_A,defs, num_nuclei,params) !!Setup matrix.
+            
+            resid = exp_be  - BEs
             ! call write_table(params, Jmat)
             JT = transpose(Jmat)
             JTJ = matmul(JT,Jmat)
             RHS = matmul(JTJ, params) + matmul(JT, resid) 
             !!We have to solve J^T J * P' = JTJ*P + JT*resid for P' 
             call solve_linsys(JTJ,RHS,num_params)
-            params = params + (RHS-params)/2.0
+            params = params + (RHS-params)
 
-            rms = fit_rms(params)
-
-            if(abs(oldrms-rms) < 1e-12) then
+            rms = fit_rms(BEs)
+            write(*,*) oldrms, rms, oldrms-rms
+            if(abs(oldrms-rms) < 1e-5) then
+                write(*,'(A,I6,A)')"Fit converged after ", II, " iterations"
                 converged = .true.
                 exit
             endif
@@ -181,9 +186,10 @@ module fitting
             if(mod(ii,100) == 0) then
                 write(*,*)
                 write(*,*)
-                write(*,*) ii
+                write(*,*) "Iteration: ", ii
                 WRITE(*,'(8F15.3)') params
-                WRITE(*,'(A,F10.3)') "Rms: ", rms
+                WRITE(*,'(A,F15.7)') "Rms: ", rms
+
             endif
             oldrms = rms
         end do
@@ -193,27 +199,28 @@ module fitting
     subroutine write_table(params)
         real(r_kind), intent(in) :: params(num_params)
         integer :: idx
-        real(r_kind) :: BE, BE_exp, BEA, BEA_exp, UNC, unc_per_a
-        real(r_kind) :: BEs(num_fit_vals), BEcov(num_fit_vals,num_fit_vals)
+        real(r_kind) :: BE, BE_exp, BEA, BEA_exp, UNC, unc_per_a,def
+        real(r_kind) :: BEs(num_fit_vals), BEcov(num_fit_vals,num_fit_vals), defs(num_fit_vals)
         WRITE(*,*)
         WRITE(*,*)
         WRITE(*,*) "Z    A           MicMac BE/A   UNC          EXP BE/A     DELTA         MicMac BE UNC      EXP BE   DELTA"
         WRITE(*,*) "Z    A           (Mev)                      (Mev)        (MEV)         (Mev)              (Mev)    (MeV)"
-        BEs = binding_energies(params,exp_Z,exp_A,num_fit_vals)
-        BEcov = be_cov(params, num_fit_vals, exp_Z, exp_A)
+        call find_gs_multiple(BEs, defs,params,exp_Z,exp_A,num_fit_vals)
+        BEcov = be_cov(params, num_fit_vals, exp_Z, exp_A, defs)
         do idx = 1, num_fit_vals
+            def = alpha_to_beta(defs(idx))
             BE = BEs(idx)
             UNC = sqrt(BEcov(idx,idx))
             unc_per_a = UNC/(exp_A(idx)*1.0)
             BE_exp = exp_be(idx)
             BEA = BE/(exp_A(idx)*1.0)
             BEA_exp = BE_exp/(exp_A(idx)*1.0)
-            WRITE(*,'(I4, I4,1x,      A3,       F12.4,2x,F12.4, 2x,F12.4, 4x,F8.4, 4x,         F10.2, 1x, F5.2,2x F12.2, 2x,F6.2)') &
-            exp_Z(idx), exp_A(idx), exp_elname(idx), BEA,    unc_per_a, BEA_exp, ABS(BEA-BEA_exp), BE,        UNC,      BE_exp, abs(BE - BE_exp)
+            WRITE(*,'(I4, I4,1x,      A3, 1x,F10.3,1x      F12.4,2x,F12.4, 2x,F12.4, 4x,F8.4, 4x,         F10.2, 1x, F5.2,2x F12.2, 2x,F6.2)') &
+            exp_Z(idx), exp_A(idx), exp_elname(idx), def, BEA,    unc_per_a, BEA_exp, ABS(BEA-BEA_exp), BE,        UNC,      BE_exp, abs(BE - BE_exp)
         end do
         write(*,*)
-        WRITE(*,*) "Z    A           MicMac BE/A   UNC          EXP BE/A     DELTA         MicMac BE UNC      EXP BE   DELTA"
-        WRITE(*,*) "Z    A           (Mev)                      (Mev)        (MEV)         (Mev)              (Mev)    (MeV)"
+        WRITE(*,*) "Z    A           def       MicMac BE/A   UNC          EXP BE/A     DELTA         MicMac BE UNC      EXP BE   DELTA"
+        WRITE(*,*) "Z    A                     (Mev)                      (Mev)        (MEV)         (Mev)              (Mev)    (MeV)"
 
     end subroutine write_table
 end module fitting

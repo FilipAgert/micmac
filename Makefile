@@ -31,7 +31,7 @@ $(DOBJ)/main.o: $(DSRC)/main.f90 $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/ma
 $(DOBJ)/fitting.o: $(DSRC)/fitting.f90 $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o $(DOBJ)/table_writer.o#Which files does fitting depend on?
 $(DOBJ)/constants.o: $(DSRC)/constants.f90
 $(DOBJ)/nucleus_module.o: $(DSRC)/nucleus_module.f90 $(DOBJ)/constants.o
-$(DOBJ)/micmac.o: $(DSRC)/micmac.f90 $(DOBJ)/constants.o
+$(DOBJ)/micmac.o: $(DSRC)/micmac.f90 $(DOBJ)/constants.o $(DOBJ)/minimise.o
 $(DOBJ)/mass_table.o: $(DSRC)/mass_table.f90 $(DOBJ)/constants.o
 $(DOBJ)/test_micmac.o: $(DOBJ)/micmac.o $(DOBJ)/constants.o $(DOBJ)/test_utils.o
 $(DOBJ)/run_tests.o: $(DOBJ)/test_micmac.o $(DOBJ)/test_utils.o $(DOBJ)/test_fitting.o $(DOBJ)/test_minimise.o

@@ -5,21 +5,17 @@ program main
     implicit none
 
 
-    real(r_kind) :: BE, ME, ME_exp, BE_exp, BE_exp_unc, ME_exp_unc, params(num_params), BE2
+    real(r_kind) :: BE, ME, ME_exp, BE_exp, BE_exp_unc, ME_exp_unc, params(num_params), BE2, def
     character(len=3) :: El
     integer :: idx
     integer :: Z, A, N
-    Z = 20
-    A = 48
+    Z = 92
+    A = 238
     N = A - Z
 
     params = starting_params
-    params(3) = 50000
-    BE = binding_energy(params, Z,A)
-    params(3)=0
-    BE2 = binding_energy(params,Z,A)
-    WRITE(*,*) "DIFF:"
-    WRITE(*,*) BE-BE2
+    write(*,*)'Starting params', starting_params
+    call find_gs(BE, def,params, Z,A)
     ME = mass_excess(BE, Z,A)
     WRITE(*,*)
     WRITE(*,*) "########################################"
@@ -51,6 +47,7 @@ program main
     WRITE(*,'(A, F8.3, A)') "Mass Excess = ", ME, " MeV/c^2"
     WRITE(*,'(A, F8.3, A)') "Mass Excess = ", ME/dalton, " u"
     WRITE(*,'(A, F8.3, A)') "Mass Excess per nucleon = ", ME/A, " MeV"
+    WRITE(*,'(A,F10.3)') 'Deformation: ', def
 
 
 
