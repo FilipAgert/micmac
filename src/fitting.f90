@@ -137,9 +137,10 @@ module fitting
         be_cov = matmul(J, matmul(cov, JT))
     end function
 
-    function fit_rms(BEs)
-        real(r_kind), intent(in) :: BEs(num_fit_vals)
-        real(r_kind) :: resid(num_fit_vals), sum_sq_err, fit_rms
+    function fit_rms(params)
+        real(r_kind), intent(in) :: params(num_params)
+        real(r_kind) :: resid(num_fit_vals), sum_sq_err, fit_rms, BEs(num_fit_vals), defs(num_fit_vals)
+        call find_gs_multiple(BEs,defs, params, exp_Z, exp_A, num_fit_vals)
         resid = exp_be - BEs
         sum_sq_err = dot_product(resid, resid)
         fit_rms = sqrt(sum_sq_err/(num_fit_vals-num_params))
@@ -173,9 +174,9 @@ module fitting
             RHS = matmul(JTJ, params) + matmul(JT, resid) 
             !!We have to solve J^T J * P' = JTJ*P + JT*resid for P' 
             call solve_linsys(JTJ,RHS,num_params)
-            params = params + (RHS-params)
+            params = params + (RHS-params) / 5.0_r_kind
 
-            rms = fit_rms(BEs)
+            rms = fit_rms(params)
             write(*,*) oldrms, rms, oldrms-rms
             if(abs(oldrms-rms) < 1e-5) then
                 write(*,'(A,I6,A)')"Fit converged after ", II, " iterations"

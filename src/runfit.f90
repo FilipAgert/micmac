@@ -39,7 +39,7 @@ program runfit
     if(.not. converged) then
         write(*,*) "ERROR: Fit did not converge"
     endif
-    WRITE(*,'(A,F10.3, A)') "Rms: ", fit_rms(BEs), " (MeV)"
+    WRITE(*,'(A,F10.3, A)') "Rms: ", fit_rms(params), " (MeV)"
 
     write(*,*)
     write(*,*) "        a_vol      a_sur       k         r0        C         c       adef"
