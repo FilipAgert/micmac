@@ -4,6 +4,18 @@ module test_minimise
     use test_utils
 
     implicit none
+    type, extends(func_1d) :: poly2
+    contains
+        procedure :: eval =>  poly2d
+    end type
+
+    type, extends(func_1d) :: redh
+    contains
+        procedure :: eval =>  red_herring_poly
+    end type
+
+
+
     private
     public :: run_tests_optimise
     contains 
@@ -23,11 +35,11 @@ module test_minimise
         integer, intent(inout) :: n_passed, n_failed
         real(r_kind) :: expected, actual, fmin
         logical :: pass, conv
-
+        type(poly2) :: func
 
         ! Dummy test: expected == actual
         expected = 5.0_r_kind/6.0_r_kind
-        call find_optimal_point(actual, fmin,conv, poly2d,-100.0_r_kind,100.0_r_kind,10.0_r_kind)  ! Replace with actual call: e.g. call micmac_result(actual)
+        call find_optimal_point(actual, fmin,conv, func,-100.0_r_kind,100.0_r_kind,10.0_r_kind)  ! Replace with actual call: e.g. call micmac_result(actual)
         pass = eq_r(expected,actual)
         !print*, "niter = ", niter
         if (pass) then
@@ -45,7 +57,8 @@ module test_minimise
         real(r_kind) :: expected, actual, fmin
         logical :: pass
         logical :: conv
-        call find_optimal_point(actual, fmin,conv, poly2d,-100.0_r_kind,100.0_r_kind,10.0_r_kind)  ! Replace with actual call: e.g. call micmac_result(actual)
+        type(poly2) :: func
+        call find_optimal_point(actual, fmin,conv, func,-100.0_r_kind,100.0_r_kind,10.0_r_kind)  ! Replace with actual call: e.g. call micmac_result(actual)
         !print*, "niter = ", niter
         expected = -1.0_r_kind/12.0_r_kind
         actual = fmin
@@ -63,7 +76,8 @@ module test_minimise
         integer, intent(inout) :: n_passed, n_failed
         real(r_kind) :: expected, actual, fmin,xmin
         logical :: pass
-        call find_min(xmin, fmin, red_herring_poly,-10.0_r_kind,10.0_r_kind,10)  ! Replace with actual call: e.g. call micmac_result(actual)
+        type(redh) :: func
+        call find_min(xmin, fmin, func,-10.0_r_kind,10.0_r_kind,10)  ! Replace with actual call: e.g. call micmac_result(actual)
         !print*, "niter = ", niter
         expected = -2.63891740462711_r_kind
         actual = xmin
@@ -87,8 +101,9 @@ module test_minimise
 
     end subroutine
 
-    function poly2d(x) result(f)
+    pure elemental function poly2d(self, x) result(f)
         ! A simple quadratic function for testing
+        class(poly2), intent(in) :: self
         real(r_kind), intent(in) :: x
         real(r_kind) :: f
 
@@ -96,9 +111,10 @@ module test_minimise
 
     end function
 
-    function red_herring_poly(x) result(f)
-                ! A simple quadratic function for testing
+    pure elemental function red_herring_poly(self, x) result(f)
+        ! A simple quadratic function for testing
         real(r_kind), intent(in) :: x
+        class(redh), intent(in) :: self
         real(r_kind) :: f
 
         f = x**4 + 3*x**3 - 3*x**2 -5*x
