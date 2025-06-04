@@ -1,12 +1,12 @@
 module micmac
 
     use constants
-    use minimise, only: find_min, one_dim, rand_d, find_min_brute_force
+    use optimise, only: find_min, one_dim, rand_d, find_min_brute_force
     implicit none
 
 
     private
-    public :: binding_energy, mass_excess, binding_energies, shell_corr, mass_excesses, staircase, J_mat, find_gs, binding_energy_def, find_gs_multiple, alpha_to_beta
+    public :: shell_corr, staircase, J_mat, find_gs, binding_energy_def, find_gs_multiple, alpha_to_beta, mass_excess
     contains
 
 pure function mass_excess(BE, Z, A) result(ME)
@@ -20,39 +20,6 @@ pure function mass_excess(BE, Z, A) result(ME)
 
 end function mass_excess
 
-function mass_excesses(parameters, Zs, As) result(MEs)
-    real(r_kind), intent(in) :: parameters(num_params)
-    integer, intent(in), dimension(:) :: Zs, As
-    integer :: num_nuclei
-    real(r_kind), dimension(size(Zs)) :: MEs, BEs
-    integer :: i
-
-    num_nuclei = size(Zs)
-    BEs = binding_energies(parameters, Zs, As, num_nuclei)
-    MEs = 0.0_r_kind
-    do i = 1, num_nuclei
-        MEs(i) = mass_excess(BEs(i), Zs(i), As(i))
-    end do
-end function
-
-pure function binding_energy(params, Z, A) result(BE)
-    ! This function calculates the binding energy of a nucleus
-    real(r_kind), intent(in) :: params(num_params)
-    integer, intent(in) :: Z, A
-    real(r_kind) :: BE
-    integer :: N
-    real(r_kind) :: av, as, r0, k, smallC, C
-    av = params(1)
-    as = params(2)
-    k = params(3)
-    r0 = params(4)
-    C = params(5)
-    smallC = params(6)
-    N = A - Z
-    BE = volume_term(N,Z,av,k) + surface_term(N,Z,as,k) + col_term(N,Z,r0) + pairing_term(N,Z) + shell_corr(N,Z,C, smallC)  
-    
-    ! Calculate binding energy
-end function binding_energy
 
 !!Gets binding energy for a given deformtaion
 function binding_energy_def(params, Z, A, def) result(BE)
@@ -62,18 +29,20 @@ function binding_energy_def(params, Z, A, def) result(BE)
     real(r_kind) :: BE
     
     integer :: N
-    real(r_kind) :: av, as, r0, k, smallC, C, adef, alph0sq
-    av = params(1)
-    as = params(2)
-    k = params(3)
-    r0 = params(4)
-    C = params(5)
-    smallC = params(6)
-    adef = params(7)
+    real(r_kind) :: av, as, r0, kv,ks, smallC, C, adef, alph0sq, a0
+    a0 = params(1)
+    av = params(2)
+    as = params(3)
+    kv = params(4)
+    ks = params(5)
+    r0 = params(6)
+    C = params(7)
+    smallC = params(8)
+    adef = params(9)
     alph0sq = alpha0sq(adef, r0, A)
     
     N = A - Z
-    BE = volume_term(N,Z,av,k) + surface_term(N,Z,as,k)*def_f(def) + &
+    BE = a0 + volume_term(N,Z,av,kv) + surface_term(N,Z,as,ks)*def_f(def) + &
         col_vol_term(N,Z,r0)*def_g(def) + col_corr_term(N,Z,r0) + &
         pairing_term(N,Z) + shell_corr(N,Z,C, smallC)*shell_damp_fac(N,Z,def,adef,r0)
     ! WRITE(*,*) "Def:", def, ", BE:", BE
@@ -82,20 +51,6 @@ function binding_energy_def(params, Z, A, def) result(BE)
 end function binding_energy_def
 
 
-
-
-!!For a vector of Zs and As, compute binding energy.
-pure function binding_energies(parameters, Zs, As, num_nuclei) result(BEs)
-    real(r_kind), intent(in) :: parameters(num_params)
-    integer, intent(in), dimension(num_nuclei) :: Zs, As
-    integer, intent(in) :: num_nuclei
-    real(r_kind), dimension(num_nuclei) :: BEs
-    real(r_kind), dimension(num_nuclei,num_params) :: mat_format
-    integer :: i
-    do i = 1, num_nuclei
-        BEs(i) = binding_energy(parameters, Zs(i), As(i))
-    end do
-end function
 
 !!Computes ground state energy and deformation for given nuclei.
 subroutine find_gs_multiple(BEs, defs, params, Zs, As, num_nuclei)
@@ -139,13 +94,13 @@ end subroutine
 
 !!Function takes the binding energy formula and creates a function on the form A + Bx^2 + Cx^3 + Dexp(-x^2/a^2)
 !!Where x is the deformation. This function is then minimzed to find the deformation x and G.S. energy.
-function be_def_func(parameters, Z, A) result(func)
+function be_def_func(params, Z, A) result(func)
     procedure(one_dim), pointer :: func
-    real(r_kind), intent(in) :: parameters(:)
+    real(r_kind), intent(in) :: params(:)
     integer, intent(in) :: Z, A
 
     ! Local variables
-    real(r_kind) :: av, as, k, r0, C, smallC, adef
+    real(r_kind) :: a0,av, as, kv,ks, r0, C, smallC, adef
     real(r_kind) :: constant, quadratic, cubic, exponent, expconst
     real(r_kind) :: surf, colvol
     integer :: N
@@ -154,19 +109,21 @@ function be_def_func(parameters, Z, A) result(func)
     procedure(one_dim), pointer :: f_ptr
 
     ! Assign parameter values
-    av = parameters(1)
-    as = parameters(2)
-    k = parameters(3)
-    r0 = parameters(4)
-    C = parameters(5)
-    smallC = parameters(6)
-    adef = parameters(7)
+    a0 = params(1)
+    av = params(2)
+    as = params(3)
+    kv = params(4)
+    ks = params(5)
+    r0 = params(6)
+    C = params(7)
+    smallC = params(8)
+    adef = params(9)
     N = A - Z
 
     ! Compute components of the function
-    surf     = surface_term(N, Z, as, k)
+    surf     = surface_term(N, Z, as, ks)
     colvol   = col_vol_term(N, Z, r0)
-    constant = volume_term(N,Z,av,k) + surf + col_term(N,Z,r0) + pairing_term(N,Z)
+    constant = volume_term(N,Z,av,kv) + surf + col_term(N,Z,r0) + pairing_term(N,Z) + a0
     quadratic = 2.0_r_kind / 5.0_r_kind * surf - colvol / 5.0_r_kind
     cubic     = -(surf + colvol) * 4.0_r_kind / 105.0_r_kind
     expconst  = shell_corr(N, Z, C, smallC)
@@ -203,26 +160,26 @@ end function make_func
 
 
 
-pure elemental real(r_kind) function volume_term(N, Z,av,k)
+pure elemental real(r_kind) function volume_term(N, Z,av,kv)
     integer, intent(in) :: N, Z
-    real(r_kind), intent(in) :: av,k
+    real(r_kind), intent(in) :: av,kv
     real(r_kind), parameter :: two_thirds = 2.0_r_kind/3.0_r_kind
     real(r_kind) :: I
     integer :: A
     A = N + Z
     I = (N-Z)*1.0_r_kind/real(A,kind=r_kind)
-    volume_term = av*(1-k*I*I)*A
+    volume_term = av*(1-kv*I*I)*A
 end function volume_term
 
-pure elemental real(r_kind) function surface_term(N, Z,as,k)
+pure elemental real(r_kind) function surface_term(N, Z,as,ks)
     integer, intent(in) :: N, Z
-    real(r_kind), intent(in) :: as,k
+    real(r_kind), intent(in) :: as,ks
     real(r_kind), parameter :: two_thirds = 2.0_r_kind/3.0_r_kind
     real(r_kind) :: I
     integer :: A
     A = N + Z
     I = (N-Z)*1.0_r_kind/real(A,kind=r_kind)
-    surface_term = as*(1-k*I*I)*A**two_thirds
+    surface_term = as*(1-ks*I*I)*A**two_thirds
 end function surface_term
 
 pure elemental real(r_kind) function col_term(N, Z, r0)
@@ -329,19 +286,21 @@ end function
     integer :: N
     real(r_kind),intent(in) :: params(num_params), def
     real(r_kind) :: J_vec(num_params)
-    real(r_kind) :: av, as, r0, k, smallC, C, adef
-    av = params(1)
-    as = params(2)
-    k = params(3)
-    r0 = params(4)
-    C = params(5)
-    smallC = params(6)
-    adef = params(7)
+    real(r_kind) :: a0, av, as, r0, kv,ks, smallC, C, adef
+    a0 = params(1)
+    av = params(2)
+    as = params(3)
+    kv = params(4)
+    ks = params(5)
+    r0 = params(6)
+    C = params(7)
+    smallC = params(8)
+    adef = params(9)
     N = A - Z
-    J_vec = [dBe_daV(N,Z,k),dBe_daS(N,Z,k, def),dBe_dk(N,Z,av,as, def),dBe_dr0(N,Z,r0, def, C, smallC, adef),&
+    J_vec = [dBe_da0(), dBe_daV(N,Z,kv),dBe_daS(N,Z,ks, def),dBe_dkv(N,Z,av),dBe_dks(N,Z,as, def),dBe_dr0(N,Z,r0, def, C, smallC, adef),&
             dBe_dC(N,Z,smallC, def, adef, r0),dBe_dsc(N,Z,C, def,adef,r0), &
             dBe_dadef(N,Z,C,smallC,def,adef, r0)]
-    if(isnan(J_vec(1)) .or. J_vec(1) > 1e6) then
+    if(isnan(J_vec(2)) .or. J_vec(2) > 1e6) then
         call exit
     endif
     ! write(*,*)
@@ -349,6 +308,11 @@ end function
     ! write(*,'(A, F10.3)') 'Deformation: ', def
     ! write(*,'(7F10.3)') J_vec
 end function
+
+pure real(r_kind) function dBe_da0()
+    dBe_da0 = 1.0_r_kind
+end function
+
 
 
 pure real(r_kind) function dBe_daV(N,Z,k)
@@ -373,14 +337,24 @@ pure real(r_kind) function dBe_daS(N,Z,k, def)
     dBe_daS = dBe_daS * A**(2.0_r_kind/3.0_r_kind) * def_f(def)
 end function
 
-pure real(r_kind) function dBe_dk(N,Z,av,as, def)
+pure real(r_kind) function dBe_dkv(N,Z,av)
     integer, intent(in) :: N, Z
-    real(r_kind), intent(in) :: av,as, def
+    real(r_kind), intent(in) :: av
     real(r_kind) :: I
     integer :: A
     A = N + Z
     I = (N-Z)*1.0_r_kind/A
-    dBe_dk = -I*I*(av*A+def_f(def)*as*A**(2.0_r_kind/3.0_r_kind))
+    dBe_dkv = -I*I*(av*A)
+end function
+
+pure real(r_kind) function dBe_dks(N,Z,as, def)
+    integer, intent(in) :: N, Z
+    real(r_kind), intent(in) :: as, def
+    real(r_kind) :: I
+    integer :: A
+    A = N + Z
+    I = (N-Z)*1.0_r_kind/A
+    dBe_dks = -I*I*(def_f(def)*as*A**(2.0_r_kind/3.0_r_kind))
 end function
 
 pure real(r_kind) function dBe_dr0(N,Z,r0, def, C, smallC, adef)

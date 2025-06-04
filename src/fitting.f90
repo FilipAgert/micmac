@@ -150,14 +150,14 @@ module fitting
         real(kind=r_kind), intent(inout) :: params(num_params) !!In: Starting guess of parameters. Out: Converged solution
         !!Assume that we have already read exp data.
         real(kind=r_kind) :: Jmat(num_fit_vals,num_params), resid(num_fit_vals), BEs(num_fit_vals), defs(num_fit_vals)
-        real(kind=r_kind) :: sum_sq_err, JT(num_params, num_fit_vals), JTJ(num_params, num_params), RHS(num_params), rms, oldrms
-        integer :: num_nuclei, maxitr, ii
+        real(kind=r_kind) :: sum_sq_err, JT(num_params, num_fit_vals), JTJ(num_params, num_params), RHS(num_params), rms, oldrms, bestrms, bestparams(num_params)
+        integer :: num_nuclei, maxitr, ii, numitr
         logical, intent(out) :: converged
         converged = .false.
         maxitr =1000
         num_nuclei = num_fit_vals
-        
-        WRITE(*,'(8F15.3)') params
+        bestrms = huge(bestrms)
+        WRITE(*,'(9F15.3)') params
         do ii = 1,maxitr
             ! write(*,*) 
             ! write(*,*) 
@@ -177,8 +177,20 @@ module fitting
             params = params + (RHS-params) / 5.0_r_kind
 
             rms = fit_rms(params)
-            write(*,*) oldrms, rms, oldrms-rms
-            if(abs(oldrms-rms) < 1e-5) then
+            if(rms < bestrms) then
+                bestrms = rms
+                bestparams = params
+                numitr = 0
+            else
+                numitr = numitr + 1
+                if(numitr > 20 .and. abs(rms-bestrms) < 1e-2) then
+                    converged = .true.
+                    write(*,'(A,I6,A)')"Fit converged after ", II, " iterations"
+                    exit
+                endif
+            endif
+
+            if(abs(oldrms-rms) < 1e-6) then
                 write(*,'(A,I6,A)')"Fit converged after ", II, " iterations"
                 converged = .true.
                 exit
@@ -194,7 +206,7 @@ module fitting
             endif
             oldrms = rms
         end do
-
+        params = bestparams
     end subroutine
 
     subroutine write_table(params)
@@ -216,12 +228,12 @@ module fitting
             BE_exp = exp_be(idx)
             BEA = BE/(exp_A(idx)*1.0)
             BEA_exp = BE_exp/(exp_A(idx)*1.0)
-            WRITE(*,'(I4, I4,1x,      A3, 1x,F10.3,1x      F12.4,2x,F12.4, 2x,F12.4, 4x,F8.4, 4x,         F10.2, 1x, F5.2,2x F12.2, 2x,F6.2)') &
-            exp_Z(idx), exp_A(idx), exp_elname(idx), def, BEA,    unc_per_a, BEA_exp, ABS(BEA-BEA_exp), BE,        UNC,      BE_exp, abs(BE - BE_exp)
+            WRITE(*,'(I4, I4, I4,1x,      A3, 1x,F10.3,1x,F8.4,A,F6.4, 2x,F12.4, 4x,F8.4, 4x,         F10.2, A, F4.2,2x F12.2, 2x,F6.2)') &
+            exp_A(idx)-exp_Z(idx), exp_Z(idx), exp_A(idx), exp_elname(idx), def, BEA, ' ± ',   unc_per_a, BEA_exp, ABS(BEA-BEA_exp), BE,' ± ',        UNC,      BE_exp, abs(BE - BE_exp)
         end do
         write(*,*)
-        WRITE(*,*) "Z    A           def       MicMac BE/A   UNC          EXP BE/A     DELTA         MicMac BE UNC      EXP BE   DELTA"
-        WRITE(*,*) "Z    A                     (Mev)                      (Mev)        (MEV)         (Mev)              (Mev)    (MeV)"
+        WRITE(*,*) "N    Z    A         beta2   MicMac BE/A             EXP BE/A    DELTA        MicMac BE            EXP BE   DELTA"
+        WRITE(*,*) "N    Z    A                 (Mev)                   (Mev)       (MEV)        (Mev)                (Mev)    (MeV)"
 
     end subroutine write_table
 end module fitting

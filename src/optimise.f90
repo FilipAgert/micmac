@@ -1,9 +1,9 @@
-module minimise
+module optimise
     use constants, only:r_kind, gamma_damp_fac
     implicit none
     !!Module for finding ground state of a nucleus by minimising BE through deformation
     private
-    public :: find_min, one_dim, rand_d, find_local_min, find_min_brute_force
+    public :: find_min, one_dim, rand_d, find_optimal_point, find_min_brute_force
     interface
         function one_dim(x)
             import r_kind
@@ -85,10 +85,10 @@ module minimise
         real(r_kind), intent(out) :: x_min, f_min
         real(r_kind), intent(in) :: x0, x1 !!Bounds on the minimisation
         real(r_kind), intent(in) :: x_start !!Initial guess
-        real(r_kind), parameter :: tol = 1e-9 !!Tolerance for convergence
+        real(r_kind), parameter :: tol = 1e-9_r_kind !!Tolerance for convergence
         procedure(one_dim) :: f
         real(r_kind) :: df, d2f, fpl, fm, p,r, alpha, A, rnext, pnext, betak, Ap, g
-        real(r_kind), parameter :: dx = 1e-5 !!step size for numerical derivatives
+        real(r_kind), parameter :: dx = 1.0e-6_r_kind !!step size for numerical derivatives
         integer, parameter :: max_iter = 100
         real(r_kind) :: x, xprev
         logical, intent(out) :: converged
@@ -143,7 +143,7 @@ module minimise
         endif
     end subroutine conj_grad_method
 
-    subroutine find_local_min(x_min, f_min, converged, f, x0, x1, x_start)
+    subroutine find_optimal_point(x_min, f_min, converged, f, x0, x1, x_start) !!Finds nearest point with derivative 0
         real(r_kind), intent(out) :: x_min, f_min
         real(r_kind), intent(in) :: x0, x1 !!Bounds on the minimisation
         real(r_kind), intent(in) :: x_start !!Initial guess
@@ -193,7 +193,7 @@ module minimise
             x_min = x1
             f_min = f(x1)
         end if
-    end subroutine find_local_min
+    end subroutine find_optimal_point
 
     
 
@@ -281,4 +281,4 @@ module minimise
     end function
 
 
-end module minimise
+end module optimise

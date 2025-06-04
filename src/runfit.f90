@@ -42,9 +42,10 @@ program runfit
     WRITE(*,'(A,F10.3, A)') "Rms: ", fit_rms(params), " (MeV)"
 
     write(*,*)
-    write(*,*) "        a_vol      a_sur       k         r0        C         c       adef"
-    write(*,*) "       (MeV)      (MeV)                (fm)      (MeV)       "
-    write(*,'(A, 7F10.3)') "val: ", params
-    write(*,'(A, 7F10.3)') "unc: ", sqrt(param_cov(1,1)), sqrt(param_cov(2,2)), sqrt(param_cov(3,3)), sqrt(param_cov(4,4)), sqrt(param_cov(5,5)), sqrt(param_cov(6,6)), sqrt(param_cov(7,7))
+    write(*,*) "         a0        a_vol     a_sur    k_v      k_s         r0        C         c       adef"
+    write(*,*) "         (MeV)     (MeV)     (MeV)                       (fm)      (MeV)              (fm)  "
+    write(*,'(A, 9F10.3)') "val: ", params
+    write(*,'(A, 9F10.3)') "unc: ", sqrt(param_cov(1,1)), sqrt(param_cov(2,2)), sqrt(param_cov(3,3)), sqrt(param_cov(4,4)), &
+    sqrt(param_cov(5,5)), sqrt(param_cov(6,6)), sqrt(param_cov(7,7)), sqrt(param_cov(8,8)),  sqrt(param_cov(9,9))
 
 end program runfit

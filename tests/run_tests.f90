@@ -10,7 +10,7 @@ program run_tests
 
   call run_tests_micmac()
   call run_tests_fitting()
-  call run_tests_minimise()
+  call run_tests_optimise()
 
   print *, "==============================="
   print *, "         TESTING DONE"

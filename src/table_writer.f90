@@ -16,7 +16,7 @@ module table_writer
         logical, intent(in) :: write_to_file
         integer, intent(in), dimension(:) :: Zs, As 
         integer :: iunit, i
-        real(r_kind) :: BE, ME, Esh
+        real(r_kind) :: BE, ME, Esh, def
         iunit = 20  ! Output unit number
         if(write_to_file) then 
             open(unit=iunit, file='data/out/table.dat', status='replace')
@@ -27,8 +27,7 @@ module table_writer
         write(iunit, '(A)') "//Z   A     Mass defect (MeV)   Esh (MeV)   beta2    beta4    beta6"
         do i = 1, size(Zs)
             ! Calculate binding energy and mass excess
-
-            BE = binding_energy(params, Zs(i), As(i))
+            call find_gs(BE, def, params, Zs(i), As(i))
             ME = mass_excess(BE, Zs(i), As(i))
             Esh = shell_corr(Zs(i), As(i), params(5),params(6))
 

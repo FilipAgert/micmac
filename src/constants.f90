@@ -3,9 +3,11 @@ module constants
 
 
     integer, parameter :: r_kind = 8
-    integer, parameter :: num_params = 7
+    
+    integer, parameter :: num_params = 9
     !! volume, surf, coul, asym, pairing: -15.46541  15.94866   0.71158  24.03928  50.66491
-    real(r_kind), parameter :: starting_params(num_params) = [-15.63695, 18.40844, 1.78978, 1.21103,3.69404,0.22215, 0.28959] ![-16.786,29.36,1.926,1.2,2.75,9.651] my minimisation
+    real(r_kind), parameter :: starting_params(num_params) = [1.0,-15.63695, 18.40844, 1.78978, 1.78978, 1.21103,3.69404,0.22215, 0.28959] ![-16.786,29.36,1.926,1.2,2.75,9.651] my minimisation
+    real(r_kind), parameter :: fitted_params(num_params) = [7.889, -15.531, 17.529, 1.564, 0.552, 1.210, 6.332, 0.190, 0.487] !!Z .GE. 84
     real(r_kind), parameter :: aparam = 0.28959
     real(r_kind), parameter :: mass_p = 938.27208943
     real(r_kind), parameter :: mass_e = 0.5109989461
@@ -16,7 +18,7 @@ module constants
     real(r_kind), parameter :: pi = ACOS(-1.0_r_kind)
     real(r_kind), parameter :: pi2 = pi*pi
 
-    integer, parameter :: Z_fit_minval = 84 !!84
+    integer, parameter :: Z_fit_minval = 84!!84
     integer, parameter :: N_fit_minval = 0!8 !!126
     real(r_kind), parameter :: max_unc_mev = 0.15_r_kind
 
@@ -27,7 +29,7 @@ module constants
 
 
     !!Finding G.S. minimization parameters
-    integer, parameter :: default_num_restarts = 20
+    integer, parameter :: default_num_restarts = 50
     real(r_kind), parameter :: gamma_damp_fac = 0.5_r_kind
-    real(r_kind), parameter :: default_def_bounds = 0.50_r_kind
+    real(r_kind), parameter :: default_def_bounds = 0.5_r_kind
 end module constants

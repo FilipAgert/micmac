@@ -1,13 +1,13 @@
 module test_minimise
-    use minimise
+    use optimise
     use constants, only: r_kind, default_num_restarts
     use test_utils
 
     implicit none
     private
-    public :: run_tests_minimise
+    public :: run_tests_optimise
     contains 
-    subroutine run_tests_minimise()
+    subroutine run_tests_optimise()
         implicit none
         integer :: n_passed = 0, n_failed = 0
 
@@ -16,7 +16,7 @@ module test_minimise
         call test_1d_minloc(n_passed, n_failed)
         call test_1d_findglobal(n_passed, n_failed)
         print *, "mimimiser results: ", n_passed, " passed,", n_failed, " failed"
-    end subroutine run_tests_minimise
+    end subroutine run_tests_optimise
 
 
     subroutine test_1d_minloc(n_passed, n_failed)
@@ -27,7 +27,7 @@ module test_minimise
 
         ! Dummy test: expected == actual
         expected = 5.0_r_kind/6.0_r_kind
-        call find_local_min(actual, fmin,conv, poly2d,-100.0_r_kind,100.0_r_kind,10.0_r_kind)  ! Replace with actual call: e.g. call micmac_result(actual)
+        call find_optimal_point(actual, fmin,conv, poly2d,-100.0_r_kind,100.0_r_kind,10.0_r_kind)  ! Replace with actual call: e.g. call micmac_result(actual)
         pass = eq_r(expected,actual)
         !print*, "niter = ", niter
         if (pass) then
@@ -45,7 +45,7 @@ module test_minimise
         real(r_kind) :: expected, actual, fmin
         logical :: pass
         logical :: conv
-        call find_local_min(actual, fmin,conv, poly2d,-100.0_r_kind,100.0_r_kind,10.0_r_kind)  ! Replace with actual call: e.g. call micmac_result(actual)
+        call find_optimal_point(actual, fmin,conv, poly2d,-100.0_r_kind,100.0_r_kind,10.0_r_kind)  ! Replace with actual call: e.g. call micmac_result(actual)
         !print*, "niter = ", niter
         expected = -1.0_r_kind/12.0_r_kind
         actual = fmin
