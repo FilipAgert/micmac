@@ -5,7 +5,7 @@ program main
     implicit none
 
 
-    real(r_kind) :: BE, ME, ME_exp, BE_exp, BE_exp_unc, ME_exp_unc, params(num_params), BE2, def
+    real(r_kind) :: BE, ME, ME_exp, BE_exp, BE_exp_unc, ME_exp_unc, params(num_params),  def
     character(len=3) :: El
     integer :: idx
     integer :: Z, A, N

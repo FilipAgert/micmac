@@ -1,13 +1,60 @@
 module micmac
 
     use constants
-    use optimise, only: find_min, one_dim, rand_d, find_min_brute_force
+    use optimise, only: find_min, func_1d
     implicit none
 
 
     private
-    public :: shell_corr, staircase, J_mat, find_gs, binding_energy_def, find_gs_multiple, alpha_to_beta, mass_excess
+    public :: shell_corr, staircase, J_mat, find_gs, binding_energy_def, find_gs_multiple, alpha_to_beta, mass_excess, def_func
+
+
+    type, extends(func_1d) :: def_func !!Class that creates a 1-dimensional function of binding energy as a function of deformation
+        real(r_kind), private :: const, quad, cube, econst, exp
     contains
+        procedure :: eval => calc_be_def
+        procedure :: setup => setup_constants
+    end type
+
+
+    
+    contains
+
+    subroutine setup_constants(self, params, Z, A) 
+        class(def_func) :: self
+        real(r_kind), intent(in) :: params(num_params)
+        integer, intent(in) :: Z, A
+        real(r_kind) :: a0,av, as, kv,ks, r0, C, smallC, adef, surf, colvol
+        integer :: N
+        a0 = params(1)
+        av = params(2)
+        as = params(3)
+        kv = params(4)
+        ks = params(5)
+        r0 = params(6)
+        C = params(7)
+        smallC =params(8)
+        adef = params(9)
+        N = A - Z
+
+        ! Compute components of the function
+        surf     = surface_term(N, Z, as, ks)
+        colvol   = col_vol_term(N, Z, r0)
+        self%const = volume_term(N,Z,av,kv) + surf + col_term(N,Z,r0) + pairing_term(N,Z) + a0
+        self%quad = 2.0_r_kind / 5.0_r_kind * surf - colvol / 5.0_r_kind
+        self%cube  = -(surf + colvol) * 4.0_r_kind / 105.0_r_kind
+        self%econst = shell_corr(N, Z, C, smallC)
+        self%exp  = -1.0_r_kind / (alpha0sq(adef, r0, A))
+    end subroutine
+
+    pure real(r_kind) elemental function calc_be_def(self, x)
+        class(def_func), intent(in) :: self
+        real(r_kind), intent(in) :: x
+        calc_be_def = self%const + x**2 * self%quad + x**3 * self%cube + self%econst * exp(self%exp * x**2)
+    end function
+
+
+
 
 pure function mass_excess(BE, Z, A) result(ME)
     real(r_kind), intent(in) :: BE
@@ -22,7 +69,7 @@ end function mass_excess
 
 
 !!Gets binding energy for a given deformtaion
-function binding_energy_def(params, Z, A, def) result(BE)
+pure function binding_energy_def(params, Z, A, def) result(BE)
     ! This function calculates the binding energy of a nucleus
     real(r_kind), intent(in) :: params(num_params), def
     integer, intent(in) :: Z, A
@@ -83,80 +130,13 @@ subroutine find_gs(BE, def, params, Z, A)
     real(r_kind), intent(out) :: BE, def
     real(r_kind), intent(in) :: params(num_params)
     integer, intent(in) :: Z,A
-    procedure(one_dim), pointer  :: func_def
-    func_def => be_def_func(params, Z, A) !!Gets binding energy as a function of deformation
-
+    type(def_func) :: func
+    call func%setup(params, Z, A)
     !call find_min_brute_force(def, BE, func_def, -default_def_bounds, default_def_bounds)
-    call find_min(def, BE, func_def, -default_def_bounds, default_def_bounds,default_num_restarts) !!Minimize binding energy as a function of deformation
+    call find_min(def, BE, func, -default_def_bounds, default_def_bounds,default_num_restarts) !!Minimize binding energy as a function of deformation
     ! write(*,'(A,I5, A)') "Found ground state after ", Niters, " iterations"
     ! write(*,'(A, f10.3, A, f10.3, A)') "Deformation: ", def, ", binding energy: ", BE, " MeV"
 end subroutine
-
-!!Function takes the binding energy formula and creates a function on the form A + Bx^2 + Cx^3 + Dexp(-x^2/a^2)
-!!Where x is the deformation. This function is then minimzed to find the deformation x and G.S. energy.
-function be_def_func(params, Z, A) result(func)
-    procedure(one_dim), pointer :: func
-    real(r_kind), intent(in) :: params(:)
-    integer, intent(in) :: Z, A
-
-    ! Local variables
-    real(r_kind) :: a0,av, as, kv,ks, r0, C, smallC, adef
-    real(r_kind) :: constant, quadratic, cubic, exponent, expconst
-    real(r_kind) :: surf, colvol
-    integer :: N
-
-    ! Internal function pointer
-    procedure(one_dim), pointer :: f_ptr
-
-    ! Assign parameter values
-    a0 = params(1)
-    av = params(2)
-    as = params(3)
-    kv = params(4)
-    ks = params(5)
-    r0 = params(6)
-    C = params(7)
-    smallC = params(8)
-    adef = params(9)
-    N = A - Z
-
-    ! Compute components of the function
-    surf     = surface_term(N, Z, as, ks)
-    colvol   = col_vol_term(N, Z, r0)
-    constant = volume_term(N,Z,av,kv) + surf + col_term(N,Z,r0) + pairing_term(N,Z) + a0
-    quadratic = 2.0_r_kind / 5.0_r_kind * surf - colvol / 5.0_r_kind
-    cubic     = -(surf + colvol) * 4.0_r_kind / 105.0_r_kind
-    expconst  = shell_corr(N, Z, C, smallC)
-    exponent  = -1.0_r_kind / (alpha0sq(adef, r0, A))
-
-    ! write(*,*) "const", constant
-    ! write(*,*) "quad", quadratic
-    ! write(*,*) "cubic", cubic
-    ! write(*,*) "exp", exponent
-    ! write(*,*) "shellcorr", expconst
-    f_ptr => make_func(constant, quadratic, cubic, exponent, expconst)
-    func => f_ptr
-end function be_def_func
-
-
-function make_func(constant, quadratic, cubic, exponent, expconst) result(f_ptr)
-    procedure(one_dim), pointer :: f_ptr
-    real(r_kind), intent(in) :: constant, quadratic, cubic, exponent, expconst
-
-    procedure(one_dim), pointer :: f
-    f => internal_f
-    f_ptr => f
-    
-
-    contains
-
-    function internal_f(x) result(res)
-        real(r_kind), intent(in) :: x
-        real(r_kind) :: res
-        res = constant + x**2 * quadratic + x**3 * cubic + expconst * exp(exponent * x**2)
-    end function internal_f
-
-end function make_func
 
 
 
