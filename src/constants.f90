@@ -20,6 +20,7 @@ module constants
 
     integer, parameter :: Z_fit_minval = 84!!84
     integer, parameter :: N_fit_minval = 0!8 !!126
+    integer, parameter :: num_def_params
     real(r_kind), parameter :: max_unc_mev = 0.15_r_kind
 
 

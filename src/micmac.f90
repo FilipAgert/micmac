@@ -13,50 +13,92 @@ module micmac
         real(r_kind), private :: const, quad, cube, econst, exp
     contains
         procedure :: eval => calc_be_def
-        procedure :: setup => setup_constants
+        procedure :: setup => setup_constants_1d
         procedure :: print => print_func
+    end type
+
+    type :: deformation 
+        real(r_kind) :: alphas(2:num_def_params)
+    end type
+
+    type, extends(func_nd) :: def_func_ho !!Class that creates a 1-dimensional function of binding energy as a function of deformation
+        real(r_kind), private :: const, surf, colvol, econst, exp
+    contains
+        procedure :: eval => calc_be_def_nd
+        procedure :: setup => setup_constants_nd
     end type
 
 
     
     contains
 
-    subroutine print_func(self)
-        class(def_func) :: self
-        write(*,'(f10.3,A, f10.3,A,f10.3,A,f10.3,A,f10.3,A)') self%const, " + ", self%quad,"x^2 + ", self%cube, " x^3 + ", self%econst ,"exp(",self%exp,'x^2)'
-    end subroutine
+subroutine print_func(self)
+    class(def_func) :: self
+    write(*,'(f10.3,A, f10.3,A,f10.3,A,f10.3,A,f10.3,A)') self%const, " + ", self%quad,"x^2 + ", self%cube, " x^3 + ", self%econst ,"exp(",self%exp,'x^2)'
+end subroutine
 
-    subroutine setup_constants(self, params, Z, A) 
-        class(def_func) :: self
-        real(r_kind), intent(in) :: params(num_params)
-        integer, intent(in) :: Z, A
-        real(r_kind) :: av, as, k, r0, C, smallC, adef, surf, colvol
-        integer :: N
-        av = params(1)
-        as = params(2)
-        k = params(3)
-        r0 = params(4)
-        C = params(5)
-        smallC =params(6)
-        adef = params(7)
-        N = A - Z
+subroutine setup_constants_nd(self, params, Z, A) 
+    class(def_func) :: self
+    real(r_kind), intent(in) :: params(num_params)
+    integer, intent(in) :: Z, A
+    real(r_kind) :: av, as, k, r0, C, smallC, adef, surf, colvol
+    integer :: N
+    av = params(1)
+    as = params(2)
+    k = params(3)
+    r0 = params(4)
+    C = params(5)
+    smallC =params(6)
+    adef = params(7)
+    N = A - Z
 
-        ! Compute components of the function
-        surf     = surface_term(N, Z, as, k)
-        colvol   = col_vol_term(N, Z, r0)
-        self%const = volume_term(N,Z,av,k) + surf + col_term(N,Z,r0) + pairing_term(N,Z)
-        self%quad = 2.0_r_kind / 5.0_r_kind * surf - colvol / 5.0_r_kind
-        self%cube  = -(surf + colvol) * 4.0_r_kind / 105.0_r_kind
-        self%econst = shell_corr(N, Z, C, smallC)
-        self%exp  = -1.0_r_kind / (alpha0sq(adef, r0, A))
-    end subroutine
+    ! Compute components of the function
+    self%surf     = surface_term(N, Z, as, k)
+    self%colvol   = col_vol_term(N, Z, r0)
+    self%const = volume_term(N,Z,av,k) + col_corr_term(N,Z,r0) + pairing_term(N,Z)
+    self%econst = shell_corr(N, Z, C, smallC)
+    self%exp  = -1.0_r_kind / (alpha0sqho(adef, r0, A))
+end subroutine
 
-    pure real(r_kind) elemental function calc_be_def(self, x)
-        class(def_func), intent(in) :: self
-        real(r_kind), intent(in) :: x
-        calc_be_def = self%const + x**2 * self%quad + x**3 * self%cube + self%econst * exp(self%exp * x**2)
-    end function
 
+subroutine setup_constants_1d(self, params, Z, A) 
+    class(def_func) :: self
+    real(r_kind), intent(in) :: params(num_params)
+    integer, intent(in) :: Z, A
+    real(r_kind) :: av, as, k, r0, C, smallC, adef, surf, colvol
+    integer :: N
+    av = params(1)
+    as = params(2)
+    k = params(3)
+    r0 = params(4)
+    C = params(5)
+    smallC =params(6)
+    adef = params(7)
+    N = A - Z
+
+    ! Compute components of the function
+    surf     = surface_term(N, Z, as, k)
+    colvol   = col_vol_term(N, Z, r0)
+    self%const = volume_term(N,Z,av,k) + surf + col_term(N,Z,r0) + pairing_term(N,Z)
+    self%quad = 2.0_r_kind / 5.0_r_kind * surf - colvol / 5.0_r_kind
+    self%cube  = -(surf + colvol) * 4.0_r_kind / 105.0_r_kind
+    self%econst = shell_corr(N, Z, C, smallC)
+    self%exp  = -1.0_r_kind / (alpha0sq(adef, r0, A))
+end subroutine
+
+pure real(r_kind) elemental function calc_be_def(self, x)
+    class(def_func), intent(in) :: self
+    real(r_kind), intent(in) :: x
+    calc_be_def = self%const + x**2 * self%quad + x**3 * self%cube + self%econst * exp(self%exp * x**2)
+end function
+
+pure real(r_kind) elemental function calc_be_def_nd(self, x)
+    class(def_func_ho), intent(in) :: self
+    real(r_kind), intent(in) :: x(:)
+    type(deformation) :: def
+    def%alphas(2:num_def_params) = x
+    calc_be_def = self%const + self%econst * exp(self%exp * eff_def_sq(def)) + self%surf*def_f_ho(def) + self%colvol*def_g_ho(def)
+end function
 
 
 
@@ -223,6 +265,41 @@ pure elemental real(r_kind) function shell_damp_fac(N,Z, def, adef, r0) result(f
     fac = exp(-def**2/alph0sq)
 end function
 
+pure elemental real(r_kind) function shell_damp_fac_ho(N,Z, def, adef, r0) result(fac)
+    integer, intent(in) :: N, Z
+    real(r_kind), intent(in) :: adef, r0
+    real(r_kind) :: alph0
+    type(deformation), intent(in) :: def
+    integer :: A
+    A = N + Z
+    alph0sq = alpha0sqho(adef, r0, A)
+    fac = exp(-eff_def_sq(def)/alph0sq)
+end function
+
+pure elemental function def_f_ho(def) result(f) !!10.1103/PhysRev.104.993
+    type(deformation) :: def
+    real(r_kind) :: a2,a3,a4
+    a2 = def%alphas(2)
+    a3 = def%alphas(3)
+    a4 = def%alphas(4)
+
+    f = 1.0_r_kind + a2**2*(2.0_r_kind/5.0_r_kind) - a2**3 * 4.0_r_kind/105.0_r_kind - a2**4*(38.0_r_kind/175.0_r_kind) - a2**2*a4*(4.0_r_kind/35.0_r_kind)&
+      +  a4**2  + a3**2 * ((5.0_r_kind/7.0_r_kind) - (8.0_r_kind/105.0_r_kind) * a2 - (18346.0_r_kind/13475.0_r_kind) * a2**2 - (4.0_r_kind/77.0_r_kind))
+end function
+
+pure elemental function def_g_ho(def) result(g) !!10.1103/PhysRev.104.993
+    type(deformation) :: def
+    real(r_kind) :: a2,a3,a4
+    a2 = def%alphas(2)
+    a3 = def%alphas(3)
+    a4 = def%alphas(4)
+
+    g = 1.0_r_kind-(a2**2)/5.0_r_kind - a2**3 * 4.0_r_kind/105.0_r_kind + a2**4*(157.0_r_kind/1225.0_r_kind)&
+      - a2**2*a4*(6.0_r_kind/35.0_r_kind) - a4**2*(5.0_r_kind/27.0_r_kind) &
+      + a3**2 * (-(10.0_r_kind/49.0_r_kind) - a2*(92.0_r_kind/735.0_r_kind) &
+      + (1701748.0_r_kind/3112725.0_r_kind) * a2**2 - (60.0_r_kind/539.0_r_kind)*a4)
+end function
+
 
 pure elemental function def_f(alpha)
     real(r_kind), intent(in) :: alpha
@@ -245,6 +322,15 @@ pure elemental function alpha0sq(adef, r0, A)
     real(r_kind) :: alpha0sq
 
     alpha0sq = 5.0_r_kind * (adef/r0)**2 * A**(-2.0_r_kind/3.0_r_kind)
+
+end function
+
+pure elemental function alpha0sqho(adef, r0, A)
+    real(r_kind), intent(in) :: adef, r0
+    integer, intent(in) :: A
+    real(r_kind) :: alpha0sqho
+
+    alpha0sqho = (adef/r0)**2 * A**(-2.0_r_kind/3.0_r_kind)
 
 end function
 
@@ -438,5 +524,17 @@ pure elemental real(r_kind) function alpha_to_beta(alpha) result(beta)
     beta = sqrt(5/(4*pi)) * alpha
 
 end function
+
+pure elemental real(r_kind) function eff_def_sq(def) result(a)
+    type(deformation), intent(in) :: def
+    !!Calculate (deltaR)^2/R0
+    integer :: n
+    a = 0.0_r_kind
+    do n = 2, num_def_params
+        a = a + def%alphas(n)**2 / real(2*n+1,r_kind)
+    end do
+end function
+
+
 
 end module micmac
