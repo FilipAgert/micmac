@@ -1,6 +1,6 @@
 module table_writer
     use constants
-    use micmac
+    use micmac, only:find_gs, mass_excess, Eshell, alpha_to_beta
     implicit none
 
 
@@ -16,7 +16,7 @@ module table_writer
         logical, intent(in) :: write_to_file
         integer, intent(in), dimension(:) :: Zs, As 
         integer :: iunit, i
-        real(r_kind) :: BE, ME, Esh, def
+        real(r_kind) :: BE, ME, Esh, def, beta2
         iunit = 20  ! Output unit number
         if(write_to_file) then 
             open(unit=iunit, file='data/out/table.dat', status='replace')
@@ -29,11 +29,11 @@ module table_writer
             ! Calculate binding energy and mass excess
             call find_gs(BE, def, params, Zs(i), As(i))
             ME = mass_excess(BE, Zs(i), As(i))
-            Esh = shell_corr(Zs(i), As(i), params(5),params(6))
-
+            Esh = Eshell(As(i), Zs(i), params(7), params(8), params(6),params(9), def)
+            beta2 = alpha_to_beta(def)
             ! Write the data for each nucleus
             write(iunit, '(I3, 3x,I3,3x, F10.3,5x, F10.3,6x, F5.2, 4x, F5.2,4x, F5.2)') &
-                Zs(i), As(i), ME, Esh, 0.0,0.0,0.0
+                Zs(i), As(i), ME, Esh, beta2,0.0,0.0
             end do
 
         if(write_to_file) then

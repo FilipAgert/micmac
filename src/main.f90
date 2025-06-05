@@ -13,7 +13,7 @@ program main
     A = 238
     N = A - Z
 
-    params = starting_params
+    params = fitted_params
     write(*,*)'Starting params', starting_params
     call find_gs(BE, def,params, Z,A)
     ME = mass_excess(BE, Z,A)

@@ -2,14 +2,14 @@ module fitting
     use constants
     use micmac
     use mass_table
-    use table_writer
     implicit none
     
-    
-    real(r_kind), dimension(:),allocatable  :: exp_be, exp_be_unc, exp_me, exp_me_unc
-    integer, dimension(:),allocatable  :: exp_Z, exp_A
-    character(len=3), dimension(:), allocatable :: exp_elname
-    integer :: num_fit_vals
+    private
+    public :: read_fit_exp_data, fit_param_cov, fit_iterative, fit_rms, write_table
+    real(r_kind), dimension(:),public,allocatable  :: exp_be, exp_be_unc, exp_me, exp_me_unc
+    integer, dimension(:),allocatable, public :: exp_Z, exp_A
+    character(len=3), dimension(:), allocatable, public :: exp_elname
+    integer, public :: num_fit_vals
 
     contains
     !!Reads relevant exp data to fit against

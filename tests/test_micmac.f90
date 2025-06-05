@@ -16,6 +16,7 @@ contains
         call test_staircase_low(n_passed, n_failed)
         call test_staircase_mid(n_passed, n_failed)
         call test_find_gs(n_passed, n_failed)
+        call test_F(n_passed,n_failed)
         print *, "micmac results: ", n_passed, " passed,", n_failed, " failed"
     end subroutine run_tests_micmac
 
@@ -77,5 +78,23 @@ contains
         ! write(*,*) "BE with no def: ", BE2
     end subroutine
 
+    subroutine test_F(n_passed,n_failed)
+        integer, intent(inout) :: n_passed, n_failed
+        real(r_kind) :: expected, actual
+        logical :: pass
+        integer :: Z, A
+        real(r_kind) :: BE, def, BE2, BE3, BE4
+        real(r_kind), dimension(num_params) :: params
+        expected = 0.0_r_kind
+        actual = F(82,.true.)
+        pass = eq_r(expected, actual)  ! Replace with actual call: e.g. call micmac_result(actual)
+        if (pass) then
+            n_passed = n_passed + 1
+        else
+            n_failed = n_failed + 1
+            print *, "FAIL: test_example - expected", expected, "but got", actual
+        end if
+
+    end subroutine
     
 end module test_micmac

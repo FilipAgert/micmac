@@ -6,7 +6,7 @@ module micmac
 
 
     private
-    public :: shell_corr, staircase, J_mat, find_gs, binding_energy_def, find_gs_multiple, alpha_to_beta, mass_excess, def_func
+    public :: staircase, J_mat, find_gs, binding_energy_def, find_gs_multiple, alpha_to_beta, mass_excess, def_func, Eshell, alpha0sq, F
 
 
     type, extends(func_1d) :: def_func !!Class that creates a 1-dimensional function of binding energy as a function of deformation
@@ -14,33 +14,37 @@ module micmac
     contains
         procedure :: eval => calc_be_def
         procedure :: setup => setup_constants
+        procedure :: print => print_func
     end type
 
 
     
     contains
 
+    subroutine print_func(self)
+        class(def_func) :: self
+        write(*,'(f10.3,A, f10.3,A,f10.3,A,f10.3,A,f10.3,A)') self%const, " + ", self%quad,"x^2 + ", self%cube, " x^3 + ", self%econst ,"exp(",self%exp,'x^2)'
+    end subroutine
+
     subroutine setup_constants(self, params, Z, A) 
         class(def_func) :: self
         real(r_kind), intent(in) :: params(num_params)
         integer, intent(in) :: Z, A
-        real(r_kind) :: a0,av, as, kv,ks, r0, C, smallC, adef, surf, colvol
+        real(r_kind) :: av, as, k, r0, C, smallC, adef, surf, colvol
         integer :: N
-        a0 = params(1)
-        av = params(2)
-        as = params(3)
-        kv = params(4)
-        ks = params(5)
-        r0 = params(6)
-        C = params(7)
-        smallC =params(8)
-        adef = params(9)
+        av = params(1)
+        as = params(2)
+        k = params(3)
+        r0 = params(4)
+        C = params(5)
+        smallC =params(6)
+        adef = params(7)
         N = A - Z
 
         ! Compute components of the function
-        surf     = surface_term(N, Z, as, ks)
+        surf     = surface_term(N, Z, as, k)
         colvol   = col_vol_term(N, Z, r0)
-        self%const = volume_term(N,Z,av,kv) + surf + col_term(N,Z,r0) + pairing_term(N,Z) + a0
+        self%const = volume_term(N,Z,av,k) + surf + col_term(N,Z,r0) + pairing_term(N,Z)
         self%quad = 2.0_r_kind / 5.0_r_kind * surf - colvol / 5.0_r_kind
         self%cube  = -(surf + colvol) * 4.0_r_kind / 105.0_r_kind
         self%econst = shell_corr(N, Z, C, smallC)
@@ -76,20 +80,18 @@ pure function binding_energy_def(params, Z, A, def) result(BE)
     real(r_kind) :: BE
     
     integer :: N
-    real(r_kind) :: av, as, r0, kv,ks, smallC, C, adef, alph0sq, a0
-    a0 = params(1)
-    av = params(2)
-    as = params(3)
-    kv = params(4)
-    ks = params(5)
-    r0 = params(6)
-    C = params(7)
-    smallC = params(8)
-    adef = params(9)
+    real(r_kind) :: av, as, r0, kv, smallC, C, adef, alph0sq
+    av = params(1)
+    as = params(2)
+    kv = params(3)
+    r0 = params(4)
+    C = params(5)
+    smallC = params(6)
+    adef = params(7)
     alph0sq = alpha0sq(adef, r0, A)
     
     N = A - Z
-    BE = a0 + volume_term(N,Z,av,kv) + surface_term(N,Z,as,ks)*def_f(def) + &
+    BE = volume_term(N,Z,av,kv) + surface_term(N,Z,as,kv)*def_f(def) + &
         col_vol_term(N,Z,r0)*def_g(def) + col_corr_term(N,Z,r0) + &
         pairing_term(N,Z) + shell_corr(N,Z,C, smallC)*shell_damp_fac(N,Z,def,adef,r0)
     ! WRITE(*,*) "Def:", def, ", BE:", BE
@@ -222,14 +224,14 @@ pure elemental real(r_kind) function shell_damp_fac(N,Z, def, adef, r0) result(f
 end function
 
 
-pure function def_f(alpha)
+pure elemental function def_f(alpha)
     real(r_kind), intent(in) :: alpha
     real(r_kind) :: def_f
     def_f = 1+(alpha**2)*2.0_r_kind/5.0_r_kind - alpha**3 * 4.0_r_kind/105.0_r_kind
 
 end function
 
-pure function def_g(alpha)
+pure elemental function def_g(alpha)
     real(r_kind), intent(in) :: alpha
     real(r_kind) :: def_g
     def_g = 1-(alpha**2)/5.0_r_kind - alpha**3 * 4.0_r_kind/105.0_r_kind
@@ -237,7 +239,7 @@ pure function def_g(alpha)
 end function
 
 
-pure function alpha0sq(adef, r0, A)
+pure elemental function alpha0sq(adef, r0, A)
     real(r_kind), intent(in) :: adef, r0
     integer, intent(in) :: A
     real(r_kind) :: alpha0sq
@@ -246,13 +248,14 @@ pure function alpha0sq(adef, r0, A)
 
 end function
 
- function J_mat(Zs, As, defs, num_nuclei, params)
+pure function J_mat(Zs, As, defs, num_nuclei, params)
     implicit none
     integer, intent(in), dimension(num_nuclei) :: As, Zs
     integer,intent(in) :: num_nuclei
     real(r_kind), intent(in) :: params(num_params), defs(num_nuclei)
     integer :: i, Z,A
     real(r_kind) :: J_mat(num_nuclei,num_params), def
+
     do i = 1,num_nuclei
         Z = Zs(i)
         A = As(i)
@@ -261,28 +264,24 @@ end function
     end do
 end function
 
- function J_vec(Z,A,params, def)
+pure function J_vec(Z,A,params, def)
     integer, intent(in) :: Z,A
     integer :: N
     real(r_kind),intent(in) :: params(num_params), def
     real(r_kind) :: J_vec(num_params)
-    real(r_kind) :: a0, av, as, r0, kv,ks, smallC, C, adef
-    a0 = params(1)
-    av = params(2)
-    as = params(3)
-    kv = params(4)
-    ks = params(5)
-    r0 = params(6)
-    C = params(7)
-    smallC = params(8)
-    adef = params(9)
+    real(r_kind) :: a0, av, as, r0, kv, smallC, C, adef
+    av = params(1)
+    as = params(2)
+    kv = params(3)
+    r0 = params(4)
+    C = params(5)
+    smallC = params(6)
+    adef = params(7)
     N = A - Z
-    J_vec = [dBe_da0(), dBe_daV(N,Z,kv),dBe_daS(N,Z,ks, def),dBe_dkv(N,Z,av),dBe_dks(N,Z,as, def),dBe_dr0(N,Z,r0, def, C, smallC, adef),&
+    J_vec = [dBe_daV(N,Z,kv),dBe_daS(N,Z,kv, def),dBe_dkv(N,Z,av,as,def),dBe_dr0(N,Z,r0, def, C, smallC, adef),&
             dBe_dC(N,Z,smallC, def, adef, r0),dBe_dsc(N,Z,C, def,adef,r0), &
             dBe_dadef(N,Z,C,smallC,def,adef, r0)]
-    if(isnan(J_vec(2)) .or. J_vec(2) > 1e6) then
-        call exit
-    endif
+
     ! write(*,*)
     ! write(*,'(A,2I4)') "Z, A: ", Z, A
     ! write(*,'(A, F10.3)') 'Deformation: ', def
@@ -295,7 +294,7 @@ end function
 
 
 
-pure real(r_kind) function dBe_daV(N,Z,k)
+pure elemental real(r_kind) function dBe_daV(N,Z,k)
     integer, intent(in) :: N, Z
     real(r_kind), intent(in) :: k
     real(r_kind) :: I
@@ -306,7 +305,7 @@ pure real(r_kind) function dBe_daV(N,Z,k)
     dBe_daV = dBe_daV * A
 end function
 
-pure real(r_kind) function dBe_daS(N,Z,k, def)
+pure elemental real(r_kind) function dBe_daS(N,Z,k, def)
     integer, intent(in) :: N, Z
     real(r_kind), intent(in) :: k, def
     real(r_kind) :: I
@@ -317,27 +316,18 @@ pure real(r_kind) function dBe_daS(N,Z,k, def)
     dBe_daS = dBe_daS * A**(2.0_r_kind/3.0_r_kind) * def_f(def)
 end function
 
-pure real(r_kind) function dBe_dkv(N,Z,av)
+pure elemental real(r_kind) function dBe_dkv(N,Z,av, as, def)
     integer, intent(in) :: N, Z
-    real(r_kind), intent(in) :: av
+    real(r_kind), intent(in) :: av, as, def
     real(r_kind) :: I
     integer :: A
     A = N + Z
     I = (N-Z)*1.0_r_kind/A
-    dBe_dkv = -I*I*(av*A)
+    dBe_dkv = -I*I*(av*A) -I*I*(def_f(def)*as*A**(2.0_r_kind/3.0_r_kind))
 end function
 
-pure real(r_kind) function dBe_dks(N,Z,as, def)
-    integer, intent(in) :: N, Z
-    real(r_kind), intent(in) :: as, def
-    real(r_kind) :: I
-    integer :: A
-    A = N + Z
-    I = (N-Z)*1.0_r_kind/A
-    dBe_dks = -I*I*(def_f(def)*as*A**(2.0_r_kind/3.0_r_kind))
-end function
 
-pure real(r_kind) function dBe_dr0(N,Z,r0, def, C, smallC, adef)
+pure elemental real(r_kind) function dBe_dr0(N,Z,r0, def, C, smallC, adef)
     integer, intent(in) :: N, Z
     real(r_kind), intent(in) :: r0, def, c, smallC, adef
     integer :: A
@@ -359,7 +349,7 @@ pure elemental real(r_kind) function dBe_dsc(N,Z,C, def, adef, r0)
 end function dBe_dsc
 
 !!Partial derivate of shell correction with respect to C
-real(r_kind) function dBe_dC(N,Z,smallC, def, adef, r0)
+real(r_kind) elemental function dBe_dC(N,Z,smallC, def, adef, r0)
     integer, intent(in) :: N, Z
     real(r_kind), intent(in) :: smallC, def, adef, r0
     integer :: A
@@ -388,10 +378,19 @@ pure elemental real(r_kind) function shell_corr(N,Z, C, smallC)
     shell_corr = shell_corr * C
 end function
 
+pure elemental real(r_kind) function Eshell(A,Z,C,smallC, r0, adef, def)
+    integer, intent(in) :: A, Z
+    real(r_kind), intent(in) :: C, smallC, r0, adef, def
+    integer :: N
+    N = A-Z
+    Eshell = shell_corr(N,Z,c,smallC) * shell_damp_fac(N,Z,def,adef,r0)
+
+end function
 
 
 
-pure real(r_kind) function F(N,proton)
+
+pure elemental real(r_kind) function F(N,proton)
     integer, intent(in) :: N !!Nucleon number
     logical,intent(in) :: proton !!proton or neutron
     real(r_kind) ::fold
@@ -407,6 +406,7 @@ pure real(r_kind) function F(N,proton)
         allocate(magics(sz))
         magics = magic_num_N
     endif
+    
     do ii = 1,sz
         magic = magics(ii)
         if(magic > N) then
@@ -433,7 +433,7 @@ pure real(r_kind) function staircase(n, magics) !!Gets staircase function at val
 end function
 
 
-pure real(r_kind) function alpha_to_beta(alpha) result(beta)
+pure elemental real(r_kind) function alpha_to_beta(alpha) result(beta)
     real(r_kind), intent(in) :: alpha
     beta = sqrt(5/(4*pi)) * alpha
 

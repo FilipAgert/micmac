@@ -3,27 +3,17 @@ module optimise
     implicit none
     !!Module for finding ground state of a nucleus by minimising BE through deformation
     private
-    public :: find_min, one_dim, rand_d, find_optimal_point, func_1d
-    interface
-        function one_dim(x)
-            import r_kind
-            real(r_kind), intent(in) :: x
-            real(r_kind) :: one_dim
-        end function one_dim
-
-        function n_dim(x)
-            import r_kind
-            real(r_kind), intent(in) :: x(:)
-            real(r_kind) :: n_dim
-        end function n_dim
-
-    end interface
-
-
+    public :: find_min,  rand_d, find_optimal_point, func_1d
 
     type, abstract :: func_1d
     contains
         procedure(f_int), deferred :: eval 
+    end type
+
+    type, abstract :: func_nd
+    contains
+        procedure(f_mul), deferred :: eval
+
     end type
 
     abstract interface
@@ -32,6 +22,13 @@ module optimise
             class(func_1d), intent(in) :: self
             real(r_kind), intent(in) :: x
         end function
+
+        pure real(r_kind) function f_mul(self, xs)
+            import :: func_nd, r_kind
+            class(func_nd), intent(in) :: self
+            real(r_kind), intent(in) :: xs(:)
+        end function
+        
     end interface
     contains
 
@@ -192,54 +189,54 @@ module optimise
 
     
 
-    function grad(f,x, dim)
-        implicit none
-        ! Calculate the gradient of a function at a point x
-        real(r_kind), intent(in), dimension(dim) :: x
-        integer, intent(in) :: dim
-        procedure(n_dim) :: f
-        real(r_kind) :: grad(dim)
-        real(r_kind), parameter :: dx = 1e-6
-        real(r_kind) :: dxv(dim)
-        integer :: i
-        dxv = 0.0_r_kind
-        do i =1,dim
-            dxv(i) = dx
-            grad(i) = (f(x + dxv) - f(x - dxv)) / (2.0_r_kind * dx)
-            dxv(i) = 0.0_r_kind  ! Reset the perturbation for the next dimension
-        end do
-    end function grad
+    ! function grad(f,x, dim)
+    !     implicit none
+    !     ! Calculate the gradient of a function at a point x
+    !     real(r_kind), intent(in), dimension(dim) :: x
+    !     integer, intent(in) :: dim
+    !     procedure(n_dim) :: f
+    !     real(r_kind) :: grad(dim)
+    !     real(r_kind), parameter :: dx = 1e-6
+    !     real(r_kind) :: dxv(dim)
+    !     integer :: i
+    !     dxv = 0.0_r_kind
+    !     do i =1,dim
+    !         dxv(i) = dx
+    !         grad(i) = (f(x + dxv) - f(x - dxv)) / (2.0_r_kind * dx)
+    !         dxv(i) = 0.0_r_kind  ! Reset the perturbation for the next dimension
+    !     end do
+    ! end function grad
 
-    function hessian(f, x, dim)
-        implicit none
-        ! Calculate the Hessian matrix of a function at a point x
-        real(r_kind), intent(in), dimension(dim) :: x
-        integer, intent(in) :: dim
-        procedure(n_dim) :: f
-        real(r_kind), dimension(dim,dim) :: hessian, gradient(dim)
-        real(r_kind), parameter :: dx = 1e-6
-        real(r_kind) :: dxv(dim), dxv2(dim)
-        integer :: i, j
+    ! function hessian(f, x, dim)
+    !     implicit none
+    !     ! Calculate the Hessian matrix of a function at a point x
+    !     real(r_kind), intent(in), dimension(dim) :: x
+    !     integer, intent(in) :: dim
+    !     procedure(n_dim) :: f
+    !     real(r_kind), dimension(dim,dim) :: hessian, gradient(dim)
+    !     real(r_kind), parameter :: dx = 1e-6
+    !     real(r_kind) :: dxv(dim), dxv2(dim)
+    !     integer :: i, j
 
-        dxv = 0.0_r_kind
-        hessian = 0.0_r_kind
-        do i = 1, dim
+    !     dxv = 0.0_r_kind
+    !     hessian = 0.0_r_kind
+    !     do i = 1, dim
 
-            dxv(i) = dx
-            dxv2 = 0.0_r_kind  ! Copy dxv for the second derivative calculationd
-            do j = 1, dim
-                if (i == j) then
-                    hessian(i,j) = (f(x + dxv) - 2.0_r_kind * f(x) + f(x - dxv)) / (dx * dx)
-                else
-                    dxv2(j) = dx
-                    hessian(i,j) = (f(x + dxv + dxv2) - f(x+dxv-dxv2) - f(x-dxv + dxv2) + f(x-dxv-dxv2)) / (4.0_r_kind * dx*dx)
-                    dxv2(j) = 0.0_r_kind  ! Reset the perturbation for the next dimension
-                end if
-            end do
-            dxv(i) = 0.0_r_kind
-        end do
+    !         dxv(i) = dx
+    !         dxv2 = 0.0_r_kind  ! Copy dxv for the second derivative calculationd
+    !         do j = 1, dim
+    !             if (i == j) then
+    !                 hessian(i,j) = (f(x + dxv) - 2.0_r_kind * f(x) + f(x - dxv)) / (dx * dx)
+    !             else
+    !                 dxv2(j) = dx
+    !                 hessian(i,j) = (f(x + dxv + dxv2) - f(x+dxv-dxv2) - f(x-dxv + dxv2) + f(x-dxv-dxv2)) / (4.0_r_kind * dx*dx)
+    !                 dxv2(j) = 0.0_r_kind  ! Reset the perturbation for the next dimension
+    !             end if
+    !         end do
+    !         dxv(i) = 0.0_r_kind
+    !     end do
         
-    end function hessian
+    ! end function hessian
 
 
     function rand_d(a, b)
