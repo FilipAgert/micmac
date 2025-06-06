@@ -63,7 +63,8 @@ contains
         real(r_kind) :: expected, actual
         logical :: pass
         integer :: Z, A
-        real(r_kind) :: BE, def, BE2, BE3, BE4
+        real(r_kind) :: BE, BE2, BE3, BE4
+        type(deformation):: def 
         real(r_kind), dimension(num_params) :: params
         params = starting_params
         Z = 92
@@ -83,7 +84,8 @@ contains
         real(r_kind) :: expected, actual
         logical :: pass
         integer :: Z, A
-        real(r_kind) :: BE, def, BE2, BE3, BE4
+        real(r_kind) :: BE,  BE2, BE3, BE4
+        type(deformation):: def 
         real(r_kind), dimension(num_params) :: params
         expected = 0.0_r_kind
         actual = F(82,.true.)

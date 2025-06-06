@@ -1,7 +1,7 @@
 program run_tests
   use test_micmac
   use test_fitting
-  use test_minimise
+  use test_optimise
   implicit none
 
   print *, "==============================="

@@ -1,4 +1,4 @@
-module test_minimise
+module test_optimise
     use optimise
     use constants, only: r_kind, default_num_restarts
     use test_utils
@@ -9,7 +9,7 @@ module test_minimise
         procedure :: eval =>  poly2d
     end type
 
-    type, extends(func_1d) :: redh
+    type, extends(func_nd) :: redh
     contains
         procedure :: eval =>  red_herring_poly
     end type
@@ -74,13 +74,15 @@ module test_minimise
 
     subroutine test_1d_findglobal(n_passed,n_failed)
         integer, intent(inout) :: n_passed, n_failed
-        real(r_kind) :: expected, actual, fmin,xmin
+        real(r_kind) :: expected, actual, fmin,xmin(1), lb(1), ub(1)
         logical :: pass
         type(redh) :: func
-        call find_min(xmin, fmin, func,-10.0_r_kind,10.0_r_kind,10)  ! Replace with actual call: e.g. call micmac_result(actual)
+        lb = -10
+        ub = 10
+        call find_min(xmin, fmin, func,lb, ub,10, 1)  ! Replace with actual call: e.g. call micmac_result(actual)
         !print*, "niter = ", niter
         expected = -2.63891740462711_r_kind
-        actual = xmin
+        actual = xmin(1)
         pass = eq_r(expected, actual)  ! Replace with actual call: e.g. call micmac_result(actual)
         if (pass) then
             n_passed = n_passed + 1
@@ -111,14 +113,14 @@ module test_minimise
 
     end function
 
-    pure elemental function red_herring_poly(self, x) result(f)
+    pure function red_herring_poly(self, xs) result(f)
         ! A simple quadratic function for testing
-        real(r_kind), intent(in) :: x
+        real(r_kind), intent(in) :: xs(:)
         class(redh), intent(in) :: self
         real(r_kind) :: f
 
-        f = x**4 + 3*x**3 - 3*x**2 -5*x
+        f = xs(1)**4 + 3*xs(1)**3 - 3*xs(1)**2 -5*xs(1)
 
     end function
 
-end module test_minimise
+end module test_optimise

@@ -1,7 +1,7 @@
 module micmac
 
     use constants
-    use optimise, only: find_min, func_1d, func_nd
+    use optimise, only: find_min, func_nd
     implicit none
 
 
@@ -9,7 +9,7 @@ module micmac
     public :: staircase, J_mat, find_gs, binding_energy_def, find_gs_multiple, alpha_to_beta, mass_excess, def_func, Eshell, alpha0sq, F, deformation
 
 
-    type, extends(func_1d) :: def_func !!Class that creates a 1-dimensional function of binding energy as a function of deformation
+    type, extends(func_nd) :: def_func !!Class that creates a 1-dimensional function of binding energy as a function of deformation
         real(r_kind), private :: const, quad, cube, econst, exp
     contains
         procedure :: eval => calc_be_def
@@ -41,7 +41,7 @@ subroutine setup_constants_nd(self, params, Z, A)
     class(def_func_ho) :: self
     real(r_kind), intent(in) :: params(num_params)
     integer, intent(in) :: Z, A
-    real(r_kind) :: av, as, k, r0, C, smallC, adef, surf, colvol
+    real(r_kind) :: av, as, k, r0, C, smallC, adef
     integer :: N
     av = params(1)
     as = params(2)
@@ -86,10 +86,10 @@ subroutine setup_constants_1d(self, params, Z, A)
     self%exp  = -1.0_r_kind / (alpha0sq(adef, r0, A))
 end subroutine
 
-pure real(r_kind) elemental function calc_be_def(self, x)
+pure real(r_kind) function calc_be_def(self, xs)
     class(def_func), intent(in) :: self
-    real(r_kind), intent(in) :: x
-    calc_be_def = self%const + x**2 * self%quad + x**3 * self%cube + self%econst * exp(self%exp * x**2)
+    real(r_kind), intent(in) :: xs(:)
+    calc_be_def = self%const + xs(1)**2 * self%quad + xs(1)**3 * self%cube + self%econst * exp(self%exp * xs(1)**2)
 end function
 
 pure real(r_kind) function calc_be_def_nd(self, xs)
@@ -177,13 +177,15 @@ subroutine find_gs(BE, def, params, Z, A)
     type(deformation), intent(out):: def
     real(r_kind), intent(in) :: params(num_params)
     integer, intent(in) :: Z,A
-    real(r_kind) :: defreal
+    real(r_kind) :: defreal(1), lb(1), ub(1)
     type(def_func) :: func
     call func%setup(params, Z, A)
     !call find_min_brute_force(def, BE, func_def, -default_def_bounds, default_def_bounds)
-    call find_min(defreal, BE, func, -default_def_bounds, default_def_bounds,default_num_restarts) !!Minimize binding energy as a function of deformation
+    lb = -default_def_bounds
+    ub = default_def_bounds
+    call find_min(defreal, BE, func, lb, ub,default_num_restarts, 1) !!Minimize binding energy as a function of deformation
     def%alphas = 0.0
-    def%alphas(2) = defreal
+    def%alphas(2) = defreal(1)
     ! write(*,'(A,I5, A)') "Found ground state after ", Niters, " iterations"
     ! write(*,'(A, f10.3, A, f10.3, A)') "Deformation: ", def, ", binding energy: ", BE, " MeV"
 end subroutine
