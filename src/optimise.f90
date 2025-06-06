@@ -3,7 +3,7 @@ module optimise
     implicit none
     !!Module for finding ground state of a nucleus by minimising BE through deformation
     private
-    public :: find_min,  rand_d, find_optimal_point, func_1d
+    public :: find_min,  rand_d, find_optimal_point, func_1d, func_nd
 
     type, abstract :: func_1d
     contains

@@ -1,6 +1,6 @@
 module table_writer
     use constants
-    use micmac, only:find_gs, mass_excess, Eshell, alpha_to_beta
+    use micmac, only:find_gs, mass_excess, Eshell, alpha_to_beta, deformation
     implicit none
 
 
@@ -16,7 +16,8 @@ module table_writer
         logical, intent(in) :: write_to_file
         integer, intent(in), dimension(:) :: Zs, As 
         integer :: iunit, i
-        real(r_kind) :: BE, ME, Esh, def, beta2
+        real(r_kind) :: BE, ME, Esh
+        type(deformation) :: def
         iunit = 20  ! Output unit number
         if(write_to_file) then 
             open(unit=iunit, file='data/out/table.dat', status='replace')
@@ -24,16 +25,15 @@ module table_writer
             iunit = 6
         endif
 
-        write(iunit, '(A)') "//Z   A     Mass defect (MeV)   Esh (MeV)   beta2    beta4    beta6"
+        write(iunit, '(A)') "//Z   A     Mass defect (MeV)   Esh (MeV)   alpha2   alpha3   alpha4"
         do i = 1, size(Zs)
             ! Calculate binding energy and mass excess
             call find_gs(BE, def, params, Zs(i), As(i))
             ME = mass_excess(BE, Zs(i), As(i))
-            Esh = Eshell(As(i), Zs(i), params(7), params(8), params(6),params(9), def)
-            beta2 = alpha_to_beta(def)
+            Esh = Eshell(As(i), Zs(i), params(5), params(6), params(4),params(7), def)
             ! Write the data for each nucleus
             write(iunit, '(I3, 3x,I3,3x, F10.3,5x, F10.3,6x, F5.2, 4x, F5.2,4x, F5.2)') &
-                Zs(i), As(i), ME, Esh, beta2,0.0,0.0
+                Zs(i), As(i), ME, Esh, def%alphas(2),def%alphas(3),def%alphas(4)
             end do
 
         if(write_to_file) then

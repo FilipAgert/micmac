@@ -1,12 +1,12 @@
 module micmac
 
     use constants
-    use optimise, only: find_min, func_1d
+    use optimise, only: find_min, func_1d, func_nd
     implicit none
 
 
     private
-    public :: staircase, J_mat, find_gs, binding_energy_def, find_gs_multiple, alpha_to_beta, mass_excess, def_func, Eshell, alpha0sq, F
+    public :: staircase, J_mat, find_gs, binding_energy_def, find_gs_multiple, alpha_to_beta, mass_excess, def_func, Eshell, alpha0sq, F, deformation
 
 
     type, extends(func_1d) :: def_func !!Class that creates a 1-dimensional function of binding energy as a function of deformation
@@ -18,7 +18,7 @@ module micmac
     end type
 
     type :: deformation 
-        real(r_kind) :: alphas(2:num_def_params)
+        real(r_kind) :: alphas(2:(num_def_params+1))
     end type
 
     type, extends(func_nd) :: def_func_ho !!Class that creates a 1-dimensional function of binding energy as a function of deformation
@@ -38,7 +38,7 @@ subroutine print_func(self)
 end subroutine
 
 subroutine setup_constants_nd(self, params, Z, A) 
-    class(def_func) :: self
+    class(def_func_ho) :: self
     real(r_kind), intent(in) :: params(num_params)
     integer, intent(in) :: Z, A
     real(r_kind) :: av, as, k, r0, C, smallC, adef, surf, colvol
@@ -48,7 +48,7 @@ subroutine setup_constants_nd(self, params, Z, A)
     k = params(3)
     r0 = params(4)
     C = params(5)
-    smallC =params(6)
+    smallC = params(6)
     adef = params(7)
     N = A - Z
 
@@ -92,17 +92,17 @@ pure real(r_kind) elemental function calc_be_def(self, x)
     calc_be_def = self%const + x**2 * self%quad + x**3 * self%cube + self%econst * exp(self%exp * x**2)
 end function
 
-pure real(r_kind) elemental function calc_be_def_nd(self, x)
+pure real(r_kind) function calc_be_def_nd(self, xs)
     class(def_func_ho), intent(in) :: self
-    real(r_kind), intent(in) :: x(:)
+    real(r_kind), intent(in) :: xs(:)
     type(deformation) :: def
-    def%alphas(2:num_def_params) = x
-    calc_be_def = self%const + self%econst * exp(self%exp * eff_def_sq(def)) + self%surf*def_f_ho(def) + self%colvol*def_g_ho(def)
+    def%alphas(2:num_def_params) = xs
+    calc_be_def_nd = self%const + self%econst * exp(self%exp * eff_def_sq(def)) + self%surf*def_f_ho(def) + self%colvol*def_g_ho(def)
 end function
 
 
 
-pure function mass_excess(BE, Z, A) result(ME)
+pure elemental function mass_excess(BE, Z, A) result(ME)
     real(r_kind), intent(in) :: BE
     integer, intent(in) :: Z, A
     real(r_kind) :: ME
@@ -117,12 +117,13 @@ end function mass_excess
 !!Gets binding energy for a given deformtaion
 pure function binding_energy_def(params, Z, A, def) result(BE)
     ! This function calculates the binding energy of a nucleus
-    real(r_kind), intent(in) :: params(num_params), def
+    real(r_kind), intent(in) :: params(num_params)
+    type(deformation), intent(in) :: def
     integer, intent(in) :: Z, A
     real(r_kind) :: BE
     
     integer :: N
-    real(r_kind) :: av, as, r0, kv, smallC, C, adef, alph0sq
+    real(r_kind) :: av, as, r0, kv, smallC, C, adef
     av = params(1)
     as = params(2)
     kv = params(3)
@@ -130,12 +131,11 @@ pure function binding_energy_def(params, Z, A, def) result(BE)
     C = params(5)
     smallC = params(6)
     adef = params(7)
-    alph0sq = alpha0sq(adef, r0, A)
     
     N = A - Z
-    BE = volume_term(N,Z,av,kv) + surface_term(N,Z,as,kv)*def_f(def) + &
-        col_vol_term(N,Z,r0)*def_g(def) + col_corr_term(N,Z,r0) + &
-        pairing_term(N,Z) + shell_corr(N,Z,C, smallC)*shell_damp_fac(N,Z,def,adef,r0)
+    BE = volume_term(N,Z,av,kv) + surface_term(N,Z,as,kv)*def_f_ho(def) + &
+        col_vol_term(N,Z,r0)*def_g_ho(def) + col_corr_term(N,Z,r0) + &
+        pairing_term(N,Z) + shell_corr(N,Z,C, smallC)*shell_damp_fac_ho(N,Z,def,adef,r0)
     ! WRITE(*,*) "Def:", def, ", BE:", BE
     ! write(*,*) volume_term(N,Z,av,k), surface_term(N,Z,as,k)*def_f(def), col_vol_term(N,Z,r0)*def_g(def), col_corr_term(N,Z,r0),pairing_term(N,Z), shell_corr(N,Z,C, smallC)*exp(-(def**2)/alph0sq)
     ! Calculate binding energy
@@ -145,11 +145,13 @@ end function binding_energy_def
 
 !!Computes ground state energy and deformation for given nuclei.
 subroutine find_gs_multiple(BEs, defs, params, Zs, As, num_nuclei)
-    real(r_kind), intent(out) :: BEs(num_nuclei), defs(num_nuclei)
+    real(r_kind), intent(out) :: BEs(num_nuclei)
+    type(deformation), intent(out)::  defs(num_nuclei)
     real(r_kind), intent(in) :: params(num_params)
     integer, intent(in), dimension(num_nuclei) :: Zs, As
     integer, intent(in) :: num_nuclei
-    real(r_kind) :: BE, def
+    real(r_kind) :: BE
+    type(deformation) :: def
     integer :: ii, Z , A
 
     do ii = 1, num_nuclei
@@ -171,13 +173,17 @@ end subroutine
 
 !!Minimizes BE wrt deformation and returns G.S. energy and G.S. deformation
 subroutine find_gs(BE, def, params, Z, A)
-    real(r_kind), intent(out) :: BE, def
+    real(r_kind), intent(out) :: BE
+    type(deformation), intent(out):: def
     real(r_kind), intent(in) :: params(num_params)
     integer, intent(in) :: Z,A
+    real(r_kind) :: defreal
     type(def_func) :: func
     call func%setup(params, Z, A)
     !call find_min_brute_force(def, BE, func_def, -default_def_bounds, default_def_bounds)
-    call find_min(def, BE, func, -default_def_bounds, default_def_bounds,default_num_restarts) !!Minimize binding energy as a function of deformation
+    call find_min(defreal, BE, func, -default_def_bounds, default_def_bounds,default_num_restarts) !!Minimize binding energy as a function of deformation
+    def%alphas = 0.0
+    def%alphas(2) = defreal
     ! write(*,'(A,I5, A)') "Found ground state after ", Niters, " iterations"
     ! write(*,'(A, f10.3, A, f10.3, A)') "Deformation: ", def, ", binding energy: ", BE, " MeV"
 end subroutine
@@ -268,7 +274,7 @@ end function
 pure elemental real(r_kind) function shell_damp_fac_ho(N,Z, def, adef, r0) result(fac)
     integer, intent(in) :: N, Z
     real(r_kind), intent(in) :: adef, r0
-    real(r_kind) :: alph0
+    real(r_kind) :: alph0sq
     type(deformation), intent(in) :: def
     integer :: A
     A = N + Z
@@ -276,8 +282,8 @@ pure elemental real(r_kind) function shell_damp_fac_ho(N,Z, def, adef, r0) resul
     fac = exp(-eff_def_sq(def)/alph0sq)
 end function
 
-pure elemental function def_f_ho(def) result(f) !!10.1103/PhysRev.104.993
-    type(deformation) :: def
+pure elemental real(r_kind) function def_f_ho(def) result(f) !!10.1103/PhysRev.104.993
+    type(deformation), intent(in) :: def
     real(r_kind) :: a2,a3,a4
     a2 = def%alphas(2)
     a3 = def%alphas(3)
@@ -287,8 +293,8 @@ pure elemental function def_f_ho(def) result(f) !!10.1103/PhysRev.104.993
       +  a4**2  + a3**2 * ((5.0_r_kind/7.0_r_kind) - (8.0_r_kind/105.0_r_kind) * a2 - (18346.0_r_kind/13475.0_r_kind) * a2**2 - (4.0_r_kind/77.0_r_kind))
 end function
 
-pure elemental function def_g_ho(def) result(g) !!10.1103/PhysRev.104.993
-    type(deformation) :: def
+pure elemental real(r_kind) function def_g_ho(def) result(g) !!10.1103/PhysRev.104.993
+    type(deformation), intent(in) :: def
     real(r_kind) :: a2,a3,a4
     a2 = def%alphas(2)
     a3 = def%alphas(3)
@@ -338,9 +344,11 @@ pure function J_mat(Zs, As, defs, num_nuclei, params)
     implicit none
     integer, intent(in), dimension(num_nuclei) :: As, Zs
     integer,intent(in) :: num_nuclei
-    real(r_kind), intent(in) :: params(num_params), defs(num_nuclei)
+    real(r_kind), intent(in) :: params(num_params)
+    type(deformation), intent(in):: defs(num_nuclei)
     integer :: i, Z,A
-    real(r_kind) :: J_mat(num_nuclei,num_params), def
+    real(r_kind) :: J_mat(num_nuclei,num_params)
+    type(deformation) :: def
 
     do i = 1,num_nuclei
         Z = Zs(i)
@@ -353,7 +361,8 @@ end function
 pure function J_vec(Z,A,params, def)
     integer, intent(in) :: Z,A
     integer :: N
-    real(r_kind),intent(in) :: params(num_params), def
+    real(r_kind),intent(in) :: params(num_params)
+    type(deformation), intent(in):: def
     real(r_kind) :: J_vec(num_params)
     real(r_kind) :: a0, av, as, r0, kv, smallC, C, adef
     av = params(1)
@@ -393,65 +402,73 @@ end function
 
 pure elemental real(r_kind) function dBe_daS(N,Z,k, def)
     integer, intent(in) :: N, Z
-    real(r_kind), intent(in) :: k, def
+    real(r_kind), intent(in) :: k
+    type(deformation), intent(in):: def
     real(r_kind) :: I
     integer :: A
     A = N + Z
     I = (N-Z)*1.0_r_kind/A
     dBe_daS = 1.0_r_kind-k * I*I
-    dBe_daS = dBe_daS * A**(2.0_r_kind/3.0_r_kind) * def_f(def)
+    dBe_daS = dBe_daS * A**(2.0_r_kind/3.0_r_kind) * def_f_ho(def)
 end function
 
 pure elemental real(r_kind) function dBe_dkv(N,Z,av, as, def)
     integer, intent(in) :: N, Z
-    real(r_kind), intent(in) :: av, as, def
+    real(r_kind), intent(in) :: av, as
+    type(deformation), intent(in):: def
     real(r_kind) :: I
     integer :: A
     A = N + Z
     I = (N-Z)*1.0_r_kind/A
-    dBe_dkv = -I*I*(av*A) -I*I*(def_f(def)*as*A**(2.0_r_kind/3.0_r_kind))
+    dBe_dkv = -I*I*(av*A) -I*I*(def_f_ho(def)*as*A**(2.0_r_kind/3.0_r_kind))
 end function
 
 
 pure elemental real(r_kind) function dBe_dr0(N,Z,r0, def, C, smallC, adef)
     integer, intent(in) :: N, Z
-    real(r_kind), intent(in) :: r0, def, c, smallC, adef
+    real(r_kind), intent(in) :: r0,  c, smallC, adef
+    type(deformation), intent(in):: def
     integer :: A
     A = N + Z
     !!Coulomb terms where one term has macroscopic deformation 
-    dBe_dr0 = 3.0_r_kind*e_squared*Z*Z*(5.0_r_kind*pi2*d*d-2*A**(2.0_r_kind/3.0_r_kind)*r0*r0*def_g(def))/(10.0_r_kind*A*r0**4)
+    dBe_dr0 = 3.0_r_kind*e_squared*Z*Z*(5.0_r_kind*pi2*d*d-2*A**(2.0_r_kind/3.0_r_kind)*r0*r0*def_g_ho(def))/(10.0_r_kind*A*r0**4)
 
 
     !!Shell correction term as alpha0 has r0
-    dBe_dr0 = dBe_dr0 - 2.0_r_kind/5.0_r_kind * r0*(def/adef)**2 * A**(2.0_r_kind/3.0_r_kind) * shell_corr(N,Z,C,smallC)*shell_damp_fac(N,Z,def,adef,r0) 
+    dBe_dr0 = dBe_dr0 - 2.0_r_kind * r0*eff_def_sq(def)/(adef)**2 * A**(2.0_r_kind/3.0_r_kind) * shell_corr(N,Z,C,smallC)*shell_damp_fac_ho(N,Z,def,adef,r0) 
 end function dBe_dr0
 !!Partial derivate with respect to small C
 pure elemental real(r_kind) function dBe_dsc(N,Z,C, def, adef, r0)
     integer, intent(in) :: N, Z
-    real(r_kind), intent(in) :: C, def, adef, r0
+    real(r_kind), intent(in) :: C, adef, r0
+    type(deformation), intent(in):: def
     integer :: A
     A = Z + N
-    dBe_dsc = -C* A**(1.0_r_kind/3.0_r_kind) * shell_damp_fac(N,Z,def,adef,r0)
+    dBe_dsc = -C* A**(1.0_r_kind/3.0_r_kind) * shell_damp_fac_ho(N,Z,def,adef,r0)
 end function dBe_dsc
 
 !!Partial derivate of shell correction with respect to C
 real(r_kind) elemental function dBe_dC(N,Z,smallC, def, adef, r0)
     integer, intent(in) :: N, Z
-    real(r_kind), intent(in) :: smallC, def, adef, r0
+    real(r_kind), intent(in) :: smallC, adef, r0
+    type(deformation), intent(in):: def
     integer :: A
     A = Z + N
     dBe_dC = (F(Z,.true.) + F(N,.false.)) / ((A*1.0_r_kind/2.0_r_kind)**(2.0_r_kind/3.0_r_kind)) - smallC * A**(1.0_r_kind/3.0_r_kind)
-    dBe_dC = dBe_dC * shell_damp_fac(N,Z,def,adef,r0)
+    dBe_dC = dBe_dC * shell_damp_fac_ho(N,Z,def,adef,r0)
 
 end function dBe_dC
 
 !!Partial derivate of shell correction with respect to C
 pure real(r_kind) elemental function dBe_dadef(N,Z,C, smallC, def, adef, r0)
     integer, intent(in) :: N, Z
-    real(r_kind), intent(in) :: smallC, def, adef, r0, C
+    real(r_kind), intent(in) :: smallC, adef, r0, C
+    type(deformation), intent(in):: def
     integer :: A
+    real(r_kind) :: sq
+    sq = eff_def_sq(def)
     A = Z + N
-    dBe_dadef = 2.0_r_kind/5.0_r_kind * A**(2.0_r_kind/3.0_r_kind) * def**2 * r0**2/ (adef**3) * shell_corr(N,Z,C,smallC) * shell_damp_fac(N,Z,def,adef,r0)
+    dBe_dadef = 2.0_r_kind * A**(2.0_r_kind/3.0_r_kind) * sq * r0**2/ (adef**3) * shell_corr(N,Z,C,smallC) * shell_damp_fac_ho(N,Z,def,adef,r0)
 end function dBe_dadef
 
 !! ########################## Shell correction Part
@@ -466,10 +483,11 @@ end function
 
 pure elemental real(r_kind) function Eshell(A,Z,C,smallC, r0, adef, def)
     integer, intent(in) :: A, Z
-    real(r_kind), intent(in) :: C, smallC, r0, adef, def
+    real(r_kind), intent(in) :: C, smallC, r0, adef
+    type(deformation), intent(in):: def
     integer :: N
     N = A-Z
-    Eshell = shell_corr(N,Z,c,smallC) * shell_damp_fac(N,Z,def,adef,r0)
+    Eshell = shell_corr(N,Z,c,smallC) * shell_damp_fac_ho(N,Z,def,adef,r0)
 
 end function
 

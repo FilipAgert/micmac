@@ -108,10 +108,11 @@ module fitting
     !!Covariances of fit parameters
     function fit_param_cov(params, num_nuclei, Zs, As, defs) result(cov)
         real(kind=r_kind), intent(in) :: params(num_params)
+        type(deformation), intent(in) :: defs(num_nuclei) 
         real(kind=r_kind) :: cov(num_params,num_params)
         integer, dimension(num_nuclei), intent(in) :: Zs, As
         integer, intent(in) :: num_nuclei
-        real(kind=r_kind) ::  J(num_nuclei,num_params), JT(num_params,num_nuclei), JTJ(num_params,num_params), rms, res(num_nuclei), sqsum, defs(num_nuclei)
+        real(kind=r_kind) ::  J(num_nuclei,num_params), JT(num_params,num_nuclei), JTJ(num_params,num_params), rms, res(num_nuclei), sqsum
         J = J_mat(Zs,As,defs, num_nuclei,params)
         JT = transpose(J)
         JTJ = matmul(JT,J)
@@ -126,10 +127,11 @@ module fitting
     !!Returns covariances of BE predictions
     function be_cov(params, num_nuclei, Zs, As, defs) 
         real(kind=r_kind), intent(in) :: params(num_params)
+        type(deformation), intent(in) :: defs(num_nuclei) 
         real(kind=r_kind) :: cov(num_params,num_params), be_cov(num_nuclei,num_nuclei)
         integer, dimension(num_nuclei), intent(in) :: Zs, As
         integer, intent(in) :: num_nuclei
-        real(kind=r_kind) ::  J(num_nuclei,num_params), JT(num_params,num_nuclei), JTJ(num_params,num_params), rms, res(num_nuclei), sqsum, defs(num_nuclei)
+        real(kind=r_kind) ::  J(num_nuclei,num_params), JT(num_params,num_nuclei), JTJ(num_params,num_params), rms, res(num_nuclei), sqsum
         J = J_mat(Zs,As,defs, num_nuclei,params)
         JT = transpose(J)
         cov = fit_param_cov(params, num_nuclei, zs, as, defs)
@@ -139,7 +141,8 @@ module fitting
 
     function fit_rms(params)
         real(r_kind), intent(in) :: params(num_params)
-        real(r_kind) :: resid(num_fit_vals), sum_sq_err, fit_rms, BEs(num_fit_vals), defs(num_fit_vals)
+        real(r_kind) :: resid(num_fit_vals), sum_sq_err, fit_rms, BEs(num_fit_vals)
+        type(deformation) :: defs(num_fit_vals) 
         call find_gs_multiple(BEs,defs, params, exp_Z, exp_A, num_fit_vals)
         resid = exp_be - BEs
         sum_sq_err = dot_product(resid, resid)
@@ -149,7 +152,8 @@ module fitting
     subroutine fit_iterative(params, converged)
         real(kind=r_kind), intent(inout) :: params(num_params) !!In: Starting guess of parameters. Out: Converged solution
         !!Assume that we have already read exp data.
-        real(kind=r_kind) :: Jmat(num_fit_vals,num_params), resid(num_fit_vals), BEs(num_fit_vals), defs(num_fit_vals)
+        real(kind=r_kind) :: Jmat(num_fit_vals,num_params), resid(num_fit_vals), BEs(num_fit_vals)
+        type(deformation) :: defs(num_fit_vals) 
         real(kind=r_kind) :: sum_sq_err, JT(num_params, num_fit_vals), JTJ(num_params, num_params), RHS(num_params), rms, oldrms, bestrms, bestparams(num_params)
         integer :: num_nuclei, maxitr, ii, numitr
         logical, intent(out) :: converged
@@ -213,7 +217,8 @@ module fitting
         real(r_kind), intent(in) :: params(num_params)
         integer :: idx
         real(r_kind) :: BE, BE_exp, BEA, BEA_exp, UNC, unc_per_a,def
-        real(r_kind) :: BEs(num_fit_vals), BEcov(num_fit_vals,num_fit_vals), defs(num_fit_vals)
+        real(r_kind) :: BEs(num_fit_vals), BEcov(num_fit_vals,num_fit_vals)
+        type(deformation) :: defs(num_fit_vals) 
         WRITE(*,*)
         WRITE(*,*)
         WRITE(*,*) "Z    A           MicMac BE/A   UNC          EXP BE/A     DELTA         MicMac BE UNC      EXP BE   DELTA"
@@ -221,7 +226,7 @@ module fitting
         call find_gs_multiple(BEs, defs,params,exp_Z,exp_A,num_fit_vals)
         BEcov = be_cov(params, num_fit_vals, exp_Z, exp_A, defs)
         do idx = 1, num_fit_vals
-            def = alpha_to_beta(defs(idx))
+            def = defs(idx)%alphas(2)
             BE = BEs(idx)
             UNC = sqrt(BEcov(idx,idx))
             unc_per_a = UNC/(exp_A(idx)*1.0)

@@ -5,7 +5,8 @@ program main
     implicit none
 
 
-    real(r_kind) :: BE, ME, ME_exp, BE_exp, BE_exp_unc, ME_exp_unc, params(num_params),  def
+    real(r_kind) :: BE, ME, ME_exp, BE_exp, BE_exp_unc, ME_exp_unc, params(num_params)
+    type(deformation) :: def
     character(len=3) :: El
     integer :: idx
     integer :: Z, A, N
@@ -47,7 +48,7 @@ program main
     WRITE(*,'(A, F8.3, A)') "Mass Excess = ", ME, " MeV/c^2"
     WRITE(*,'(A, F8.3, A)') "Mass Excess = ", ME/dalton, " u"
     WRITE(*,'(A, F8.3, A)') "Mass Excess per nucleon = ", ME/A, " MeV"
-    WRITE(*,'(A,F10.3)') 'Deformation: ', def
+    WRITE(*,'(A,3F10.3)') 'Deformation: ', def
 
 
 
