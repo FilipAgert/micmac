@@ -1,13 +1,35 @@
-module table_writer
+program table_writer
     use constants
-    use micmac, only:find_gs, mass_excess, Eshell, alpha_to_beta, deformation
+    use micmac, only:find_gs, mass_excess, Eshell, deformation
+    
     implicit none
+    integer, parameter :: startZ = 92, startA = 220
+    integer, parameter :: maxN = 258 !!Largest known magic number
+    integer, parameter :: maxZ = 126
+    integer, parameter :: numA = 64
+    integer :: num_nuclei
+    integer, dimension(2000) :: Zs, As
+    integer :: Z, A, idx, Alow, Ahigh
+    real(r_kind) :: params(num_params)
+    logical :: found
 
+    idx = 0
+    Alow = startA
+    Ahigh = startA+numA
+    do Z = startZ, maxZ
+        do A = Alow, Ahigh
+            idx = idx + 1
+            Zs(idx) = Z
+            As(idx) = A
+        end do
+        Alow = Alow + 2
+        Ahigh = Ahigh + 1
+    end do
+    
+    num_nuclei = idx
+    params = fitted_params
 
-    private
-    public :: write_mass_table
-
-
+    call write_mass_table(params, Zs, As, .true.)
     contains
     
     subroutine write_mass_table(params, Zs, As, write_to_file)
@@ -25,15 +47,19 @@ module table_writer
             iunit = 6
         endif
 
-        write(iunit, '(A)') "//Z   A     Mass defect (MeV)   Esh (MeV)   alpha2   alpha3   alpha4"
-        do i = 1, size(Zs)
+        write(iunit, '(A)') "//N   Z   A     Mass defect (MeV)   Esh (MeV)   alpha2   alpha3   alpha4"
+        do i = 1, num_nuclei
             ! Calculate binding energy and mass excess
-            call find_gs(BE, def, params, Zs(i), As(i))
+            call find_gs(BE, def, found, params, Zs(i), As(i))
+            if(.not. found) then
+                write(*,*) "did not find G.S. for Z,A: ", Zs(i), As(i)
+                cycle
+            endif
             ME = mass_excess(BE, Zs(i), As(i))
             Esh = Eshell(As(i), Zs(i), params(5), params(6), params(4),params(7), def)
             ! Write the data for each nucleus
-            write(iunit, '(I3, 3x,I3,3x, F10.3,5x, F10.3,6x, F5.2, 4x, F5.2,4x, F5.2)') &
-                Zs(i), As(i), ME, Esh, def%alphas(2),def%alphas(3),def%alphas(4)
+            write(iunit, '(I3, 1x, I3, 1x,I3,3x, F10.3,5x, F10.3,6x, F6.3, 4x, F6.3,4x, F6.3)') &
+                As(i)-Zs(i), Zs(i), As(i), ME, Esh, def%alphas(2),def%alphas(3),def%alphas(4)
             end do
 
         if(write_to_file) then
@@ -41,4 +67,4 @@ module table_writer
         endif
     end subroutine write_mass_table
 
-end module table_writer
+end program

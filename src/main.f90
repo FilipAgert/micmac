@@ -10,13 +10,14 @@ program main
     character(len=3) :: El
     integer :: idx
     integer :: Z, A, N
+    logical :: found
     Z = 92
     A = 238
     N = A - Z
 
     params = fitted_params
     write(*,*)'Starting params', starting_params
-    call find_gs(BE, def,params, Z,A)
+    call find_gs(BE, def,found,params, Z,A)
     ME = mass_excess(BE, Z,A)
     WRITE(*,*)
     WRITE(*,*) "########################################"
@@ -24,13 +25,13 @@ program main
     WRITE(*,*) "########################################"
     WRITE(*,*)
     call read_ame()
-    WRITE(*,*)"Z    A     Mass Excess    unc          BE/A      unc"
-    WRITE(*,*)"Z    A     (kev)          (kev)        (kev)     (kev)"
-    do idx = 1, num_vals
+    ! WRITE(*,*)"Z    A     Mass Excess    unc          BE/A      unc"
+    ! WRITE(*,*)"Z    A     (kev)          (kev)        (kev)     (kev)"
+    ! do idx = 1, num_vals
 
-        !WRITE(*, '(I4, I4,1x, A3, F14.6,F12.6, F13.5, 1x, F10.5)') AME_Z(idx), AME_A(idx), AME_EL(idx), AME_ME(idx), AME_ME_unc(idx), AME_BE(idx), AME_BE_unc(idx)
+    !     WRITE(*, '(I4, I4,1x, A3, F14.6,F12.6, F13.5, 1x, F10.5)') AME_Z(idx), AME_A(idx), AME_EL(idx), AME_ME(idx), AME_ME_unc(idx), AME_BE(idx), AME_BE_unc(idx)
 
-    end do
+    ! end do
 
     WRITE(*,*) "########################################"
     WRITE(*,*) "MicMac - Binding Energy and Mass Excess"

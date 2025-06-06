@@ -2,7 +2,6 @@ program runfit
     use constants
     use micmac
     use mass_table
-    use table_writer
     use fitting
     implicit none
     real(kind=r_kind) :: params(num_params), param_cov(num_params,num_params)
@@ -26,7 +25,7 @@ program runfit
     WRITE(*,*) "Experimental masses chosen for fit. ", num_fit_vals, " nuclei chosen."
     WRITE(*,*) "########################################"
     WRITE(*,*) "Fitting parameters to experimental data"
-    params = starting_params
+    params = fitted_params
     call fit_iterative(params, converged)
     allocate(BEs(num_fit_vals))
     allocate(defs(num_fit_vals))

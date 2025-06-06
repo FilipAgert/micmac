@@ -33,13 +33,14 @@ module optimise
     contains
 
     !!Finds m
-    subroutine find_min(x_min, f_min, func, x0, x1, num_restarts, dim)    
+    recursive subroutine find_min(x_min, f_min, foundmin, func, x0, x1, num_restarts, dim)    
         real(r_kind), intent(out) :: x_min(dim), f_min
+        logical ,intent(out) :: foundmin !!True if minimum exists.
         real(r_kind), intent(in), dimension(dim) :: x0, x1 !!Bounds on the minimisation
         integer, intent(in) :: num_restarts !!how many times to minimize? Ensures to find the best local min in the bounds
         class(func_nd), intent(in) :: func
         integer :: ii
-        real(r_kind) :: init_pos(num_restarts,dim), xstart(dim)
+        real(r_kind) :: init_pos(num_restarts,dim), xstart(dim), hess(dim,dim)
         real(r_kind) :: x(dim), y
         logical :: converged
         integer, intent(in) :: dim
@@ -50,7 +51,7 @@ module optimise
         end do
         init_pos(1,:) = 0.0_r_kind
 
-
+        foundmin = .false.
         f_min = huge(f_min)
         x_min = 0.0_r_kind
         do ii = 1, num_restarts !!Compute multiple times with a random starting position to ensure the minimum of the local minima is picked as the g.s.
@@ -58,17 +59,22 @@ module optimise
             ! write(*,*) "running..."
             xstart = init_pos(ii,:)
             call conj_grad_method_nd(x, y, converged, func, x0, x1, xstart,dim)
-
+            hess = hessian(func,x,dim)
             ! write(*,*) "Converged: ", converged
             ! write(*,*) "xval: ", x
             ! write(*,*) "With yval:", y
             ! write(*,*) "Init pos:", init_pos(ii)
             ! write(*,*)
-            if(y < f_min .and. converged) then
+            if(y < f_min .and. converged) then !!Hess must be positive for it to be a local min
                 f_min = y
                 x_min = x
+                foundmin = .true.
             endif
         end do
+
+        if(.not. foundmin) then!!If not converged, restart.
+            call find_min(x_min, f_min, foundmin, func, x0,x1, num_restarts - 1, dim)
+        endif
         ! write(*,*) "Best: "
         ! write(*,*) "xval: ", x_min
         ! write(*,*) "With yval:", f_min

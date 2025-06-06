@@ -6,19 +6,11 @@ module micmac
 
 
     private
-    public :: staircase, J_mat, find_gs, binding_energy_def, find_gs_multiple, alpha_to_beta, mass_excess, def_func, Eshell, alpha0sq, F, deformation
+    public :: staircase, J_mat, find_gs, binding_energy_def, find_gs_multiple, mass_excess, Eshell, F, deformation, def_func_ho, alpha0sqho
 
-
-    type, extends(func_nd) :: def_func !!Class that creates a 1-dimensional function of binding energy as a function of deformation
-        real(r_kind), private :: const, quad, cube, econst, exp
-    contains
-        procedure :: eval => calc_be_def
-        procedure :: setup => setup_constants_1d
-        procedure :: print => print_func
-    end type
 
     type :: deformation 
-        real(r_kind) :: alphas(2:(num_def_params+1))
+        real(r_kind) :: alphas(2:(num_def_params+1)) = 0
     end type
 
     type, extends(func_nd) :: def_func_ho !!Class that creates a 1-dimensional function of binding energy as a function of deformation
@@ -26,15 +18,17 @@ module micmac
     contains
         procedure :: eval => calc_be_def_nd
         procedure :: setup => setup_constants_nd
+        procedure :: print => print_nd
     end type
 
 
     
     contains
 
-subroutine print_func(self)
-    class(def_func) :: self
-    write(*,'(f10.3,A, f10.3,A,f10.3,A,f10.3,A,f10.3,A)') self%const, " + ", self%quad,"x^2 + ", self%cube, " x^3 + ", self%econst ,"exp(",self%exp,'x^2)'
+subroutine print_nd(self)
+    class(def_func_ho) :: self
+
+    write(*,'(A,E14.6,A,E14.6,A,E14.6,A,E14.6,A,E14.6,A)') "BE(a2,a3,a4)=",self%const, " + ", self%surf, "*f(a2,a3,a4) + ", self% colvol, "*g(a2,a3,a4) + ", self%econst, "exp(", self%exp, "s2(a2,a3,a4))"
 end subroutine
 
 subroutine setup_constants_nd(self, params, Z, A) 
@@ -60,44 +54,12 @@ subroutine setup_constants_nd(self, params, Z, A)
     self%exp  = -1.0_r_kind / (alpha0sqho(adef, r0, A))
 end subroutine
 
-
-subroutine setup_constants_1d(self, params, Z, A) 
-    class(def_func) :: self
-    real(r_kind), intent(in) :: params(num_params)
-    integer, intent(in) :: Z, A
-    real(r_kind) :: av, as, k, r0, C, smallC, adef, surf, colvol
-    integer :: N
-    av = params(1)
-    as = params(2)
-    k = params(3)
-    r0 = params(4)
-    C = params(5)
-    smallC =params(6)
-    adef = params(7)
-    N = A - Z
-
-    ! Compute components of the function
-    surf     = surface_term(N, Z, as, k)
-    colvol   = col_vol_term(N, Z, r0)
-    self%const = volume_term(N,Z,av,k) + surf + col_term(N,Z,r0) + pairing_term(N,Z)
-    self%quad = 2.0_r_kind / 5.0_r_kind * surf - colvol / 5.0_r_kind
-    self%cube  = -(surf + colvol) * 4.0_r_kind / 105.0_r_kind
-    self%econst = shell_corr(N, Z, C, smallC)
-    self%exp  = -1.0_r_kind / (alpha0sq(adef, r0, A))
-end subroutine
-
-pure real(r_kind) function calc_be_def(self, xs)
-    class(def_func), intent(in) :: self
-    real(r_kind), intent(in) :: xs(:)
-    calc_be_def = self%const + xs(1)**2 * self%quad + xs(1)**3 * self%cube + self%econst * exp(self%exp * xs(1)**2)
-end function
-
 pure real(r_kind) function calc_be_def_nd(self, xs)
     class(def_func_ho), intent(in) :: self
     real(r_kind), intent(in) :: xs(:)
     type(deformation) :: def
     def%alphas(2:num_def_params + 1) = xs
-    calc_be_def_nd = self%const + self%econst * exp(self%exp * eff_def_sq(def)) + self%surf*def_f_ho(def) + self%colvol*def_g_ho(def)
+    calc_be_def_nd = self%const + self%econst * exp(self%exp * eff_def_sq(def)) + self%surf*def_f(def) + self%colvol*def_g(def)
 end function
 
 
@@ -133,8 +95,8 @@ pure function binding_energy_def(params, Z, A, def) result(BE)
     adef = params(7)
     
     N = A - Z
-    BE = volume_term(N,Z,av,kv) + surface_term(N,Z,as,kv)*def_f_ho(def) + &
-        col_vol_term(N,Z,r0)*def_g_ho(def) + col_corr_term(N,Z,r0) + &
+    BE = volume_term(N,Z,av,kv) + surface_term(N,Z,as,kv)*def_f(def) + &
+        col_vol_term(N,Z,r0)*def_g(def) + col_corr_term(N,Z,r0) + &
         pairing_term(N,Z) + shell_corr(N,Z,C, smallC)*shell_damp_fac_ho(N,Z,def,adef,r0)
     ! WRITE(*,*) "Def:", def, ", BE:", BE
     ! write(*,*) volume_term(N,Z,av,k), surface_term(N,Z,as,k)*def_f(def), col_vol_term(N,Z,r0)*def_g(def), col_corr_term(N,Z,r0),pairing_term(N,Z), shell_corr(N,Z,C, smallC)*exp(-(def**2)/alph0sq)
@@ -153,6 +115,7 @@ subroutine find_gs_multiple(BEs, defs, params, Zs, As, num_nuclei)
     real(r_kind) :: BE
     type(deformation) :: def, defslocal(num_nuclei)
     integer :: ii, Z , A
+    logical :: found
     call omp_set_num_threads(num_threads)
 
     !$omp parallel shared(params, Zs, As, defs) private(A,Z,BE,def)
@@ -160,7 +123,7 @@ subroutine find_gs_multiple(BEs, defs, params, Zs, As, num_nuclei)
     do ii = 1, num_nuclei
         Z = Zs(ii)
         A = As(ii)
-        call find_gs(BE, def, params, Z, A)
+        call find_gs(BE, def, found, params, Z, A)
         BEs(ii) = BE
         defs(ii) = def
         ! WRITE(*,*) "Z,   A"
@@ -177,9 +140,10 @@ subroutine find_gs_multiple(BEs, defs, params, Zs, As, num_nuclei)
 end subroutine
 
 !!Minimizes BE wrt deformation and returns G.S. energy and G.S. deformation
-subroutine find_gs(BE, def, params, Z, A)
+subroutine find_gs(BE, def, found, params, Z, A)
     real(r_kind), intent(out) :: BE
     type(deformation), intent(out):: def
+    logical, intent(out) :: found !!Flag for if found gs or not
     real(r_kind), intent(in) :: params(num_params)
     integer, intent(in) :: Z,A
     real(r_kind) :: defreal(num_def_params), lb(num_def_params), ub(num_def_params)
@@ -188,8 +152,14 @@ subroutine find_gs(BE, def, params, Z, A)
     !call find_min_brute_force(def, BE, func_def, -default_def_bounds, default_def_bounds)
     lb = -default_def_bounds
     ub = default_def_bounds
-    call find_min(defreal, BE, func, lb, ub,default_num_restarts, num_def_params) !!Minimize binding energy as a function of deformation
-    def%alphas(2:num_def_params+1) = defreal(:)
+    call find_min(defreal, BE, found, func, lb, ub,default_num_restarts, num_def_params) !!Minimize binding energy as a function of deformation
+    def%alphas = 0.0
+    if(.not. found) then
+        BE = binding_energy_def(params, Z, A, def) !!if not found g.s. take at zero deformation
+        !write(*,*) "error not found g.s. ", Z, A
+    else
+        def%alphas(2:num_def_params+1) = defreal(:)
+    endif
     ! write(*,'(A,I5, A)') "Found ground state after ", Niters, " iterations"
     ! write(*,'(A, f10.3, A, f10.3, A)') "Deformation: ", def, ", binding energy: ", BE, " MeV"
 end subroutine
@@ -267,15 +237,8 @@ pure elemental real(r_kind) function pairing_term(N, Z)
     pairing_term = pairing_term / sqrt(A*1.0_r_kind)
 end function pairing_term
 
-pure elemental real(r_kind) function shell_damp_fac(N,Z, def, adef, r0) result(fac)
-    integer, intent(in) :: N, Z
-    real(r_kind), intent(in) :: def, adef, r0
-    real(r_kind) :: alph0sq
-    integer :: A
-    A = N + Z
-    alph0sq = alpha0sq(adef, r0, A)
-    fac = exp(-def**2/alph0sq)
-end function
+
+
 
 pure elemental real(r_kind) function shell_damp_fac_ho(N,Z, def, adef, r0) result(fac)
     integer, intent(in) :: N, Z
@@ -288,7 +251,7 @@ pure elemental real(r_kind) function shell_damp_fac_ho(N,Z, def, adef, r0) resul
     fac = exp(-eff_def_sq(def)/alph0sq)
 end function
 
-pure elemental real(r_kind) function def_f_ho(def) result(f) !!10.1103/PhysRev.104.993
+pure elemental real(r_kind) function def_f(def) result(f) !!10.1103/PhysRev.104.993
     type(deformation), intent(in) :: def
     real(r_kind) :: a2,a3,a4
     a2 = def%alphas(2)
@@ -299,7 +262,7 @@ pure elemental real(r_kind) function def_f_ho(def) result(f) !!10.1103/PhysRev.1
       +  a4**2  + a3**2 * ((5.0_r_kind/7.0_r_kind) - (8.0_r_kind/105.0_r_kind) * a2 - (18346.0_r_kind/13475.0_r_kind) * a2**2 - (4.0_r_kind/77.0_r_kind))
 end function
 
-pure elemental real(r_kind) function def_g_ho(def) result(g) !!10.1103/PhysRev.104.993
+pure elemental real(r_kind) function def_g(def) result(g) !!10.1103/PhysRev.104.993
     type(deformation), intent(in) :: def
     real(r_kind) :: a2,a3,a4
     a2 = def%alphas(2)
@@ -312,30 +275,6 @@ pure elemental real(r_kind) function def_g_ho(def) result(g) !!10.1103/PhysRev.1
       + (1701748.0_r_kind/3112725.0_r_kind) * a2**2 - (60.0_r_kind/539.0_r_kind)*a4)
 end function
 
-
-pure elemental function def_f(alpha)
-    real(r_kind), intent(in) :: alpha
-    real(r_kind) :: def_f
-    def_f = 1+(alpha**2)*2.0_r_kind/5.0_r_kind - alpha**3 * 4.0_r_kind/105.0_r_kind
-
-end function
-
-pure elemental function def_g(alpha)
-    real(r_kind), intent(in) :: alpha
-    real(r_kind) :: def_g
-    def_g = 1-(alpha**2)/5.0_r_kind - alpha**3 * 4.0_r_kind/105.0_r_kind
-
-end function
-
-
-pure elemental function alpha0sq(adef, r0, A)
-    real(r_kind), intent(in) :: adef, r0
-    integer, intent(in) :: A
-    real(r_kind) :: alpha0sq
-
-    alpha0sq = 5.0_r_kind * (adef/r0)**2 * A**(-2.0_r_kind/3.0_r_kind)
-
-end function
 
 pure elemental function alpha0sqho(adef, r0, A)
     real(r_kind), intent(in) :: adef, r0
@@ -415,7 +354,7 @@ pure elemental real(r_kind) function dBe_daS(N,Z,k, def)
     A = N + Z
     I = (N-Z)*1.0_r_kind/A
     dBe_daS = 1.0_r_kind-k * I*I
-    dBe_daS = dBe_daS * A**(2.0_r_kind/3.0_r_kind) * def_f_ho(def)
+    dBe_daS = dBe_daS * A**(2.0_r_kind/3.0_r_kind) * def_f(def)
 end function
 
 pure elemental real(r_kind) function dBe_dkv(N,Z,av, as, def)
@@ -426,7 +365,7 @@ pure elemental real(r_kind) function dBe_dkv(N,Z,av, as, def)
     integer :: A
     A = N + Z
     I = (N-Z)*1.0_r_kind/A
-    dBe_dkv = -I*I*(av*A) -I*I*(def_f_ho(def)*as*A**(2.0_r_kind/3.0_r_kind))
+    dBe_dkv = -I*I*(av*A) -I*I*(def_f(def)*as*A**(2.0_r_kind/3.0_r_kind))
 end function
 
 
@@ -437,7 +376,7 @@ pure elemental real(r_kind) function dBe_dr0(N,Z,r0, def, C, smallC, adef)
     integer :: A
     A = N + Z
     !!Coulomb terms where one term has macroscopic deformation 
-    dBe_dr0 = 3.0_r_kind*e_squared*Z*Z*(5.0_r_kind*pi2*d*d-2*A**(2.0_r_kind/3.0_r_kind)*r0*r0*def_g_ho(def))/(10.0_r_kind*A*r0**4)
+    dBe_dr0 = 3.0_r_kind*e_squared*Z*Z*(5.0_r_kind*pi2*d*d-2*A**(2.0_r_kind/3.0_r_kind)*r0*r0*def_g(def))/(10.0_r_kind*A*r0**4)
 
 
     !!Shell correction term as alpha0 has r0
@@ -542,12 +481,6 @@ pure real(r_kind) function staircase(n, magics) !!Gets staircase function at val
     staircase = 3.0_r_kind/5.0_r_kind * (num_gr**(5.0_r_kind/3.0_r_kind) - num_l**(5.0_r_kind/3.0_r_kind)) / (num_gr-num_l)
 end function
 
-
-pure elemental real(r_kind) function alpha_to_beta(alpha) result(beta)
-    real(r_kind), intent(in) :: alpha
-    beta = sqrt(5/(4*pi)) * alpha
-
-end function
 
 pure elemental real(r_kind) function eff_def_sq(def) result(a)
     type(deformation), intent(in) :: def
