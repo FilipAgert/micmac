@@ -96,7 +96,7 @@ pure real(r_kind) function calc_be_def_nd(self, xs)
     class(def_func_ho), intent(in) :: self
     real(r_kind), intent(in) :: xs(:)
     type(deformation) :: def
-    def%alphas(2:num_def_params) = xs
+    def%alphas(2:num_def_params + 1) = xs
     calc_be_def_nd = self%const + self%econst * exp(self%exp * eff_def_sq(def)) + self%surf*def_f_ho(def) + self%colvol*def_g_ho(def)
 end function
 
@@ -151,9 +151,12 @@ subroutine find_gs_multiple(BEs, defs, params, Zs, As, num_nuclei)
     integer, intent(in), dimension(num_nuclei) :: Zs, As
     integer, intent(in) :: num_nuclei
     real(r_kind) :: BE
-    type(deformation) :: def
+    type(deformation) :: def, defslocal(num_nuclei)
     integer :: ii, Z , A
+    call omp_set_num_threads(num_threads)
 
+    !$omp parallel shared(params, Zs, As, defs) private(A,Z,BE,def)
+    !$omp do schedule(static)
     do ii = 1, num_nuclei
         Z = Zs(ii)
         A = As(ii)
@@ -169,6 +172,8 @@ subroutine find_gs_multiple(BEs, defs, params, Zs, As, num_nuclei)
         !     call exit
         ! endif
     end do
+    !$omp end do
+    !$omp end parallel
 end subroutine
 
 !!Minimizes BE wrt deformation and returns G.S. energy and G.S. deformation
@@ -177,15 +182,14 @@ subroutine find_gs(BE, def, params, Z, A)
     type(deformation), intent(out):: def
     real(r_kind), intent(in) :: params(num_params)
     integer, intent(in) :: Z,A
-    real(r_kind) :: defreal(1), lb(1), ub(1)
-    type(def_func) :: func
+    real(r_kind) :: defreal(num_def_params), lb(num_def_params), ub(num_def_params)
+    type(def_func_ho) :: func
     call func%setup(params, Z, A)
     !call find_min_brute_force(def, BE, func_def, -default_def_bounds, default_def_bounds)
     lb = -default_def_bounds
     ub = default_def_bounds
-    call find_min(defreal, BE, func, lb, ub,default_num_restarts, 1) !!Minimize binding energy as a function of deformation
-    def%alphas = 0.0
-    def%alphas(2) = defreal(1)
+    call find_min(defreal, BE, func, lb, ub,default_num_restarts, num_def_params) !!Minimize binding energy as a function of deformation
+    def%alphas(2:num_def_params+1) = defreal(:)
     ! write(*,'(A,I5, A)') "Found ground state after ", Niters, " iterations"
     ! write(*,'(A, f10.3, A, f10.3, A)') "Deformation: ", def, ", binding energy: ", BE, " MeV"
 end subroutine

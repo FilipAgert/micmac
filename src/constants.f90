@@ -20,7 +20,7 @@ module constants
 
     integer, parameter :: Z_fit_minval = 84!!84
     integer, parameter :: N_fit_minval = 0!8 !!126
-    integer, parameter :: num_def_params = 3
+
     real(r_kind), parameter :: max_unc_mev = 0.15_r_kind
 
 
@@ -33,4 +33,8 @@ module constants
     integer, parameter :: default_num_restarts = 50
     real(r_kind), parameter :: gamma_damp_fac = 0.5_r_kind
     real(r_kind), parameter :: default_def_bounds = 0.5_r_kind
+    integer, parameter :: num_def_params = 3
+
+
+    integer, parameter :: num_threads = 8
 end module constants

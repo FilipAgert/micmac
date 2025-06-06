@@ -178,7 +178,7 @@ module fitting
             RHS = matmul(JTJ, params) + matmul(JT, resid) 
             !!We have to solve J^T J * P' = JTJ*P + JT*resid for P' 
             call solve_linsys(JTJ,RHS,num_params)
-            params = params + (RHS-params) / 5.0_r_kind
+            params = params + (RHS-params)*gamma_damp_fac
 
             rms = fit_rms(params)
             if(rms < bestrms) then
@@ -200,7 +200,7 @@ module fitting
                 exit
             endif
 
-            if(mod(ii,100) == 0) then
+            if(mod(ii,1) == 0) then
                 write(*,*)
                 write(*,*)
                 write(*,*) "Iteration: ", ii
@@ -216,9 +216,9 @@ module fitting
     subroutine write_table(params)
         real(r_kind), intent(in) :: params(num_params)
         integer :: idx
-        real(r_kind) :: BE, BE_exp, BEA, BEA_exp, UNC, unc_per_a,def
+        real(r_kind) :: BE, BE_exp, BEA, BEA_exp, UNC, unc_per_a
         real(r_kind) :: BEs(num_fit_vals), BEcov(num_fit_vals,num_fit_vals)
-        type(deformation) :: defs(num_fit_vals) 
+        type(deformation) :: defs(num_fit_vals), def
         WRITE(*,*)
         WRITE(*,*)
         WRITE(*,*) "Z    A           MicMac BE/A   UNC          EXP BE/A     DELTA         MicMac BE UNC      EXP BE   DELTA"
@@ -226,19 +226,19 @@ module fitting
         call find_gs_multiple(BEs, defs,params,exp_Z,exp_A,num_fit_vals)
         BEcov = be_cov(params, num_fit_vals, exp_Z, exp_A, defs)
         do idx = 1, num_fit_vals
-            def = defs(idx)%alphas(2)
+            def = defs(idx)
             BE = BEs(idx)
             UNC = sqrt(BEcov(idx,idx))
             unc_per_a = UNC/(exp_A(idx)*1.0)
             BE_exp = exp_be(idx)
             BEA = BE/(exp_A(idx)*1.0)
             BEA_exp = BE_exp/(exp_A(idx)*1.0)
-            WRITE(*,'(I4, I4, I4,1x,      A3, 1x,F10.3,1x,F8.4,A,F6.4, 2x,F12.4, 4x,F8.4, 4x,         F10.2, A, F4.2,2x F12.2, 2x,F6.2)') &
-            exp_A(idx)-exp_Z(idx), exp_Z(idx), exp_A(idx), exp_elname(idx), def, BEA, ' ± ',   unc_per_a, BEA_exp, ABS(BEA-BEA_exp), BE,' ± ',        UNC,      BE_exp, abs(BE - BE_exp)
+            WRITE(*,'(I4, I4, I4,1x,      A3, 1x,3F10.4,1x,F8.4,A,F6.4, 2x,F12.4, 4x,F8.4, 4x,         F10.2, A, F4.2,2x F12.2, 2x,F6.2)') &
+            exp_A(idx)-exp_Z(idx), exp_Z(idx), exp_A(idx), exp_elname(idx), def%alphas(2), def%alphas(3), def%alphas(4), BEA, ' ± ',   unc_per_a, BEA_exp, ABS(BEA-BEA_exp), BE,' ± ',        UNC,      BE_exp, abs(BE - BE_exp)
         end do
         write(*,*)
-        WRITE(*,*) "N    Z    A         beta2   MicMac BE/A             EXP BE/A    DELTA        MicMac BE            EXP BE   DELTA"
-        WRITE(*,*) "N    Z    A                 (Mev)                   (Mev)       (MEV)        (Mev)                (Mev)    (MeV)"
+        WRITE(*,*) "N    Z    A         alpha2     alpha3    alpha4    MicMac BE/A             EXP BE/A    DELTA        MicMac BE            EXP BE   DELTA"
+        WRITE(*,*) "N    Z    A                                        (Mev)                   (Mev)       (MEV)        (Mev)                (Mev)    (MeV)"
 
     end subroutine write_table
 end module fitting

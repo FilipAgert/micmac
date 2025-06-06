@@ -12,8 +12,8 @@ FIT_EXEN = runfit.exe
 FISS_EXEN = fiss_bar.exe
 
 # Flags
-LIBS = -llapack -lblas
-FLAGS = -Wall -O3 -I$(DOBJ) -ffree-line-length-none -fcheck=all -fbacktrace -g -fimplicit-none
+LIBS = -llapack -lblas -fopenmp
+FLAGS = -Wall -O3 -I$(DOBJ) -ffree-line-length-none -fcheck=all -fbacktrace -g -fimplicit-none 
 CC = gfortran $(FLAGS) -J$(DMOD) $(LIBS) -L$(DLIB) -c
 CCL = gfortran -o
 
