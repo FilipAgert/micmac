@@ -75,11 +75,11 @@ module test_optimise
     subroutine test_1d_findglobal(n_passed,n_failed)
         integer, intent(inout) :: n_passed, n_failed
         real(r_kind) :: expected, actual, fmin,xmin(1), lb(1), ub(1)
-        logical :: pass
+        logical :: pass, found
         type(redh) :: func
         lb = -10
         ub = 10
-        call find_min(xmin, fmin, func,lb, ub,10, 1)  ! Replace with actual call: e.g. call micmac_result(actual)
+        call find_min(xmin, fmin, found,func,lb, ub,10, 1)  ! Replace with actual call: e.g. call micmac_result(actual)
         !print*, "niter = ", niter
         expected = -2.63891740462711_r_kind
         actual = xmin(1)

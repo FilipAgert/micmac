@@ -3,7 +3,7 @@ module optimise
     implicit none
     !!Module for finding ground state of a nucleus by minimising BE through deformation
     private
-    public :: find_min,  rand_d, find_optimal_point, func_1d, func_nd
+    public :: find_min,  rand_d, find_optimal_point, func_1d, func_nd, conj_grad_method
 
     type, abstract :: func_1d
     contains
@@ -80,11 +80,11 @@ module optimise
         ! write(*,*) "With yval:", f_min
     end subroutine
 
-    subroutine conj_grad_method(x_min, f_min, converged, func, x0, x1, x_start) !!https://en.wikipedia.org/wiki/Conjugate_gradient_method
+    subroutine conj_grad_method(x_min, f_min, converged, func, x0, x1, x_start, tol) !!https://en.wikipedia.org/wiki/Conjugate_gradient_method
         real(r_kind), intent(out) :: x_min, f_min
         real(r_kind), intent(in) :: x0, x1 !!Bounds on the minimisation
         real(r_kind), intent(in) :: x_start !!Initial guess
-        real(r_kind), parameter :: tol = 1e-9_r_kind !!Tolerance for convergence
+        real(r_kind), intent(in):: tol !Tolerance for convergence
         class(func_1d), intent(in) :: func
         real(r_kind) :: df, d2f, fpl, fm, alpha, A, g
         real(r_kind), parameter :: dx = 1.0e-6_r_kind !!step size for numerical derivatives

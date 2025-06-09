@@ -27,6 +27,7 @@ module constants
     integer, parameter, dimension(9) :: magic_num_Z = [0,2,8,20,28,50,82,126,184]
     integer, parameter, dimension(10) :: magic_num_N = [0,2,8,20,28,50,82,126,184,258]
 
+    real(r_kind), parameter :: hbarc = 197.327! [MeV fm]
 
 
     !!Finding G.S. minimization parameters

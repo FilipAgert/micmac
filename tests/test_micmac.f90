@@ -61,15 +61,16 @@ contains
     subroutine test_find_gs(n_passed, n_failed)
         integer, intent(inout) :: n_passed, n_failed
         real(r_kind) :: expected, actual
-        logical :: pass
+        logical :: pass, found
         integer :: Z, A
         real(r_kind) :: BE, BE2, BE3, BE4
+        
         type(deformation):: def 
         real(r_kind), dimension(num_params) :: params
         params = starting_params
         Z = 92
         A = 238
-        call find_gs(BE, def, params, Z, A)   
+        call find_gs(BE, def, found,params, Z, A)   
         ! BE2 = binding_energy(params, Z, A)
         ! BE3 = binding_energy_def(params, Z, A, 0.0_r_kind)
         ! BE4 = binding_energy_def(params, Z, A, def)
