@@ -20,7 +20,7 @@ CC = gfortran $(FLAGS) -J$(DMOD) $(LIBS) -L$(DLIB) -c
 CCL = gfortran -o
 
 # Objects
-OBJECTS = $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o $(DOBJ)/fitting.o $(DOBJ)/optimise.o $(DOBJ)/def_ho.o $(DOBJ)/quadrule.o
+OBJECTS = $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o $(DOBJ)/fitting.o $(DOBJ)/optimise.o $(DOBJ)/def_ho.o $(DOBJ)/quadrule.o $(DOBJ)/hamiltonian.o
 TEST_OBJECTS = $(DOBJ)/test_micmac.o $(DOBJ)/test_utils.o $(DOBJ)/test_fitting.o $(DOBJ)/test_optimise.o $(DOBJ)/test_ho.o
 MAIN_OBJ = $(DOBJ)/main.o
 TEST_OBJ = $(DOBJ)/run_tests.o
@@ -47,7 +47,7 @@ $(DOBJ)/run_fissbarr.o: $(DSRC)/run_fissbarr.f90 $(DOBJ)/constants.o $(DOBJ)/mic
 $(DOBJ)/table_writer.o: $(DSRC)/table_writer.f90 $(DOBJ)/constants.o $(DOBJ)/micmac.o
 $(DOBJ)/test_ho.o: $(DTEST)/test_ho.f90 $(DOBJ)/def_ho.o $(DOBJ)/constants.o
 $(DOBJ)/def_ho.o: $(DSRC)/$(DSH)/def_ho.f90 $(DOBJ)/constants.o $(DOBJ)/optimise.o $(DOBJ)/quadrule.o
-$(DOBH)/run_ho.o: $(DSRC)/$(DSH)/run_ho.o $(DOBJ)/constants.o $(DOBJ)/def_ho.o
+$(DOBH)/run_ho.o: $(DSRC)/$(DSH)/run_ho.o $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/hamiltonian.o
 # Ensure required directories exist
 $(DOBJ) $(DEXE) $(DMOD) $(DTEST):
 	mkdir -p $@

@@ -7,7 +7,7 @@ module def_ho
     private
     public :: an_ho_state, get_ho_states, getnumstates, betadef, dist_min, getnumstatesupto, Ws_mat_elem
 
-    integer, parameter :: gauss_order =64
+    integer, parameter :: gauss_order =99
     real(r_kind), dimension(gauss_order) :: her_x, her_w, lag_x, lag_w
     logical :: precomputed = .false.
 
@@ -162,46 +162,47 @@ real(r_kind) function Ws_mat_elem(state1, state2, def, Ws_depth, radius, mass, o
     real(r_kind), intent(in) :: mass !!In units MeV/c^2
     real(r_kind), intent(in) :: omegaperp, omegaz !!In units MeV/hbar
     integer :: il, ih
-    real(r_kind) :: rolling, z, rho, alphaz, alpharho, u, x, factz, factrho, xpart, r, ang
+    real(r_kind) :: rolling, z, rho, alphaz, alpharho, u, x, factz, factrho, xpart, r, ang, dist
     !The phi integral turns out to be a kronecker delta * 2pi
     if (state1%ml /= state2%ml) then 
         elem = 0
         return
-    else if(state1%mj /= state2%mj) then !Spin.
+    else if(state1%mj /= state2%mj) then !Spin orthogonality
         elem = 0
         return
     endif
-    elem = 2*pi !!from phi part.
+    elem = 1.0_r_kind !!from phi part.
 
     call precompute_weights()
 
     
-    alphaz = sqrt(mass*omegaz/(hbarc*hbarc))!Replace with sqrt(m * omega/hbar)
+    alphaz = sqrt(mass*omegaz/(hbarc*hbarc))
     alpharho = sqrt(mass*omegaperp/(hbarc*hbarc))
-
     factz = 1.0_r_kind/sqrt(pi * 2**(state1%nz+state2%nz) * fac(state1%nz)*fac(state2%nz))
-    factrho = 1.0_r_kind/(pi * sqrt(real(fac(state1%nr) * fac(state2%nr),r_kind) / real(fac(state1%nr+state1%ml) * fac(state2%nr+state2%ml),r_kind)))
-
+    factrho = sqrt(real(fac(state1%nr) * fac(state2%nr),r_kind) / real(fac(state1%nr+state1%ml) * fac(state2%nr+state2%ml),r_kind))
 
     rolling = 0.0_r_kind
     do il = 1, gauss_order
         x = lag_x(il)
         rho = sqrt(x)/alpharho
-        xpart = x ** ((state1%ml + state2%ml)/2) * lna(x,state1%nr,state1%ml) * lna(x,state2%nr,state2%ml)
+        ! write(*,'(A,F10.3)')"rho:", rho
+        xpart = x ** ((state1%ml + state2%ml * 1.0_r_kind)/2.0_r_kind) * lna(x,state1%nr,state1%ml) * lna(x,state2%nr,state2%ml)
         do ih = 1, gauss_order
             u = her_x(ih)
             z = u/alphaz
             r = rad_cyl(rho, z)
             ang = theta_cyl(rho,z)
-
-            rolling = rolling + lag_w(il) * her_w(ih) * Hn(u,state1%nr) * Hn(u, state2%nr) & !Z part
+            ! write(*,'(A,F10.3,A,F10.3,A,F10.3)')"z:", z, ", r:", r, " ang(deg):", ang*180/pi
+            rolling = rolling + lag_w(il) * her_w(ih) * Hn(u,state1%nz) * Hn(u, state2%nz) & !Z part
                     * xpart * Ws(r,ang,def, Ws_depth, radius)!!Xpart and mixed part.
-            
+            ! write(*,'(A,F10.3)')"Pot:", Ws(r,ang,def, Ws_depth, radius)
+            ! write(*,*)
             ! if(rolling < -1e6) then
             !     write(*,*) rolling, lag_w(il), her_w(ih), u, z, r, ang, xpart
             !     pause 'press enter to continue'
             ! endif
         end do
+        ! pause
     end do
 
     
@@ -211,7 +212,11 @@ end function
 
 real(r_kind) pure elemental function theta_cyl(rho,z)  !!Coordinate transform from cylindrical coordinates to spherical theta
     real(r_kind), intent(in):: rho,z
-    theta_cyl = ATAN(z/rho)
+    if (z < 0) then
+        theta_cyl = ATAN(rho/z) + pi
+    else
+        theta_cyl = ATAN(rho/z)
+    endif
 end function
 
 real(r_kind) pure elemental function rad_cyl(rho,z)  !!Coordinate transform from cylindrical coordinates to spherical radius
@@ -224,7 +229,9 @@ real(r_kind) function Ws(r, theta, def, ws_depth, radius) !!axially symmetric. f
     type(betadef), intent(in) :: def
     real(r_kind) ::dist
     dist = sqrt(surfdist(r,theta,def, radius)) 
-
+    if(r < radius) then
+        dist = - dist
+    endif
     Ws = -ws_depth/ (1 + exp(dist/aws))
 end function
 
@@ -237,14 +244,6 @@ real(r_kind) function surfdist(r,theta,def, radius) result(dist) !!Finds shortes
 
     distfunc = dist_min(r=r, theta=theta, def=def, radius=radius)
     call conj_grad_method(ang, dist, conv, distfunc, 0.0_r_kind, pi,theta,1e-5_r_kind)
-end function
-
-pure elemental real(r_kind) function phiVcphi(state1, state2, def)
-    type(betadef), intent(in) :: def
-    type(an_ho_state), intent(in) :: state1, state2 !!Compute a matrix element for coulomb repulsion
-    
-    !Computes triple integral 1/(abs)
-
 end function
 
 pure elemental integer function getnumstates(N) result(num) !!get number of states in one major shell of h.o
@@ -373,9 +372,9 @@ pure real(r_kind) recursive elemental function lna(x,n,a) result(val)
     if(n == 0) then
         val = 1.0_r_kind
     elseif(n==1) then
-        val = 1.0_r_kind + a - x
+        val = 1.0_r_kind + real(a,r_kind) - x
     else
-        val = (2*n-1+a-x)*lna(x,n-1,a) - (n-1+a)*lna(x,n-2,a)
+        val = (real(2*n-1+a,r_kind)-x)*lna(x,n-1,a) - (real(n-1+a,r_kind))*lna(x,n-2,a)
         val = val/real(n,r_kind)
     endif
 
