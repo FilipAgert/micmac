@@ -21,7 +21,7 @@ module def_ho
 
 
     type :: an_ho_state !!mj is half integer. so mj = 3 in reality means 3/2
-        integer :: nz, nr, ml, mj
+        integer :: nz, nr, ml, mj, r, s, pi, N, nperp
         contains
         procedure :: text => aniho_text
         procedure :: header => aniho_header
@@ -70,15 +70,19 @@ end function
 function aniho_text(self) result(text)
     class(an_ho_state) :: self
     character(len=100) :: text
-    integer :: N
-    N = self%ml + self%nr * 2 + self%nz
-    write(text, '(5I5,A)') N, self%nz, self%nr, self%ml, self%mj, "/2"
+    character(len=1) :: par
+    if(self%pi == -1) then
+        par = "-"
+    else
+        par = "+"
+    endif
+    write(text, '(A,5I5,A, 3I5)')par, self%N, self%nz, self%nr, self%ml, self%mj, "/2", self%r, self%s, self%nperp
 end function
 
 function aniho_header(self) result(hdr)
     class(an_ho_state) :: self
     character(len=100) :: hdr
-    write(hdr, '(A)') "    N    nz   nr   ml    mj "
+    write(hdr, '(A)') "p    N    nz   nr   ml    mj    r    s   n_p"
 
 end function
 
@@ -98,18 +102,26 @@ pure function get_ho_states(N) result(states)
     integer, intent(in) :: N !!ho quantum number
     type(an_ho_state), dimension(getnumstates(N)) :: states
     type(an_ho_state) :: state
-    integer :: nz, nr, ml, omega, qrem, idx
+    integer :: nz, nr, ml, omega, qrem, idx,r , s, p, nperp, sign, msigned
     idx = 0
     do nz = 0,N
         !we need nz + 2nr + ml = N.
         qrem = N - nz
         do nr = 0, qrem/2 !!integer division. if remaining is 3, we want n = 0, 1
             ml = qrem - 2*nr
+           
             do omega = abs(2*ml - 1), 2*ml + 1, 2 
                 idx = idx + 1
-                state = an_ho_state(nz = nz, nr = nr, ml=ml, mj=omega)
+                nperp = 2*nr + abs(ml)
+                r = (nperp + ml)/2
+                s = (nperp - ml)/2
+
+
+                p = (-1)**N
+                state = an_ho_state(nz = nz, nr = nr, ml=ml, mj=omega, r= r, s=s, N=N, pi=p, nperp = nperp)
                 states(idx) = state
             end do
+
         end do
     end do
 end function
@@ -242,5 +254,80 @@ pure recursive function fac(n) result(res)
 end function
 
 
+pure function Rp_mat(states)!!Matrix for the R^+ matrix
+    type(an_ho_state), intent(in) :: states(:)
+    real(r_kind), dimension(size(states), size(states)) :: Rp_mat
+    integer :: row, col
+    type(an_ho_state) :: sr, sc
+
+    do row = 1, size(states)
+        sr = states(row)
+        do col = 1,size(states)
+            sc = states(col)
+            Rp_mat(row, col) = kronecker(sr%nz,sc%nz) * kronecker(sr%s, sc%s) * kronecker(sr%r, sc%r + 1) * sqrt(real(sc%r + 1,r_kind))
+        end do
+    end do
+
+end function
+
+pure function R_mat(states) !!Matrix for the R matrix
+    type(an_ho_state), intent(in) :: states(:)
+    real(r_kind), dimension(size(states), size(states)) :: R_mat
+    R_mat = transpose(Rp_mat(states))
+end function
+
+pure function Sp_mat(states)
+    type(an_ho_state), intent(in) :: states(:)
+    real(r_kind), dimension(size(states), size(states)) :: Sp_mat
+    integer :: row, col
+    type(an_ho_state) :: sr, sc
+
+    do row = 1, size(states)
+        sr = states(row)
+        do col = 1,size(states)
+            sc = states(col)
+            Sp_mat(row, col) = kronecker(sr%nz,sc%nz) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s + 1) * sqrt(real(sc%s + 1,r_kind))
+        end do
+    end do
+
+end function
+pure function S_mat(states) !!Matrix for the R matrix
+    type(an_ho_state), intent(in) :: states(:)
+    real(r_kind), dimension(size(states), size(states)) :: S_mat
+    S_mat = transpose(Sp_mat(states))
+end function
+
+pure function azp_mat(states) !!Constructor operator for z quanta
+    type(an_ho_state), intent(in) :: states(:)
+    real(r_kind), dimension(size(states), size(states)) :: azp_mat
+    integer :: row, col
+    type(an_ho_state) :: sr, sc
+
+    do row = 1, size(states)
+        sr = states(row)
+        do col = 1,size(states)
+            sc = states(col)
+            azp_mat(row, col) = kronecker(sr%nz,sc%nz+1) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s) * sqrt(real(sc%nz + 1,r_kind))
+        end do
+    end do
+end function
+
+pure function az_mat(states)!!Destructor operator for z quanta
+    type(an_ho_state), intent(in) :: states(:)
+    real(r_kind), dimension(size(states), size(states)) :: az_mat
+    az_mat = transpose(azp_mat(states))
+end function
+
+pure integer function kronecker(a,b)
+    integer, intent(in) :: a,b
+    if(a == b) then
+        kronecker = 1
+    else
+        kronecker = 0
+    endif
+
+end function
+
+    
 
 end module def_ho
