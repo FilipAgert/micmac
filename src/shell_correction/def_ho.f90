@@ -21,7 +21,7 @@ module def_ho
 
 
     type :: an_ho_state !!mj is half integer. so mj = 3 in reality means 3/2
-        integer :: nz, nr, ml, mj, r, s, pi, N, nperp
+        integer :: nz, nr, ml, mj, r, s, pi, N, nperp, ms
         contains
         procedure :: text => aniho_text
         procedure :: header => aniho_header
@@ -76,13 +76,13 @@ function aniho_text(self) result(text)
     else
         par = "+"
     endif
-    write(text, '(A,5I5,A, 3I5)')par, self%N, self%nz, self%nr, self%ml, self%mj, "/2", self%r, self%s, self%nperp
+    write(text, '(A,5I5,A,I5,A, 3I5)')par, self%N, self%nz, self%nr, self%ml, self%mj, "/2", self%ms, "/2", self%r, self%s, self%nperp
 end function
 
 function aniho_header(self) result(hdr)
     class(an_ho_state) :: self
     character(len=100) :: hdr
-    write(hdr, '(A)') "p    N    nz   nr   ml    mj    r    s   n_p"
+    write(hdr, '(A)') "p    N    nz   nr   ml    mj   ms    r    s   n_p"
 
 end function
 
@@ -102,7 +102,7 @@ pure function get_ho_states(N) result(states)
     integer, intent(in) :: N !!ho quantum number
     type(an_ho_state), dimension(getnumstates(N)) :: states
     type(an_ho_state) :: state
-    integer :: nz, nr, ml, omega, qrem, idx,r , s, p, nperp, sign, msigned
+    integer :: nz, nr, ml, omega, qrem, idx,r , s, p, nperp, sign, msigned, ms
     idx = 0
     do nz = 0,N
         !we need nz + 2nr + ml = N.
@@ -111,6 +111,7 @@ pure function get_ho_states(N) result(states)
             ml = qrem - 2*nr
            
             do omega = abs(2*ml - 1), 2*ml + 1, 2 
+                ms = omega-2*ml
                 idx = idx + 1
                 nperp = 2*nr + abs(ml)
                 r = (nperp + ml)/2
@@ -118,7 +119,7 @@ pure function get_ho_states(N) result(states)
 
 
                 p = (-1)**N
-                state = an_ho_state(nz = nz, nr = nr, ml=ml, mj=omega, r= r, s=s, N=N, pi=p, nperp = nperp)
+                state = an_ho_state(nz = nz, nr = nr, ml=ml, mj=omega, r= r, s=s, N=N, pi=p, nperp = nperp, ms=ms)
                 states(idx) = state
             end do
 
@@ -264,7 +265,7 @@ pure function Rp_mat(states)!!Matrix for the R^+ matrix
         sr = states(row)
         do col = 1,size(states)
             sc = states(col)
-            Rp_mat(row, col) = kronecker(sr%nz,sc%nz) * kronecker(sr%s, sc%s) * kronecker(sr%r, sc%r + 1) * sqrt(real(sc%r + 1,r_kind))
+            Rp_mat(row, col) = kronecker(sr%ms,sc%ms)*kronecker(sr%nz,sc%nz) * kronecker(sr%s, sc%s) * kronecker(sr%r, sc%r + 1) * sqrt(real(sc%r + 1,r_kind))
         end do
     end do
 
@@ -286,7 +287,7 @@ pure function Sp_mat(states)
         sr = states(row)
         do col = 1,size(states)
             sc = states(col)
-            Sp_mat(row, col) = kronecker(sr%nz,sc%nz) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s + 1) * sqrt(real(sc%s + 1,r_kind))
+            Sp_mat(row, col) = kronecker(sr%ms,sc%ms)*kronecker(sr%nz,sc%nz) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s + 1) * sqrt(real(sc%s + 1,r_kind))
         end do
     end do
 
@@ -307,7 +308,7 @@ pure function azp_mat(states) !!Constructor operator for z quanta
         sr = states(row)
         do col = 1,size(states)
             sc = states(col)
-            azp_mat(row, col) = kronecker(sr%nz,sc%nz+1) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s) * sqrt(real(sc%nz + 1,r_kind))
+            azp_mat(row, col) = kronecker(sr%ms,sc%ms)*kronecker(sr%nz,sc%nz+1) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s) * sqrt(real(sc%nz + 1,r_kind))
         end do
     end do
 end function
@@ -328,6 +329,53 @@ pure integer function kronecker(a,b)
 
 end function
 
-    
+!!momentum operators
+
+
+
+
+!! pauli matrices
+pure function pauli_z(states)
+    type(an_ho_state), intent(in) :: states(:)
+    integer, dimension(size(states), size(states)) :: pauli_z
+    integer :: n
+    pauli_z = 0
+    do n = 1,size(states)
+        pauli_z(n,n) = states(n)%ms
+    end do
+end function
+
+pure function pauli_x(states)
+    type(an_ho_state), intent(in) :: states(:)
+    integer, dimension(size(states), size(states)) :: pauli_x
+    pauli_x = pauli_p(states) + pauli_m(states)
+end function
+
+pure function pauli_yim(states) !!This is the imaginary part of the pauli_y matrix.
+    type(an_ho_state), intent(in) :: states(:)
+    integer, dimension(size(states), size(states)) :: pauli_yim
+    pauli_yim =  pauli_m(states) - pauli_p(states)
+end function
+
+pure function pauli_p(states)
+    type(an_ho_state), intent(in) :: states(:)
+    integer, dimension(size(states), size(states)) :: pauli_p
+    integer :: row, col
+    type(an_ho_state) :: sr, sc
+    pauli_p = 0
+    do row = 1,size(states)
+        sr = states(row)
+        do col = 1,size(states)
+            sc = states(col)
+            pauli_p(row, col) = kronecker(sr%ms,sc%ms+2)*kronecker(sr%nz,sc%nz) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s)
+        end do
+    end do
+end function
+
+pure function pauli_m(states) !!Destructor operator for pauli matrix
+    type(an_ho_state), intent(in) :: states(:)
+    integer, dimension(size(states), size(states)) :: pauli_m
+    pauli_m = transpose(pauli_p(states))
+end function
 
 end module def_ho
