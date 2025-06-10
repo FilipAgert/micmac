@@ -2,16 +2,12 @@ module def_ho
     use constants, only: r_kind, hbarc, pi
     use micmac, only: deformation
     use optimise, only:func_1d, conj_grad_method
-    use quadrule, only:laguerre_ss_compute, hermite_ek_compute
     implicit none
     private
-    public :: an_ho_state, get_ho_states, getnumstates, betadef, dist_min, getnumstatesupto, Ws_mat_elem
+    public :: an_ho_state, get_ho_states, getnumstates, betadef, getnumstatesupto, fac, Hn, lna
 
-    integer, parameter :: gauss_order =99
-    real(r_kind), dimension(gauss_order) :: her_x, her_w, lag_x, lag_w
-    logical :: precomputed = .false.
 
-    real(r_kind), parameter :: aws = 0.70_r_kind !! (fm)
+
     type :: betadef
         real(r_kind) :: beta2, beta4
 
@@ -22,20 +18,6 @@ module def_ho
 
     end type
 
-    type :: ax_deformed_ho !!
-        real(r_kind) :: freq(3) 
-        type(betadef) :: def
-
-    end type
-
-
-    type, extends(func_1d) :: dist_min
-        real(r_kind) :: r, theta, radius! radius normalized as r/R0
-        type(betadef) :: def
-    contains
-        procedure :: eval => surfdisteval
-
-    end type
 
 
     type :: an_ho_state !!mj is half integer. so mj = 3 in reality means 3/2
@@ -99,152 +81,8 @@ function aniho_header(self) result(hdr)
     write(hdr, '(A)') "    N    nz   nr   ml    mj "
 
 end function
-subroutine precompute_weights()
-    if(precomputed) then
-        return
-    endif
-    precomputed = .true.
-
-    !!64 point gaussian quadrature.
-    call hermite_ek_compute(gauss_order,her_x,her_w)
-    !!Gets weights and locations for where to evaluate 64 point integral. 
-    !!Integral must be of form 
-    !! -infty < x < infty  dx f(x) * exp(-x^2)
-    !! where x = alpha_z*z => z = x/alpha_z
 
 
-    call laguerre_ss_compute(gauss_order, lag_x, lag_w)
-    !!Gets weights and locations for where to evaluate 64 point integral. 
-    !!Integral must be of form 
-    !! 0 < x < infty  dx f(x) * exp(-x)
-    !! where x = alpha^2 * rho^2
-
-
-end subroutine
-
-
-pure elemental real(r_kind) function Y20(theta)
-    real(r_kind), intent(in) :: theta
-    Y20 = sqrt(5.0_r_kind / (16 * pi)) * (3.0_r_kind * cos(theta)**2 - 1.0_r_kind)
-end function
-
-pure elemental real(r_kind) function Y40(theta)
-    real(r_kind) ,intent(in) :: theta
-    Y40 = sqrt(9.0_r_kind / (256 * pi)) * (35.0_r_kind * cos(theta)**4 - 30.0_r_kind * cos(theta)**2 + 3)
-
-end function
-
-pure elemental real(r_kind) function surfdisteval(self, x) !!Gets distance to surface at angle x.
-    class(dist_min), intent(in) :: self
-    real(r_kind), intent(in) :: x !!Angle theta in this case.
-
-    real(r_kind) :: radius
-    radius = surfRadius(x, self%def, self%radius)
-
-    surfdisteval = (self%r*cos(self%theta) - radius*cos(x))**2 &
-                 + (self%r*sin(self%theta) - radius*sin(x))**2
-end function
-
-pure elemental real(r_kind) function surfRadius(theta, def, R0) !!computes distance to surface
-    real(r_kind), intent(in) :: theta, R0
-    type(betadef), intent(in) :: def
-    real(r_kind) :: dist
-    surfRadius = R0 * (1.0_r_kind + def%beta2 * Y20(theta) + def%beta4*Y40(theta))
-end function
-
-
-real(r_kind) function Ws_mat_elem(state1, state2, def, Ws_depth, radius, mass, omegaz, omegaperp) result(elem) 
-    !!Calculates matrix element for central part of WS potential.
-    !!uses 64 points gaussian quadrature
-    type(an_ho_state), intent(in) :: state1, state2
-    type(betadef) :: def
-    real(r_kind), intent(in) :: Ws_depth, radius
-    real(r_kind), intent(in) :: mass !!In units MeV/c^2
-    real(r_kind), intent(in) :: omegaperp, omegaz !!In units MeV/hbar
-    integer :: il, ih
-    real(r_kind) :: rolling, z, rho, alphaz, alpharho, u, x, factz, factrho, xpart, r, ang, dist
-    !The phi integral turns out to be a kronecker delta * 2pi
-    if (state1%ml /= state2%ml) then 
-        elem = 0
-        return
-    else if(state1%mj /= state2%mj) then !Spin orthogonality
-        elem = 0
-        return
-    endif
-    elem = 1.0_r_kind !!from phi part.
-
-    call precompute_weights()
-
-    
-    alphaz = sqrt(mass*omegaz/(hbarc*hbarc))
-    alpharho = sqrt(mass*omegaperp/(hbarc*hbarc))
-    factz = 1.0_r_kind/sqrt(pi * 2**(state1%nz+state2%nz) * fac(state1%nz)*fac(state2%nz))
-    factrho = sqrt(real(fac(state1%nr) * fac(state2%nr),r_kind) / real(fac(state1%nr+state1%ml) * fac(state2%nr+state2%ml),r_kind))
-
-    rolling = 0.0_r_kind
-    do il = 1, gauss_order
-        x = lag_x(il)
-        rho = sqrt(x)/alpharho
-        ! write(*,'(A,F10.3)')"rho:", rho
-        xpart = x ** ((state1%ml + state2%ml * 1.0_r_kind)/2.0_r_kind) * lna(x,state1%nr,state1%ml) * lna(x,state2%nr,state2%ml)
-        do ih = 1, gauss_order
-            u = her_x(ih)
-            z = u/alphaz
-            r = rad_cyl(rho, z)
-            ang = theta_cyl(rho,z)
-            ! write(*,'(A,F10.3,A,F10.3,A,F10.3)')"z:", z, ", r:", r, " ang(deg):", ang*180/pi
-            rolling = rolling + lag_w(il) * her_w(ih) * Hn(u,state1%nz) * Hn(u, state2%nz) & !Z part
-                    * xpart * Ws(r,ang,def, Ws_depth, radius)!!Xpart and mixed part.
-            ! write(*,'(A,F10.3)')"Pot:", Ws(r,ang,def, Ws_depth, radius)
-            ! write(*,*)
-            ! if(rolling < -1e6) then
-            !     write(*,*) rolling, lag_w(il), her_w(ih), u, z, r, ang, xpart
-            !     pause 'press enter to continue'
-            ! endif
-        end do
-        ! pause
-    end do
-
-    
-    elem = elem * factz * factrho * rolling
-
-end function
-
-real(r_kind) pure elemental function theta_cyl(rho,z)  !!Coordinate transform from cylindrical coordinates to spherical theta
-    real(r_kind), intent(in):: rho,z
-    if (z < 0) then
-        theta_cyl = ATAN(rho/z) + pi
-    else
-        theta_cyl = ATAN(rho/z)
-    endif
-end function
-
-real(r_kind) pure elemental function rad_cyl(rho,z)  !!Coordinate transform from cylindrical coordinates to spherical radius
-    real(r_kind), intent(in):: rho,z
-    rad_cyl = sqrt(rho*rho+z*z)
-end function
-
-real(r_kind) function Ws(r, theta, def, ws_depth, radius) !!axially symmetric. function of z and rho
-    real(r_kind), intent(in) :: r, theta, ws_depth, radius
-    type(betadef), intent(in) :: def
-    real(r_kind) ::dist
-    dist = sqrt(surfdist(r,theta,def, radius)) 
-    if(r < radius) then
-        dist = - dist
-    endif
-    Ws = -ws_depth/ (1 + exp(dist/aws))
-end function
-
-real(r_kind) function surfdist(r,theta,def, radius) result(dist) !!Finds shortest distance to surface of nucleus.
-    real(r_kind), intent(in) :: r, theta, radius
-    type(betadef), intent(in) :: def
-    type(dist_min) :: distfunc
-    real(r_kind) :: ang
-    logical :: conv
-
-    distfunc = dist_min(r=r, theta=theta, def=def, radius=radius)
-    call conj_grad_method(ang, dist, conv, distfunc, 0.0_r_kind, pi,theta,1e-5_r_kind)
-end function
 
 pure elemental integer function getnumstates(N) result(num) !!get number of states in one major shell of h.o
     integer, intent(in) :: N
@@ -388,7 +226,6 @@ pure integer recursive function fac(n) result(res)
         res = n * fac(n-1)
     endif
 end function
-
 
 
 

@@ -1,7 +1,7 @@
 module quadrule
     implicit none
     private
-    public :: laguerre_ss_compute, hermite_ek_compute
+    public :: laguerre_ss_compute, hermite_ek_compute, legendre_dr_compute
     contains
 subroutine cdgqf ( nt, kind, alpha, beta, t, wts )
 

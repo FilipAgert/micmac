@@ -1,15 +1,16 @@
 program run_ho
     use constants
-    use def_ho, only: getnumstatesupto, getnumstates, get_ho_states, an_ho_state, Ws_mat_elem, betadef
-    use hamiltonian, only: diagonalize
+    use def_ho, only: getnumstatesupto, getnumstates, get_ho_states, an_ho_state, betadef
+    use hamiltonian, only: diagonalize, Ws_mat_elem, nucleus
     implicit none
 
 
-    integer, parameter :: max_n = 5
+    integer, parameter :: max_n = 3
     integer, parameter :: A = 48, Z=20
     type(an_ho_state), dimension(:), allocatable :: states
     type(an_ho_state) :: state1, state2
     type(betadef) :: def 
+    type(nucleus) :: nucl
     integer :: n, shelldegen, idx, m, numstates, ii
     real(r_kind), dimension(:,:), allocatable :: Vws, Tkin, H, V
     real(r_kind), dimension(:), allocatable :: E
@@ -17,9 +18,9 @@ program run_ho
     real(r_kind), parameter ::r0 = 1.347
     real(r_kind), parameter :: kappa=0.86
     real(r_kind) :: hbaromega0, radius, hbaromegaperp, hbaromegaz
-    real(r_kind) :: I, Vwsdepth
+    real(r_kind) :: I, Vwsdepth, r, theta, Vc, vcold
 
-    def = betadef(beta2 = 0.4, beta4=0.0)
+    def = betadef(beta2 = 0.1, beta4=0.0)
     hbaromega0 = 41.0_r_kind * A**(-1.0_r_kind/3.0_r_kind) !!MeV
     hbaromegaperp = def%omega_perp(hbaromega0) !! omega = Mev/hbar
     hbaromegaz = def%omega_z(hbaromega0)
@@ -59,7 +60,7 @@ program run_ho
             Vws(n,m) = Ws_mat_elem(state1, state2, def,VwsDepth,radius,mass_n,hbaromegaz,hbaromegaperp)
 
         end do
-        write(*,'(I5,A,I5,A)') n, " out of ", numstates, " rows completed"
+        ! write(*,'(I5,A,I5,A)') n, " out of ", numstates, " rows completed"
     end do
 
     do n = 1, numstates !!Use the fact that matrix elements are symmetric.
@@ -69,7 +70,7 @@ program run_ho
             Vws(n,m) = Vws(m,n)
 
         end do
-        ! write(*,'(40F7.3)') Vws(n,:)
+        write(*,'(40F7.3)') Vws(n,:)
     end do
 
     Tkin = 0.0_r_kind
@@ -92,5 +93,23 @@ program run_ho
 
         write(*,'(A, 20F8.3)') "     ", V(n,1:20)
     end do
+
+
+    nucl%ZZ = Z
+    nucl%def = def
+    nucl%radius = 1.0_r_kind
+
+    r = 0.0
+    theta = 0.0
+    vcold = nucl%Vc(r,theta)
+    write(*,'(A,e15.5,A)') "Pot: ", vcold, " at, 0 fm"
+
+    r = 0.5
+    theta = 0.0
+    Vc = nucl%Vc(r,theta)
+    write(*,'(A,e15.5,A)') "Pot: ", Vc, " at, 0.5 fm"
+    write(*,'(A, f10.3)') "ratio: ", vcold/vc
+
+
 
 end program
