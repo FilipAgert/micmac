@@ -1,5 +1,5 @@
 module def_ho
-    use constants, only: r_kind, hbarc, pi
+    use constants, only: r_kind, hbarc, pi, i_kind
     use micmac, only: deformation
     use optimise, only:func_1d, conj_grad_method
     implicit none
@@ -137,17 +137,23 @@ pure function pl(x,l)
 
 end function
 
-pure real(r_kind) elemental recursive function Hn(x,n) result(res)
+
+pure real(r_kind) elemental function Hn(x,n) result(res)
     real(r_kind), intent(in) :: x
     integer, intent(in) :: n
-    if(n == 0) then
-        res = 1.0_r_kind
-    else if(n==1) then
-        res = 2.0_r_kind * x
-    else
-        res = 2.0_r_kind * x * Hn(x,n-1) - 2.0_r_kind * (n-1) * Hn(x,n-2)
+    real(r_kind), dimension(0:n) :: Hns
+    integer :: nn
+    Hns(0) = 1.0_r_kind
+    if(n > 0) then
+        Hns(1) = 2.0_r_kind * x
+        do nn = 2,n
+            Hns(nn) = 2.0_r_kind*x*Hns(nn-1) - 2.0_r_kind*(nn-1)*Hns(nn-2)
+        end do
     endif
+    res = Hns(n)
+
 end function
+
 
 pure real(r_kind) elemental function ani_ho_en(state,hbaromega_z,hbaromega_xy) result(energy)
     real(r_kind), intent(in) :: hbaromega_z, hbaromega_xy
@@ -202,28 +208,36 @@ pure elemental function phi2radang(ml, ang) result(phase) !!Eigenfunction ang pa
 
 end function
 
-pure real(r_kind) recursive elemental function lna(x,n,a) result(val)
+
+
+
+pure real(r_kind) elemental function lna(x,n,a) result(res) !gen laguerre polynomial iterative version
     real(r_kind), intent(in) :: x
     integer, intent(in) :: n, a
+    real(r_kind), dimension(0:n) :: lnas
+    integer :: nn
+    lnas(0) = 1.0_r_kind
 
+    if(n > 0) then
+        lnas(1) = 1.0_r_kind + real(a,r_kind) - x
 
-    if(n == 0) then
-        val = 1.0_r_kind
-    elseif(n==1) then
-        val = 1.0_r_kind + real(a,r_kind) - x
-    else
-        val = (real(2*n-1+a,r_kind)-x)*lna(x,n-1,a) - (real(n-1+a,r_kind))*lna(x,n-2,a)
-        val = val/real(n,r_kind)
+        do nn = 2, n
+            lnas(nn) = (real(2*nn-1+a,r_kind)-x)*lnas(nn-1) - (real(nn-1+a,r_kind))*lnas(nn-2)
+            lnas(nn) = lnas(nn)/real(nn,r_kind)
+        end do
     endif
+    res = lnas(n)
 
 end function
 
-pure integer recursive function fac(n) result(res)
+
+pure recursive function fac(n) result(res)
+    integer(kind=i_kind) :: res
     integer, intent(in) :: n
     if(n == 0 .or. n == 1) then
         res = 1
     else
-        res = n * fac(n-1)
+        res = n* fac(n-1)
     endif
 end function
 

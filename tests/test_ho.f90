@@ -2,6 +2,7 @@ module test_ho
     use constants
     use def_ho
     use optimise, only: conj_grad_method
+    use Hamiltonian
     use test_utils
     implicit none
     private
@@ -16,6 +17,7 @@ contains
         print *, "Running fitting tests..."
         call test_makestates(n_passed,n_failed)
         call test_find_mindist(n_passed, n_failed)
+        call test_poly(n_passed,n_failed)
         print *, "fitting results: ", n_passed, " passed,", n_failed, " failed"
     end subroutine run_tests_ho
 
@@ -42,7 +44,7 @@ contains
         def = betadef(beta2 = 0.2, beta4=0.0)
         r = 0.5
         theta = pi/2.0_r_kind
-        distfunc = dist_min(r=r, theta=theta, def=def)
+        distfunc = dist_min(r=r, theta=theta, def=def, radius=1)
 
         call conj_grad_method(theta_min,dist,converged,distfunc,0.0_r_kind,pi,theta,1e-5_r_kind)
 
@@ -67,7 +69,7 @@ contains
 
 
         theta = pi-0.1
-        distfunc = dist_min(r=r, theta=theta, def=def)
+        distfunc = dist_min(r=r, theta=theta, def=def, radius=1)
 
         call conj_grad_method(theta_min,dist,converged,distfunc,0.0_r_kind,pi,theta,1e-5_r_kind)
         expected = 2.9714242267_r_kind
@@ -90,5 +92,6 @@ contains
         end if
 
     end subroutine
+
     
 end module test_ho

@@ -7,7 +7,7 @@ module Hamiltonian
 
 
     private
-    public :: diagonalize, Ws_mat_elem, nucleus
+    public :: diagonalize, mat_elem_axsym, WS_pot, VC_pot, dist_min
 
     integer, parameter :: gauss_order =99
     real(r_kind), dimension(gauss_order) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
@@ -27,23 +27,77 @@ module Hamiltonian
 
     end type
 
-    type nucleus
-        integer :: ZZ
+
+
+    type, abstract :: potential
         type(betadef) :: def
         real(r_kind) :: radius
-
-
+        real(r_kind), dimension(gauss_order, gauss_order) :: precomputed_pot
+        logical, dimension(gauss_order, gauss_order) :: is_computed = .false.
     contains
-        procedure :: charge_density => coul_charge_density
-        procedure :: Vc => getVc
+        procedure(eval), deferred :: eval
+        procedure :: set => set_precomp
+        procedure :: get => get_precomp
+        procedure :: eval_pre => eval_precomp
     end type
-    contains
 
-    subroutine precompute_weights()
+    type, extends(potential) :: WS_pot
+        real(r_kind) :: V_0
+    contains
+        procedure :: eval => eval_WS
+    end type
+
+    type, extends(potential) :: VC_pot
+        real(r_kind) :: charge_dens
+    contains
+        procedure :: eval => eval_VC
+        procedure :: set_charge_dens => set_charge_VC
+    end type
+
+    abstract interface
+        real(r_kind) function eval(self, r, theta)
+            import:: potential, r_kind
+            class(potential), intent(in) :: self
+            real(r_kind), intent(in) :: r, theta
+        end function
+    end interface
+
+
+    contains
+    real(r_kind) function eval_precomp(self, ir, it, r, theta)
+        class(potential) :: self
+        integer, intent(in) :: ir, it
+        real(r_kind), intent(in) :: r, theta
+
+        if(self%is_computed(ir, it)) then
+            eval_precomp = self%precomputed_pot(ir,it)
+        else
+            eval_precomp = self%eval(r, theta)
+            self%precomputed_pot(ir, it) = eval_precomp
+            self%is_computed(ir,it) = .true.
+        endif
+
+    end function
+    pure real(r_kind) function get_precomp(self, ir, it)
+        class(potential), intent(in) :: self
+        integer, intent(in) :: ir, it
+        get_precomp = self%precomputed_pot(ir, it)
+    end function
+
+    subroutine set_precomp(self, ir, it, val)
+        class(potential) :: self
+        integer, intent(in) :: ir, it
+        real(r_kind), intent(in) :: val
+        self%precomputed_pot(ir, it) = val
+    end subroutine
+
+
+
+    subroutine precompute()
         if(precomputed) then
             return
         endif
-        precomputed = .true.
+
 
         !!64 point gaussian quadrature.
         call hermite_ek_compute(gauss_order,her_x,her_w)
@@ -62,13 +116,23 @@ module Hamiltonian
         
         call legendre_dr_compute(gauss_order, leg_x, leg_w)
 
+        precomputed = .true.
+
+
+
 
     end subroutine
 
-        pure real(r_kind) function coul_charge_density(self) result(rho)
-        class(nucleus), intent(in) :: self
+    subroutine set_charge_VC(self, ZZ)
+        class(VC_pot) :: self
+        integer, intent(in) :: ZZ !!proton number
+        self%charge_dens = coul_charge_density(ZZ, self%radius)
+    end subroutine
 
-        rho = 1.0_r_kind
+    pure real(r_kind) function coul_charge_density(ZZ, radius) result(rho)
+        integer, intent(in) :: ZZ !!proton number
+        real(r_kind), intent(in) :: radius
+        rho = ZZ *3.0_r_kind/(4.0_r_kind * pi*4*pi * epsilonzero * radius**3)  !! Charge /( Volume * 4piepsilonzero)
 
     end function
 
@@ -107,15 +171,13 @@ module Hamiltonian
         spher_dist = sqrt(r1**2+r2**2-2*r1*r2*(cos(theta1)*cos(theta2)+sin(theta1)*sin(theta2)*cos(phi2)))
     end function
 
-
-
-    real(r_kind) function getVc(self, r, theta) result(pot)
-        class(nucleus), intent(in) :: self
+    real(r_kind) function eval_vc(self,r, theta) !!axially symmetric. function of z and rho
+        class(VC_pot), intent(in) :: self
         real(r_kind), intent(in) :: r, theta
         !Do the integral int_V     dr^3/|r-r'| at the point r.
         integer :: iu, it, ix
         real(r_kind) :: u, t, x, int_theta, int_radius_ub, rolling
-        call precompute_weights()
+        call precompute()
 
         rolling = 0.0_r_kind
         do iu = 1, gauss_order
@@ -131,13 +193,11 @@ module Hamiltonian
                             / sqrt(r**2 + int_radius_ub**2 * (x+1.0_r_kind)**2 / 4.0_r_kind &
                                     + r*int_radius_ub*(x+1.0_r_kind)* (sin(theta)*sin(acos(u))*cos(pi+pi*t) + u*cos(theta)))
                 end do
-
             end do
-
         end do
-
-        pot = rolling
+        eval_vc = rolling * self%charge_dens
     end function
+
 
 
 
@@ -172,12 +232,12 @@ module Hamiltonian
     end function
 
 
-    real(r_kind) function Ws_mat_elem(state1, state2, def, Ws_depth, radius, mass, omegaz, omegaperp) result(elem) 
+    real(r_kind) function mat_elem_axsym(state1, state2, pot, mass, omegaz, omegaperp) result(elem) 
+        implicit none
         !!Calculates matrix element for central part of WS potential.
         !!uses 64 points gaussian quadrature
         type(an_ho_state), intent(in) :: state1, state2
-        type(betadef) :: def
-        real(r_kind), intent(in) :: Ws_depth, radius
+        class(potential)  :: pot
         real(r_kind), intent(in) :: mass !!In units MeV/c^2
         real(r_kind), intent(in) :: omegaperp, omegaz !!In units MeV/hbar
         integer :: il, ih
@@ -192,13 +252,15 @@ module Hamiltonian
         endif
         elem = 1.0_r_kind !!from phi part.
 
-        call precompute_weights()
+        call precompute()
 
         
         alphaz = sqrt(mass*omegaz/(hbarc*hbarc))
         alpharho = sqrt(mass*omegaperp/(hbarc*hbarc))
-        factz = 1.0_r_kind/sqrt(pi * 2**(state1%nz+state2%nz) * fac(state1%nz)*fac(state2%nz))
-        factrho = sqrt(real(fac(state1%nr) * fac(state2%nr),r_kind) / real(fac(state1%nr+state1%ml) * fac(state2%nr+state2%ml),r_kind))
+
+        !in factors, split up the square roots to avoid integer overflow
+        factz = 1.0_r_kind/(sqrt(pi * 2_i_kind**(state1%nz+state2%nz))*sqrt(real(fac(state1%nz),r_kind))*sqrt(real(fac(state2%nz),r_kind))) 
+        factrho = sqrt(real(fac(state1%nr),r_kind))*sqrt(real( fac(state2%nr),r_kind)) / (sqrt(real(fac(state1%nr+state1%ml),r_kind)) * sqrt(real(fac(state2%nr+state2%ml),r_kind)))
 
         rolling = 0.0_r_kind
         do il = 1, gauss_order
@@ -214,7 +276,13 @@ module Hamiltonian
                 ang = theta_cyl(rho,z)
                 ! write(*,'(A,F10.3,A,F10.3,A,F10.3)')"z:", z, ", r:", r, " ang(deg):", ang*180/pi
                 rolling = rolling + lag_w(il) * her_w(ih) * Hn(u,state1%nz) * Hn(u, state2%nz) & !Z part
-                        * xpart * Ws(r,ang,def, Ws_depth, radius)!!Xpart and mixed part.
+                        * xpart * pot%eval_pre(il, ih, r,ang) !!Xpart and mixed part.
+                if(isnan(xpart) .or. isnan(rolling)) then
+                    write(*,*) lag_w(il),her_w(ih), Hn(u,state1%nz), Hn(u, state2%nz) & !Z part
+                    ,xpart , pot%eval_pre(il, ih, r,ang)
+
+                    pause
+                endif
                 ! write(*,'(A,F10.3)')"Pot:", Ws(r,ang,def, Ws_depth, radius)
                 ! write(*,*)
                 ! if(rolling < -1e6) then
@@ -227,6 +295,13 @@ module Hamiltonian
 
         
         elem = elem * factz * factrho * rolling
+        if(isnan(elem)) then
+            write(*,*) "elem, z fact, rho fact, sum", elem, factz, factrho, rolling
+            write(*,*) "nr1, ml1, nr2, ml2", state1%nr, state1%ml, state2%nr, state2%ml
+            write(*,*) fac(state1%nr),fac(state2%nr),fac(state1%nr+state1%ml), fac(state2%nr+state2%ml)
+            write(*,*) real(fac(state1%nr)*fac(state2%nr),r_kind),(sqrt(real(fac(state1%nr+state1%ml),r_kind)) * sqrt(real(fac(state2%nr+state2%ml),r_kind)))
+            pause
+        endif
 
     end function
 
@@ -244,17 +319,17 @@ module Hamiltonian
         rad_cyl = sqrt(rho*rho+z*z)
     end function
 
-    real(r_kind) function Ws(r, theta, def, ws_depth, radius) !!axially symmetric. function of z and rho
-        real(r_kind), intent(in) :: r, theta, ws_depth, radius
-        type(betadef), intent(in) :: def
+    real(r_kind) function eval_ws(self,r, theta) !!axially symmetric. function of z and rho
+        real(r_kind), intent(in) :: r, theta
+        class(WS_pot), intent(in) :: self
         real(r_kind) ::dist
-        dist = sqrt(surfdist(r,theta,def, radius)) 
-        if(r < radius) then
+        dist = sqrt(surfdist(r,theta,self%def, self%radius)) 
+        if(r < self%radius) then
             dist = - dist
         endif
-        Ws = -ws_depth/ (1 + exp(dist/aws))
+        eval_ws = -self%V_0/ (1 + exp(dist/aws))
     end function
-
+    
     real(r_kind) function surfdist(r,theta,def, radius) result(dist) !!Finds shortest distance to surface of nucleus.
         real(r_kind), intent(in) :: r, theta, radius
         type(betadef), intent(in) :: def

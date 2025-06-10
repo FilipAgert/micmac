@@ -3,6 +3,7 @@ module constants
 
 
     integer, parameter :: r_kind = 8
+    integer, parameter :: i_kind = 8
     
     integer, parameter :: num_params = 7
     !! volume, surf, coul, asym, pairing: -15.46541  15.94866   0.71158  24.03928  50.66491
@@ -13,10 +14,11 @@ module constants
     real(r_kind), parameter :: mass_e = 0.5109989461
     real(r_kind), parameter :: mass_n = 939.56542194
     real(r_kind), parameter :: dalton = 931.49410372
-    real(r_kind), parameter :: d =0.5461
+    real(r_kind), parameter :: d =0.5461 !! fm
     real(r_kind), parameter :: e_squared = 1.4399764_r_kind !! MeV fm
     real(r_kind), parameter :: pi = ACOS(-1.0_r_kind)
     real(r_kind), parameter :: pi2 = pi*pi
+    real(r_kind), parameter :: epsilonzero = 0.0552634936 !! e^2 / (MeV * fm)
 
     integer, parameter :: Z_fit_minval = 84!!84
     integer, parameter :: N_fit_minval = 0!8 !!126
