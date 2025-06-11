@@ -5,7 +5,7 @@ program run_ho
     implicit none
 
 
-    integer, parameter :: max_n = 10
+    integer, parameter :: max_n = 3
     integer, parameter :: A = 238, Z=92
     type(an_ho_state), dimension(:), allocatable :: states
     type(an_ho_state) :: state1, state2
@@ -36,6 +36,7 @@ program run_ho
     numstates = getnumstatesupto(max_n)
     allocate(states(numstates))
 
+    
     idx = 1
     do n = 0, max_n
         shelldegen = getnumstates(n)
@@ -44,7 +45,11 @@ program run_ho
         states(idx:idx+shelldegen - 1) = get_ho_states(n)
         idx = idx + shelldegen
     end do
+    write(*,*) states(1)%header()
 
+    do n = 1, numstates
+        write(*,*) states(n)%text()
+    end do
 
     allocate(Vws(numstates,numstates), Tkin(numstates,numstates), H(numstates,numstates), Vc(numstates, numstates))
     
@@ -63,7 +68,7 @@ program run_ho
             Vws(n,m) = mat_elem_axsym(state1, state2, Wspot,mass_p,hbaromegaz,hbaromegaperp)
             Vc(n,m) = mat_elem_axsym(state1, state2, VCpot, mass_p, hbaromegaz, hbaromegaperp)
         end do
-        write(*,'(I5,A,I5,A)') n, " out of ", numstates, " rows completed"
+        ! write(*,'(I5,A,I5,A)') n, " out of ", numstates, " rows completed"
     end do
 
     do n = 1, numstates !!Use the fact that matrix elements are symmetric.

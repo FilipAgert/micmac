@@ -40,12 +40,30 @@ module Hamiltonian
         procedure :: get => get_precomp
         procedure :: eval_pre => eval_precomp
     end type
-
+    !!!!!!!!
     type, extends(potential) :: WS_pot
         real(r_kind) :: V_0
     contains
         procedure :: eval => eval_WS
     end type
+    !!!!!!!!!!!!!!!!!!!!!
+    type, abstract, extends(WS_pot) :: WS_derivative
+    contains
+        procedure :: pot => eval_WS_wrapper
+    end type
+    !!!!!!!!!!!!!!!!!!!!!
+    type, extends(WS_derivative) :: dWs_dz
+    contains
+        procedure :: eval => eval_dWs_dz
+    end type
+
+    !!!!!!!!!!!!!!
+    type, extends(WS_derivative) :: dWs_drho
+
+    contains
+        procedure :: eval => eval_dWs_drho
+    end type
+
 
     type, extends(potential) :: VC_pot
         real(r_kind) :: charge_dens
@@ -165,11 +183,6 @@ module Hamiltonian
         V = H
     end subroutine
 
-
-    pure real(r_kind) elemental function spher_dist(r1,r2,theta1,theta2,phi2)
-        real(r_kind), intent(in) ::r1,r2,theta1,theta2,phi2
-        spher_dist = sqrt(r1**2+r2**2-2*r1*r2*(cos(theta1)*cos(theta2)+sin(theta1)*sin(theta2)*cos(phi2)))
-    end function
 
     real(r_kind) function eval_vc(self,r, theta) !!axially symmetric. function of z and rho
         class(VC_pot), intent(in) :: self
@@ -328,6 +341,37 @@ module Hamiltonian
             dist = - dist
         endif
         eval_ws = -self%V_0/ (1 + exp(dist/aws))
+    end function
+
+    real(r_kind) function eval_ws_wrapper(self,r, theta) !!Calls the 
+        real(r_kind), intent(in) :: r, theta
+        class(WS_derivative), intent(in) :: self
+        eval_ws_wrapper = eval_ws(self, r, theta)
+    end function
+
+
+    real(r_kind) function eval_dWs_dz(self, r, theta)
+        real(r_kind), intent(in) :: r, theta
+        class(dWs_dz), intent(in) :: self
+        real(r_kind) :: rprime, thetaprime
+        real(r_kind), parameter :: dz = 1e-6
+        
+        rprime = r + cos(theta)*dz
+        thetaprime = theta - sin(theta) * dz /r
+
+        eval_dWs_dz = (self%pot(rprime, thetaprime) - self%pot(r, theta)) / dz
+    end function
+
+    real(r_kind) function eval_dWs_drho(self, r, theta)
+        real(r_kind), intent(in) :: r, theta
+        class(dWs_drho), intent(in) :: self
+        real(r_kind) :: rprime, thetaprime
+        real(r_kind), parameter :: drho = 1e-6
+        
+        rprime = r + sin(theta)*drho !! new r after we have rho' = rho+drho
+        thetaprime = theta + cos(theta) * drho / r !!new theta after rho' = rho+drho
+
+        eval_dWs_drho = (self%pot(rprime, thetaprime) - self%pot(r, theta)) / drho
     end function
     
     real(r_kind) function surfdist(r,theta,def, radius) result(dist) !!Finds shortest distance to surface of nucleus.

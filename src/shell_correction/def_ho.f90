@@ -378,4 +378,19 @@ pure function pauli_m(states) !!Destructor operator for pauli matrix
     pauli_m = transpose(pauli_p(states))
 end function
 
+pure function cosphi_m(states) !! matrix w. elements <m_l' | cosphi | m_l > = 1/2 if |m_l-m_l'| = 1,
+                               !! 0, otherwise
+    type(an_ho_state), intent(in) :: states(:)
+    real(r_kind), dimension(size(states), size(states)) :: cosphi_m
+    integer :: row, col
+    type(an_ho_state) :: sr, sc
+    do row = 1,size(states)
+        sr = states(row)
+        do col = 1,size(states)
+            sc = states(col)
+            cosphi_m(row, col) = 1.0_r_kind*(kronecker(sr%ms,sc%ms+1) + kronecker(sr%ms,sc%ms-1))*   kronecker(sr%nz,sc%nz) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s) / 2.0_r_kind
+        end do
+    end do
+end function
+
 end module def_ho
