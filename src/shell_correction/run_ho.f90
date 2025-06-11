@@ -201,7 +201,9 @@ program run_ho
     matr = isinphi_m(states)
     write(*,*)
     write(*,*) "isin"
-    write(*,*)"0   0   -1   -1   1    1    0    0"
+    write(*,*)"ml 0   0   -1   -1   1    1    0    0"
+    write(*,*)"nz 0   0    0    0   0    0    1    1"
+    write(*,*)"s  -   +    -    +   -    +    -    +"
     write(*,*)
     do n = 1, numstates
         write(*,'(100F5.1)') matr(n,:)

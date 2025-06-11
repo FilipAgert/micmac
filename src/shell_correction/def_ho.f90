@@ -423,7 +423,7 @@ pure function cosphi_m(states) !! matrix w. elements <m_l' | cosphi | m_l > = 1/
         sr = states(row)
         do col = 1,size(states)
             sc = states(col)
-            cosphi_m(row, col) = 0.5_r_kind*(kronecker(sr%ml,sc%ml+1) + kronecker(sr%ml,sc%ml-1))*   kronecker(sr%nz,sc%nz) * kronecker(sr%nr, sc%nr)
+            cosphi_m(row, col) = 0.5_r_kind*(kronecker(sr%ml,sc%ml+1) + kronecker(sr%ml,sc%ml-1))*   kronecker(sr%nz,sc%nz) * kronecker(sr%nr, sc%nr)* kronecker(sr%ms, sc%ms)
         end do
     end do
 end function
@@ -438,7 +438,7 @@ pure function isinphi_m(states) !! matrix w. elements <m_l' | isinphi | m_l > = 
         sr = states(row)
         do col = 1,size(states)
             sc = states(col)
-            isinphi_m(row, col) = 0.5_r_kind*(kronecker(sr%ml,sc%ml+1) - kronecker(sr%ml,sc%ml-1))*   kronecker(sr%nz,sc%nz) * kronecker(sr%nr, sc%nr)
+            isinphi_m(row, col) = 0.5_r_kind*(kronecker(sr%ml,sc%ml+1) - kronecker(sr%ml,sc%ml-1))*   kronecker(sr%nz,sc%nz) * kronecker(sr%nr, sc%nr) * kronecker(sr%ms, sc%ms)
         end do
     end do
 end function
