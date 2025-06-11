@@ -1,13 +1,13 @@
 module Hamiltonian
     use constants
-    use def_ho, only: betadef, an_ho_state, fac, Hn, lna, pauli_m, pauli_p, pauli_z, R_mat, Rp_mat, S_mat, Sp_mat, alpha, cosphi_m, azp_mat
+    use def_ho, only: betadef, an_ho_state, fac, Hn, lna, pauli_m, pauli_p, pauli_z, R_mat, Rp_mat, S_mat, Sp_mat, alpha, cosphi_m, azp_mat, isinphi_m
     use quadrule, only:legendre_dr_compute, hermite_ek_compute, laguerre_ss_compute
     use optimise, only:func_1d, conj_grad_method
     implicit none
 
 
     private
-    public :: diagonalize, mat_elem_axsym, WS_pot, VC_pot, dist_min
+    public :: diagonalize, mat_elem_axsym, WS_pot, VC_pot, dist_min, Vso_mat
 
     integer, parameter :: gauss_order =99
     real(r_kind), dimension(gauss_order) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
@@ -273,7 +273,7 @@ module Hamiltonian
 
         !in factors, split up the square roots to avoid integer overflow
         factz = 1.0_r_kind/(sqrt(pi * 2_i_kind**(state1%nz+state2%nz))*sqrt(real(fac(state1%nz),r_kind))*sqrt(real(fac(state2%nz),r_kind))) 
-        factrho = sqrt(real(fac(state1%nr),r_kind))*sqrt(real( fac(state2%nr),r_kind)) / (sqrt(real(fac(state1%nr+state1%ml),r_kind)) * sqrt(real(fac(state2%nr+state2%ml),r_kind)))
+        factrho = sqrt(real(fac(state1%nr),r_kind))*sqrt(real( fac(state2%nr),r_kind)) / (sqrt(real(fac(state1%nr+abs(state1%ml)),r_kind)) * sqrt(real(fac(state2%nr+abs(state2%ml)),r_kind)))
 
         rolling = 0.0_r_kind
         do il = 1, gauss_order
@@ -281,7 +281,7 @@ module Hamiltonian
             rho = sqrt(x)/alpharho
             ! write(*,'(A,F10.3, A, F10.3)')"x:", x, " w:", lag_w(il)
             ! pause
-            xpart = x ** ((state1%ml + state2%ml * 1.0_r_kind)/2.0_r_kind) * lna(x,state1%nr,state1%ml) * lna(x,state2%nr,state2%ml)
+            xpart = x ** ((abs(state1%ml) + abs(state2%ml) * 1.0_r_kind)/2.0_r_kind) * lna(x,state1%nr,abs(state1%ml)) * lna(x,state2%nr,abs(state2%ml))
             do ih = 1, gauss_order
                 u = her_x(ih)
                 z = u/alphaz
@@ -396,7 +396,7 @@ module Hamiltonian
         real(r_kind), intent(in) :: omegaz, omegaperp !!Frequencies in units MeV/hbar
         real(r_kind), intent(in) :: mass!!Frequencies in units MeV/c^2
         real(r_kind), dimension(size(states),size(states)) :: sigma_z, sigma_p, sigma_m
-        real(r_kind), dimension(size(states), size(states)) :: Sp, Sm, Rp, Rm, dVdz, dVdrho, cosphi, az, azp
+        real(r_kind), dimension(size(states), size(states)) :: Sp, Sm, Rp, Rm, dVdz, dVdrho, cosphi, az, azp, isinphi, costerm, isinterm, zterm
         real(r_kind) :: alpha_z, alpha_perp, factor
         type(dWs_dz) :: dzmat
         type(dWs_drho) :: drhomat
@@ -405,41 +405,73 @@ module Hamiltonian
         sigma_p = real(pauli_p(states),r_kind)
         sigma_m = real(pauli_m(states),r_kind)
         Sp = Sp_mat(states)
-        Sm = transpose(Sp)
+        Sm = S_mat(states)
         Rp = Rp_mat(states)
-        Rm = transpose(Rp)
+        Rm = R_mat(states)
         cosphi = cosphi_m(states)
+        isinphi = isinphi_m(states)
         azp = azp_mat(states)
         az = transpose(azp)
 
         alpha_z = alpha(mass, omegaz)
         alpha_perp = alpha(mass, omegaperp)
-
+        write(*,*) "here"
         dzmat%def = def
         dzmat%radius = R0
         dzmat%V_0 = WS_depth
         drhomat%def = def
         drhomat%radius = R0
         drhomat%V_0 = WS_depth
+        dvdz = 0
         do row = 1, size(states)
-            do col = 1, row
+            do col = 1, size(states)
                 dvDz(row, col) = mat_elem_axsym(states(row), states(col), dzmat, mass, omegaz, omegaperp)
+
                 dVdrho(row, col) = mat_elem_axsym(states(row), states(col), drhomat, mass, omegaz, omegaperp)
+
             end do
         end do
+! Define each term in the spin-orbit potential
+        zterm = alpha_perp * (matmul(sigma_p, Rm - Sm) + matmul(sigma_m, Rp - Sp))
 
-        do row = 1, size(states)
-            do col = row +1, size(states)
-                dVdz(row, col) = dvDz(col, row)
-                dVdrho(row, col) = dVdrho(col, row)
-            end do
-        end do
-
-
-        factor = (hbarc / mass)**2 / 4.0_r_kind !! (hbar/ (mass * c))^2, with mass in units MeV/c^2
+        costerm = matmul(cosphi, &
+                     0.5_r_kind * alpha_perp * matmul(sigma_z, Rp + Rm - Sp - Sm) + &
+                     1.0_r_kind / sqrt(2.0_r_kind) * alpha_z * matmul(sigma_m - sigma_p, azp - az) )
         
-        Vso_mat = matmul(dVdrho, matmul(cosphi, alpha_perp * matmul(sigma_z, Sp - Sm) + sqrt(2.0_r_kind)*alpha_z*matmul(sigma_p,az - azp )))&
-                - 0.5_r_kind * alpha_perp *  matmul(dVdz, matmul(sigma_p, Rm-Rp) + matmul(sigma_m, Sp-Sm))
+        isinterm = matmul(isinphi, &
+                      0.5_r_kind * alpha_perp * matmul(sigma_z, Rp - Rm + Sm - Sp) - &
+                      1.0_r_kind / sqrt(2.0_r_kind) * alpha_z * matmul(sigma_m + sigma_p, azp - az) )
+        
+        write(*,*) "isinphi term"
+        do row = 1,size(states)
+            write(*,'(10F5.1)')isinphi(row,:) - costerm(row,:)
+        end do
+
+
+        write(*,*) "z term"
+        do row = 1,size(states)
+            write(*,'(10F5.1)')zterm(row,:)
+
+        end do
+
+        write(*,*) "cos term"
+        do row = 1,size(states)
+            write(*,'(10F5.1)')costerm(row,:)
+
+        end do
+
+        write(*,*) "sin term"
+        do row = 1,size(states)
+            write(*,'(10F5.1)')isinterm(row,:)
+
+        end do
+
+        
+        factor = lambda_n * (hbarc / mass)**2 / 4.0_r_kind !! (hbar/ (mass * c))^2, with mass in units MeV/c^2
+        
+        Vso_mat = matmul(dVdrho, matmul(isinphi, 0.5_r_kind*alpha_perp*matmul(sigma_z, Rp - Rm + Sm - Sp) - 1.0_r_kind/sqrt(2.0) * alpha_z * matmul(sigma_m + sigma_p, azp - az)) &
+        -matmul(cosphi, 0.5_r_kind * alpha_perp * matmul(sigma_z, Rp + Rm - Sp - Sm) + 1.0_r_kind/sqrt(2.0_r_kind)*alpha_z*matmul(sigma_m-sigma_p,azp - az )))&
+                + alpha_perp *  matmul(dVdz, matmul(sigma_p, Rm-Sm) + matmul(sigma_m, Rp-Sp))
         Vso_mat = Vso_mat * factor
     end function
 end module

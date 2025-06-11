@@ -4,7 +4,7 @@ module def_ho
     use optimise, only:func_1d, conj_grad_method
     implicit none
     private
-    public :: an_ho_state, get_ho_states, getnumstates, betadef, getnumstatesupto, fac, Hn, lna, pauli_p, pauli_m, pauli_z, R_mat, Rp_mat, S_mat, Sp_mat, alpha, cosphi_m, azp_mat
+    public :: an_ho_state, get_ho_states, getnumstates, betadef, getnumstatesupto, fac, Hn, lna, pauli_p, pauli_m, pauli_z, R_mat, Rp_mat, S_mat, Sp_mat, alpha, cosphi_m, azp_mat, az_mat, isinphi_m
 
 
 
@@ -90,37 +90,40 @@ end function
 
 pure elemental integer function getnumstates(N) result(num) !!get number of states in one major shell of h.o
     integer, intent(in) :: N
-    num = (N+1)*(N+2)/2 !!incl spin degeneracy
+    num = (N+1)*(N+2)!!incl spin degeneracy
 end function
 
 pure elemental integer function getnumstatesupto(N) result(num) !!get number of states in all major shells up to N
     integer, intent(in) :: N
-    num = (N+1)*(N+2)*(N+3)/6 !!incl spin degeneracy
+    num = (N+1)*(N+2)*(N+3)/3 !!incl spin degeneracy
 end function
 
-pure function get_ho_states(N) result(states)
+function get_ho_states(N) result(states)
     integer, intent(in) :: N !!ho quantum number
     type(an_ho_state), dimension(getnumstates(N)) :: states
     type(an_ho_state) :: state
-    integer :: nz, nr, ml, omega, qrem, idx,r , s, p, nperp, sign, msigned, ms
+    integer :: nz, nr, ml, omega, qrem, idx,r , s, p, nperp, sign, msigned, ms, mlp
     idx = 0
     do nz = 0,N
         !we need nz + 2nr + ml = N.
         qrem = N - nz
         do nr = 0, qrem/2 !!integer division. if remaining is 3, we want n = 0, 1
             ml = qrem - 2*nr
-           
-            do omega = abs(2*ml - 1), 2*ml + 1, 2 
-                ms = omega-2*ml
-                idx = idx + 1
-                nperp = 2*nr + abs(ml)
-                r = (nperp + ml)/2
-                s = (nperp - ml)/2
+            do mlp = -ml, ml, max(2*ml,1)
+                do omega = 2*mlp - 1, 2*mlp + 1, 2 
+                    write(*,*) "  N     nz    ml    mj"
+                    write(*,'(5I6)') N, nz, mlp, omega
+                    ms = omega-2*mlp
+                    idx = idx + 1
+                    nperp = 2*nr + abs(mlp)
+                    r = (nperp + mlp)/2
+                    s = (nperp - mlp)/2
 
 
-                p = (-1)**N
-                state = an_ho_state(nz = nz, nr = nr, ml=ml, mj=omega, r= r, s=s, N=N, pi=p, nperp = nperp, ms=ms)
-                states(idx) = state
+                    p = (-1)**N
+                    state = an_ho_state(nz = nz, nr = nr, ml=mlp, mj=omega, r= r, s=s, N=N, pi=p, nperp = nperp, ms=ms)
+                    states(idx) = state
+                end do
             end do
 
         end do
@@ -269,7 +272,17 @@ end function
 pure function R_mat(states) !!Matrix for the R matrix
     type(an_ho_state), intent(in) :: states(:)
     real(r_kind), dimension(size(states), size(states)) :: R_mat
-    R_mat = transpose(Rp_mat(states))
+    integer :: row, col
+    type(an_ho_state) :: sr, sc
+
+    do row = 1, size(states)
+        sr = states(row)
+        do col = 1,size(states)
+            sc = states(col)
+            R_mat(row, col) = kronecker(sr%ms,sc%ms)*kronecker(sr%nz,sc%nz) * kronecker(sr%s, sc%s) * kronecker(sr%r, sc%r - 1) * sqrt(real(sc%r,r_kind))
+        end do
+    end do
+
 end function
 
 pure function Sp_mat(states)
@@ -290,7 +303,16 @@ end function
 pure function S_mat(states) !!Matrix for the R matrix
     type(an_ho_state), intent(in) :: states(:)
     real(r_kind), dimension(size(states), size(states)) :: S_mat
-    S_mat = transpose(Sp_mat(states))
+    integer :: row, col
+    type(an_ho_state) :: sr, sc
+
+    do row = 1, size(states)
+        sr = states(row)
+        do col = 1,size(states)
+            sc = states(col)
+            S_mat(row, col) = kronecker(sr%ms,sc%ms)*kronecker(sr%nz,sc%nz) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s - 1) * sqrt(real(sc%s,r_kind))
+        end do
+    end do
 end function
 
 pure function azp_mat(states) !!Constructor operator for z quanta
@@ -311,7 +333,16 @@ end function
 pure function az_mat(states)!!Destructor operator for z quanta
     type(an_ho_state), intent(in) :: states(:)
     real(r_kind), dimension(size(states), size(states)) :: az_mat
-    az_mat = transpose(azp_mat(states))
+    integer :: row, col
+    type(an_ho_state) :: sr, sc
+
+    do row = 1, size(states)
+        sr = states(row)
+        do col = 1,size(states)
+            sc = states(col)
+            az_mat(row, col) = kronecker(sr%ms,sc%ms)*kronecker(sr%nz,sc%nz-1) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s) * sqrt(real(sc%nz,r_kind))
+        end do
+    end do
 end function
 
 pure integer function kronecker(a,b)
@@ -370,7 +401,16 @@ end function
 pure function pauli_m(states) !!Destructor operator for pauli matrix
     type(an_ho_state), intent(in) :: states(:)
     integer, dimension(size(states), size(states)) :: pauli_m
-    pauli_m = transpose(pauli_p(states))
+    integer :: row, col
+    type(an_ho_state) :: sr, sc
+    pauli_m = 0
+    do row = 1,size(states)
+        sr = states(row)
+        do col = 1,size(states)
+            sc = states(col)
+            pauli_m(row, col) = kronecker(sr%ms,sc%ms-2)*kronecker(sr%nz,sc%nz) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s)
+        end do
+    end do
 end function
 
 pure function cosphi_m(states) !! matrix w. elements <m_l' | cosphi | m_l > = 1/2 if |m_l-m_l'| = 1,
@@ -383,7 +423,22 @@ pure function cosphi_m(states) !! matrix w. elements <m_l' | cosphi | m_l > = 1/
         sr = states(row)
         do col = 1,size(states)
             sc = states(col)
-            cosphi_m(row, col) = 0.5_r_kind*(kronecker(sr%ms,sc%ms+1) + kronecker(sr%ms,sc%ms-1))*   kronecker(sr%nz,sc%nz) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s)
+            cosphi_m(row, col) = 0.5_r_kind*(kronecker(sr%ml,sc%ml+1) + kronecker(sr%ml,sc%ml-1))*   kronecker(sr%nz,sc%nz) * kronecker(sr%nr, sc%nr)
+        end do
+    end do
+end function
+
+pure function isinphi_m(states) !! matrix w. elements <m_l' | isinphi | m_l > = \pm 1/2 if m_l-m_l' = \mp 1,
+                               !! 0, otherwise
+    type(an_ho_state), intent(in) :: states(:)
+    real(r_kind), dimension(size(states), size(states)) :: isinphi_m
+    integer :: row, col
+    type(an_ho_state) :: sr, sc
+    do row = 1,size(states)
+        sr = states(row)
+        do col = 1,size(states)
+            sc = states(col)
+            isinphi_m(row, col) = 0.5_r_kind*(kronecker(sr%ml,sc%ml+1) - kronecker(sr%ml,sc%ml-1))*   kronecker(sr%nz,sc%nz) * kronecker(sr%nr, sc%nr)
         end do
     end do
 end function

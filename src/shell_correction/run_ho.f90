@@ -1,11 +1,11 @@
 program run_ho
     use constants
-    use def_ho, only: getnumstatesupto, getnumstates, get_ho_states, an_ho_state, betadef
-    use hamiltonian, only: diagonalize, mat_elem_axsym, WS_pot, VC_pot
+    use def_ho
+    use hamiltonian, only: diagonalize, mat_elem_axsym, WS_pot, VC_pot, Vso_mat
     implicit none
 
 
-    integer, parameter :: max_n = 3
+    integer, parameter :: max_n = 1
     integer, parameter :: A = 238, Z=92
     type(an_ho_state), dimension(:), allocatable :: states
     type(an_ho_state) :: state1, state2
@@ -20,6 +20,8 @@ program run_ho
     real(r_kind), parameter :: kappa=kappa_ws
     real(r_kind) :: hbaromega0, radius, hbaromegaperp, hbaromegaz
     real(r_kind) :: I, Vwsdepth, r, theta, Vcone, vcold
+    integer, dimension(:,:), allocatable :: mat
+    real(r_kind), dimension(:,:), allocatable :: matr
 
     def = betadef(beta2 = 0.2, beta4=0.1)
     hbaromega0 = 41.0_r_kind * A**(-1.0_r_kind/3.0_r_kind) !!MeV
@@ -61,66 +63,66 @@ program run_ho
     VCpot%radius = radius
     call VCpot%set_charge_dens(Z)
 
-    do n = 1, numstates
-        state1 = states(n)
-        do m = 1, n
-            state2 = states(m)
-            Vws(n,m) = mat_elem_axsym(state1, state2, Wspot,mass_p,hbaromegaz,hbaromegaperp)
-            Vc(n,m) = mat_elem_axsym(state1, state2, VCpot, mass_p, hbaromegaz, hbaromegaperp)
-        end do
-        ! write(*,'(I5,A,I5,A)') n, " out of ", numstates, " rows completed"
-    end do
+    ! do n = 1, numstates
+    !     state1 = states(n)
+    !     do m = 1, n
+    !         state2 = states(m)
+    !         Vws(n,m) = mat_elem_axsym(state1, state2, Wspot,mass_p,hbaromegaz,hbaromegaperp)
+    !         Vc(n,m) = mat_elem_axsym(state1, state2, VCpot, mass_p, hbaromegaz, hbaromegaperp)
+    !     end do
+    !     ! write(*,'(I5,A,I5,A)') n, " out of ", numstates, " rows completed"
+    ! end do
 
-    do n = 1, numstates !!Use the fact that matrix elements are symmetric.
-        state1 = states(n)
-        do m = numstates, n + 1, -1
-            state2 = states(m)
-            Vws(n,m) = Vws(m,n)
-            Vc(n,m) = Vc(m,n)
+    ! do n = 1, numstates !!Use the fact that matrix elements are symmetric.
+    !     state1 = states(n)
+    !     do m = numstates, n + 1, -1
+    !         state2 = states(m)
+    !         Vws(n,m) = Vws(m,n)
+    !         Vc(n,m) = Vc(m,n)
 
-        end do
-        ! write(*,'(40F7.3)') Vws(n,:)
-    end do
-    write(*,*) "Coul"
-    do n = 1,numstates
-        ! write(*,'(40F7.3)') Vc(n,:)
-    end do
+    !     end do
+    !     ! write(*,'(40F7.3)') Vws(n,:)
+    ! end do
+    ! write(*,*) "Coul"
+    ! do n = 1,numstates
+    !     ! write(*,'(40F7.3)') Vc(n,:)
+    ! end do
 
-    Tkin = 0.0_r_kind
-    write(*,*)
-    write(*,*) "Kinetic energy"
-    do n = 1, numstates
-        Tkin(n,n) = states(n)%kinetic_energy(hbaromegaz,hbaromegaperp)
-        ! write(*,'(15F10.3)', advance='no') Tkin(n,n)
-    end do
-    write(*,*)
-    ! write(*,*) "Hamiltonian"
-    open(3,file="data/out/H.dat")
-    open(4,file="data/out/WS.dat")
-    open(5,file="data/out/VC.dat")
-    H = Tkin + Vws + Vc
-    do n = 1,numstates
-        do idx = 1,numstates
-            write(3, '(F10.3)',advance='no') H(n,idx)
-            write(4, '(F10.3)',advance='no') Vws(n,idx)
-            write(5, '(F10.3)',advance='no') Vc(n,idx)
-        end do
-        write(3,*)
-        write(4,*)
-        write(5,*)
-    end do
-    close(3)
-    close(4)
-    close(5)
+    ! Tkin = 0.0_r_kind
+    ! write(*,*)
+    ! write(*,*) "Kinetic energy"
+    ! do n = 1, numstates
+    !     Tkin(n,n) = states(n)%kinetic_energy(hbaromegaz,hbaromegaperp)
+    !     ! write(*,'(15F10.3)', advance='no') Tkin(n,n)
+    ! end do
+    ! write(*,*)
+    ! ! write(*,*) "Hamiltonian"
+    ! open(3,file="data/out/H.dat")
+    ! open(4,file="data/out/WS.dat")
+    ! open(5,file="data/out/VC.dat")
+    ! H = Tkin + Vws + Vc
+    ! do n = 1,numstates
+    !     do idx = 1,numstates
+    !         write(3, '(F10.3)',advance='no') H(n,idx)
+    !         write(4, '(F10.3)',advance='no') Vws(n,idx)
+    !         write(5, '(F10.3)',advance='no') Vc(n,idx)
+    !     end do
+    !     write(3,*)
+    !     write(4,*)
+    !     write(5,*)
+    ! end do
+    ! close(3)
+    ! close(4)
+    ! close(5)
 
-    allocate(V(numstates,numstates), E(numstates))
-    call diagonalize(E, V, H)
-    write(*,'(A)') "n     E_n (MeV)  E_ho (MeV)  |  000    001-    001+     100    002-    002+    010    101-    101+    200"
-    do n = 1, min(numstates,50)
-        write(*,'(I3, F10.1, F10.1)',advance='no')n, E(n), states(n)%kinetic_energy(hbaromegaz,hbaromegaperp) * 2 
+    ! allocate(V(numstates,numstates), E(numstates))
+    ! call diagonalize(E, V, H)
+    ! write(*,'(A)') "n     E_n (MeV)  E_ho (MeV)  |  000    001-    001+     100    002-    002+    010    101-    101+    200"
+    ! do n = 1, min(numstates,50)
+    !     write(*,'(I3, F10.1, F10.1)',advance='no')n, E(n), states(n)%kinetic_energy(hbaromegaz,hbaromegaperp) * 2 
 
-        write(*,'(A, 10F8.3)') "     ", V(n,1:min(numstates,10))
-    end do
+    !     write(*,'(A, 10F8.3)') "     ", V(n,1:min(numstates,10))
+    ! end do
 
 
 
@@ -136,5 +138,92 @@ program run_ho
     write(*,'(A, f10.3)') "ratio: ", vcold/Vcone
 
 
+    allocate(mat(numstates, numstates), matr(numstates, numstates))
+    mat = pauli_z(states)
+    write(*,*) "Test step matrices"
+    write(*,*)
+    write(*,*) "pauliz"
+    write(*,*)" +  -  +  +"
+    do n = 1, numstates
+        write(*,'(100I3)') mat(n,:)
+    end do
+
+    mat = pauli_p(states)
+    write(*,*) "pauli plus"
+    write(*,*)" +  -  +  +"
+    do n = 1, numstates
+        write(*,'(100I3)') mat(n,:)
+    end do
+
+    mat = pauli_m(states)
+    write(*,*) "pauli minus"
+    write(*,*)" +  -  +  +"
+    do n = 1, numstates
+        write(*,'(100I3)') mat(n,:)
+    end do
+
+    mat = R_mat(states)
+    write(*,*)
+    write(*,*) "R minus"
+    write(*,*)" 0  1  1  0"
+    write(*,*)
+    do n = 1, numstates
+        write(*,'(100I3)') mat(n,:)
+    end do
+
+    mat = Rp_mat(states)
+    write(*,*)
+    write(*,*) "R plus"
+    write(*,*)" 0  1  1  0"
+    write(*,*)
+    do n = 1, numstates
+        write(*,'(100I3)') mat(n,:)
+    end do
+
+    mat = Sp_mat(states)
+    write(*,*)
+    write(*,*) "S plus"
+    write(*,*)" 0  0  0  0"
+    write(*,*)
+    do n = 1, numstates
+        write(*,'(100I3)') mat(n,:)
+    end do
+
+    mat = S_mat(states)
+    write(*,*)
+    write(*,*) "S minus"
+    write(*,*)" 0  0  0  0"
+    write(*,*)
+    do n = 1, numstates
+        write(*,'(100I3)') mat(n,:)
+    end do
+
+    matr = isinphi_m(states)
+    write(*,*)
+    write(*,*) "isin"
+    write(*,*)"0   0   -1   -1   1    1    0    0"
+    write(*,*)
+    do n = 1, numstates
+        write(*,'(100F5.1)') matr(n,:)
+    end do
+
+
+    matr = matmul(pauli_m(states)+pauli_p(states),azp_mat(states)-az_mat(states))
+    write(*,*)
+    write(*,*) "s^+(R^+- R) s^-(S^+ - S)"
+    write(*,*)" 0  1  1  0"
+    write(*,*)
+    do n = 1, numstates
+        write(*,'(100F5.1)') matr(n,:)
+    end do
+
+    matr = Vso_mat(states, A, def, radius, hbaromegaz, hbaromegaperp, mass_p, Vwsdepth)
+    write(*,*)
+    write(*,*) "SO"
+    write(*,*)" 0  1  1  0"
+    write(*,*)
+    do n = 1, numstates
+        write(*,'(100F5.1)') matr(n,:)
+    end do
 
 end program
