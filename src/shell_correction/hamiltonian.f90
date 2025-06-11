@@ -1,6 +1,6 @@
 module Hamiltonian
     use constants
-    use def_ho, only: betadef, an_ho_state, fac, Hn, lna
+    use def_ho, only: betadef, an_ho_state, fac, Hn, lna, pauli_m, pauli_p, pauli_z, R_mat, Rp_mat, S_mat, Sp_mat, alpha, cosphi_m, azp_mat
     use quadrule, only:legendre_dr_compute, hermite_ek_compute, laguerre_ss_compute
     use optimise, only:func_1d, conj_grad_method
     implicit none
@@ -268,8 +268,8 @@ module Hamiltonian
         call precompute()
 
         
-        alphaz = sqrt(mass*omegaz/(hbarc*hbarc))
-        alpharho = sqrt(mass*omegaperp/(hbarc*hbarc))
+        alphaz = alpha(mass, omegaz)
+        alpharho = alpha(mass,omegaperp)
 
         !in factors, split up the square roots to avoid integer overflow
         factz = 1.0_r_kind/(sqrt(pi * 2_i_kind**(state1%nz+state2%nz))*sqrt(real(fac(state1%nz),r_kind))*sqrt(real(fac(state2%nz),r_kind))) 
@@ -385,4 +385,61 @@ module Hamiltonian
         call conj_grad_method(ang, dist, conv, distfunc, 0.0_r_kind, pi,theta,1e-5_r_kind)
     end function
 
+    function Vso_mat(states, A, def, R0, omegaz, omegaperp, mass, WS_depth)
+        implicit none
+        type(an_ho_state), intent(in) :: states(:) 
+        integer, intent(in) :: A !!mass number
+        type(betadef), intent(in) :: def !!deformation of body
+        real(r_kind), intent(in) :: R0 !!radius as r0*A**(1/3). Where r0 is r0_so from constants.f90
+        real(r_kind), intent(in) :: WS_depth !!WS potental well depth
+        real(r_kind), dimension(size(states),size(states)) :: Vso_mat
+        real(r_kind), intent(in) :: omegaz, omegaperp !!Frequencies in units MeV/hbar
+        real(r_kind), intent(in) :: mass!!Frequencies in units MeV/c^2
+        real(r_kind), dimension(size(states),size(states)) :: sigma_z, sigma_p, sigma_m
+        real(r_kind), dimension(size(states), size(states)) :: Sp, Sm, Rp, Rm, dVdz, dVdrho, cosphi, az, azp
+        real(r_kind) :: alpha_z, alpha_perp, factor
+        type(dWs_dz) :: dzmat
+        type(dWs_drho) :: drhomat
+        integer :: row, col
+        sigma_z = real(pauli_z(states),r_kind)
+        sigma_p = real(pauli_p(states),r_kind)
+        sigma_m = real(pauli_m(states),r_kind)
+        Sp = Sp_mat(states)
+        Sm = transpose(Sp)
+        Rp = Rp_mat(states)
+        Rm = transpose(Rp)
+        cosphi = cosphi_m(states)
+        azp = azp_mat(states)
+        az = transpose(azp)
+
+        alpha_z = alpha(mass, omegaz)
+        alpha_perp = alpha(mass, omegaperp)
+
+        dzmat%def = def
+        dzmat%radius = R0
+        dzmat%V_0 = WS_depth
+        drhomat%def = def
+        drhomat%radius = R0
+        drhomat%V_0 = WS_depth
+        do row = 1, size(states)
+            do col = 1, row
+                dvDz(row, col) = mat_elem_axsym(states(row), states(col), dzmat, mass, omegaz, omegaperp)
+                dVdrho(row, col) = mat_elem_axsym(states(row), states(col), drhomat, mass, omegaz, omegaperp)
+            end do
+        end do
+
+        do row = 1, size(states)
+            do col = row +1, size(states)
+                dVdz(row, col) = dvDz(col, row)
+                dVdrho(row, col) = dVdrho(col, row)
+            end do
+        end do
+
+
+        factor = (hbarc / mass)**2 / 4.0_r_kind !! (hbar/ (mass * c))^2, with mass in units MeV/c^2
+        
+        Vso_mat = matmul(dVdrho, matmul(cosphi, alpha_perp * matmul(sigma_z, Sp - Sm) + sqrt(2.0_r_kind)*alpha_z*matmul(sigma_p,az - azp )))&
+                - 0.5_r_kind * alpha_perp *  matmul(dVdz, matmul(sigma_p, Rm-Rp) + matmul(sigma_m, Sp-Sm))
+        Vso_mat = Vso_mat * factor
+    end function
 end module

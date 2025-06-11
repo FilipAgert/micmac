@@ -15,9 +15,9 @@ program run_ho
     integer :: n, shelldegen, idx, m, numstates, ii
     real(r_kind), dimension(:,:), allocatable :: Vws, Tkin, H, V, VC
     real(r_kind), dimension(:), allocatable :: E
-    real(r_kind), parameter :: V0 = 49.6
-    real(r_kind), parameter ::r0 = 1.275
-    real(r_kind), parameter :: kappa=0.86
+    real(r_kind), parameter :: V0 = V0_ws
+    real(r_kind), parameter ::r0 = r0_p
+    real(r_kind), parameter :: kappa=kappa_ws
     real(r_kind) :: hbaromega0, radius, hbaromegaperp, hbaromegaz
     real(r_kind) :: I, Vwsdepth, r, theta, Vcone, vcold
 

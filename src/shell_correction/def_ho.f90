@@ -4,7 +4,7 @@ module def_ho
     use optimise, only:func_1d, conj_grad_method
     implicit none
     private
-    public :: an_ho_state, get_ho_states, getnumstates, betadef, getnumstatesupto, fac, Hn, lna
+    public :: an_ho_state, get_ho_states, getnumstates, betadef, getnumstatesupto, fac, Hn, lna, pauli_p, pauli_m, pauli_z, R_mat, Rp_mat, S_mat, Sp_mat, alpha, cosphi_m, azp_mat
 
 
 
@@ -174,16 +174,22 @@ pure real(r_kind) elemental function ani_ho_en(state,hbaromega_z,hbaromega_xy) r
     energy = hbaromega_xy*(2*state%nr+state%ml + 1) + hbaromega_z*(state%nz + 1.0_r_kind/2.0_r_kind)
 end function
 
+pure real(r_kind) elemental function alpha(mass, omega)
+    real(r_kind), intent(in) :: omega !!In units MeV/hbar
+    real(r_kind), intent(in) :: mass  !!In units MeV/c^2
+    alpha = sqrt(mass*omega/(hbarc*hbarc))
+end function
+
 pure real(r_kind) elemental function phin(x,n, omega, mass) !!Eigenfunctions of 1d harmonic oscillator
     real(r_kind), intent(in) :: x !! [fm]
     real(r_kind), intent(in) :: omega !!In units MeV/hbar
     real(r_kind), intent(in) :: mass  !!In units MeV/c^2
     integer, intent(in) :: n
-    real(r_kind) :: alpha, xi !!coordinate transform
-    alpha = sqrt(mass*omega/(hbarc*hbarc)) !!Alpha is sqrt(mass*omega/hbar). We can use better units to get sqrt(mass/c^2 * omega/hbar / hbar)
-    xi = alpha * x
+    real(r_kind) :: alph, xi !!coordinate transform
+    alph =  alpha(mass, omega) !!Alpha is sqrt(mass*omega/hbar). We can use better units to get sqrt(mass/c^2 * omega/hbar / hbar)
+    xi = alph * x
 
-    phin = exp(-xi**2 / 2.0_r_kind) * Hn(xi,n) *hofact(n,alpha)
+    phin = exp(-xi**2 / 2.0_r_kind) * Hn(xi,n) *hofact(n,alph)
 
 end function
 
@@ -199,12 +205,12 @@ pure real(r_kind) elemental function phi2drad(r,nr,ml, mass, omega) result(val) 
     real(r_kind), intent(in) :: omega !!In units MeV/hbar
     real(r_kind), intent(in) :: mass  !!In units MeV/c^2
     integer, intent(in) :: nr, ml 
-    real(r_kind) :: alpha, ar2
+    real(r_kind) :: alph, ar2
 
-    alpha = sqrt(mass*omega/(hbarc*hbarc))
-    ar2 = (alpha*r)**2
+    alph =  alpha(mass, omega)
+    ar2 = (alph*r)**2
     val = r ** ml * exp(-ar2/2) * lna(ar2,nr,ml)
-    val = val * ho_fact2d(alpha,ml,nr)!!normalization constant
+    val = val * ho_fact2d(alph,ml,nr)!!normalization constant
 end function
 
 pure real(r_kind) elemental function ho_fact2d(alpha,ml,nr)
@@ -212,17 +218,6 @@ pure real(r_kind) elemental function ho_fact2d(alpha,ml,nr)
     integer, intent(in) :: ml, nr
     ho_fact2d =  alpha**(ml+1) * sqrt(real(2*fac(nr),r_kind) / real(pi * fac(nr+ml),r_kind))
 end function
-
-pure elemental function phi2radang(ml, ang) result(phase) !!Eigenfunction ang part of 2d harmonic oscillator.
-    integer, intent(in) :: ml
-    real(r_kind), intent(in) :: ang
-    complex(kind=r_kind) :: phase
-    phase = complex(cos(ang),sin(ang))
-
-end function
-
-
-
 
 pure real(r_kind) elemental function lna(x,n,a) result(res) !gen laguerre polynomial iterative version
     real(r_kind), intent(in) :: x
@@ -388,7 +383,7 @@ pure function cosphi_m(states) !! matrix w. elements <m_l' | cosphi | m_l > = 1/
         sr = states(row)
         do col = 1,size(states)
             sc = states(col)
-            cosphi_m(row, col) = 1.0_r_kind*(kronecker(sr%ms,sc%ms+1) + kronecker(sr%ms,sc%ms-1))*   kronecker(sr%nz,sc%nz) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s) / 2.0_r_kind
+            cosphi_m(row, col) = 0.5_r_kind*(kronecker(sr%ms,sc%ms+1) + kronecker(sr%ms,sc%ms-1))*   kronecker(sr%nz,sc%nz) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s)
         end do
     end do
 end function

@@ -40,4 +40,20 @@ module constants
 
 
     integer, parameter :: num_threads = 8
+
+
+    !! Shell model parameters
+    real(r_kind), parameter :: kappa_ws = 0.86_r_kind !
+    real(r_kind), parameter :: V0_ws = 49.6_r_kind !MeV
+    real(r_kind), parameter :: a_ws = 0.70_r_kind !fm
+
+
+    real(r_kind), parameter :: r0_p = 1.275_r_kind !fm. for proton
+    real(r_kind), parameter :: r0_n = 1.347_r_kind !fm. for neutron
+    real(r_kind), parameter :: r0_so_p = 1.31_r_kind !fm. for proton
+    real(r_kind), parameter :: r0_so_n = 1.32_r_kind !fm. for neutron
+    real(r_kind), parameter :: lambda_p = 36.0_r_kind ! for proton
+    real(r_kind), parameter :: lambda_n = 35.0_r_kind !for neutron
+
+
 end module constants
