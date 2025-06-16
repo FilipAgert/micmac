@@ -87,8 +87,6 @@ function aniho_header(self) result(hdr)
 
 end function
 
-
-
 pure elemental integer function getnumstates(N) result(num) !!get number of states in one major shell of h.o
     integer, intent(in) :: N
     num = (N+1)*(N+2)!!incl spin degeneracy
@@ -103,32 +101,33 @@ function get_ho_states(N) result(states)
     integer, intent(in) :: N !!ho quantum number
     type(an_ho_state), dimension(getnumstates(N)) :: states
     type(an_ho_state) :: state
-    integer :: nz, nr, ml, omega, qrem, idx,r , s, p, nperp, sign, msigned, ms, mlp
+    integer :: nz, nr, ml, omega, qrem, idx,r , s, p, nperp, ms
     idx = 0
     do nz = 0,N
         !we need nz + 2nr + ml = N.
         qrem = N - nz
-        do nr = 0, qrem/2 !!integer division. if remaining is 3, we want n = 0, 1
-            ml = qrem - 2*nr
-            mlp = ml
-            do mlp = -ml, ml, max(2*ml,1)
-                do omega = 2*mlp - 1, 2*mlp + 1, 2 !abs(2*mlp - 1), 2*mlp + 1, 2  !2*mlp - 1, 2*mlp + 1, 2 
-                    ! write(*,*) "  N     nz    ml    mj"
-                    ! write(*,'(5I6)') N, nz, mlp, omega
-                    ms = omega-2*mlp
-                    idx = idx + 1
-                    nperp = 2*nr + abs(mlp)
-                    r = (nperp + abs(mlp))/2
-                    s = (nperp - abs(mlp))/2
-                    if(r-s /= ml) then
-                        print*, "ERROR! R-S is not ml"
-                    endif
+        do r = 0, qrem
+            s = qrem - r
+            ml = r - s
+            nperp = r + s
 
-                    p = (-1)**N
-                    state = an_ho_state(nz = nz, nr = nr, ml=mlp, mj=omega, r= r, s=s, N=N, pi=p, nperp = nperp, ms=ms)
-                    states(idx) = state
-                end do
+            do omega = 2*ml - 1, 2*ml + 1, 2 !abs(2*mlp - 1), 2*mlp + 1, 2  !2*mlp - 1, 2*mlp + 1, 2 
+                ! write(*,*) "  N     nz    ml    mj"
+                ! write(*,'(5I6)') N, nz, mlp, omega
+                ms = omega-2*ml
+                idx = idx + 1
+                nr = (nperp-abs(ml))/2
+                if(r-s /= ml) then
+                    print*, "ERROR! R-S is not ml"
+                elseif(r+s /= nperp) then
+                    print*, "ERROR! R+S is not nperp"
+                endif
+
+                p = (-1)**N
+                state = an_ho_state(nz = nz, nr = nr, ml=ml, mj=omega, r= r, s=s, N=N, pi=p, nperp = nperp, ms=ms)
+                states(idx) = state
             end do
+            
 
         end do
     end do
@@ -283,7 +282,7 @@ pure function R_mat(states) !!Matrix for the R matrix
         sr = states(row)
         do col = 1,size(states)
             sc = states(col)
-            R_mat(row, col) = kronecker(sr%ms,sc%ms)*kronecker(sr%nz,sc%nz) * kronecker(sr%s, sc%s) * kronecker(sr%r, sc%r - 1) * sqrt(real(sc%r,r_kind))
+            R_mat(row, col) = (kronecker(sr%ms,sc%ms)*kronecker(sr%nz,sc%nz) * kronecker(sr%s, sc%s) * kronecker(sr%r, sc%r - 1)) * sqrt(real(sc%r,r_kind))
         end do
     end do
 
@@ -292,14 +291,15 @@ end function
 pure function Sp_mat(states)
     type(an_ho_state), intent(in) :: states(:)
     real(r_kind), dimension(size(states), size(states)) :: Sp_mat
-    integer :: row, col
+    integer :: row, col, kron
     type(an_ho_state) :: sr, sc
 
     do row = 1, size(states)
         sr = states(row)
         do col = 1,size(states)
             sc = states(col)
-            Sp_mat(row, col) = kronecker(sr%ms,sc%ms)*kronecker(sr%nz,sc%nz) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s + 1) * sqrt(real(sc%s + 1,r_kind))
+            kron = kronecker(sr%ms,sc%ms)*kronecker(sr%nz,sc%nz) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s + 1)
+            Sp_mat(row, col) = kron * sqrt(real(sc%s + 1,r_kind))
         end do
     end do
 
@@ -307,14 +307,15 @@ end function
 pure function S_mat(states) !!Matrix for the R matrix
     type(an_ho_state), intent(in) :: states(:)
     real(r_kind), dimension(size(states), size(states)) :: S_mat
-    integer :: row, col
+    integer :: row, col, kron
     type(an_ho_state) :: sr, sc
 
     do row = 1, size(states)
         sr = states(row)
         do col = 1,size(states)
             sc = states(col)
-            S_mat(row, col) = kronecker(sr%ms,sc%ms)*kronecker(sr%nz,sc%nz) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s - 1) * sqrt(real(sc%s,r_kind))
+            kron = kronecker(sr%ms,sc%ms)*kronecker(sr%nz,sc%nz) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s - 1)
+            S_mat(row, col) =  kron * sqrt(real(sc%s,r_kind))
         end do
     end do
 end function
@@ -322,14 +323,15 @@ end function
 pure function azp_mat(states) !!Constructor operator for z quanta
     type(an_ho_state), intent(in) :: states(:)
     real(r_kind), dimension(size(states), size(states)) :: azp_mat
-    integer :: row, col
+    integer :: row, col, kron
     type(an_ho_state) :: sr, sc
 
     do row = 1, size(states)
         sr = states(row)
         do col = 1,size(states)
             sc = states(col)
-            azp_mat(row, col) = kronecker(sr%ms,sc%ms)*kronecker(sr%nz,sc%nz+1) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s) * sqrt(real(sc%nz + 1,r_kind))
+            kron = kronecker(sr%ms,sc%ms)*kronecker(sr%nz,sc%nz+1) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s)
+            azp_mat(row, col) = kron * sqrt(real(sc%nz + 1,r_kind))
         end do
     end do
 end function
@@ -337,14 +339,15 @@ end function
 pure function az_mat(states)!!Destructor operator for z quanta
     type(an_ho_state), intent(in) :: states(:)
     real(r_kind), dimension(size(states), size(states)) :: az_mat
-    integer :: row, col
+    integer :: row, col, kron
     type(an_ho_state) :: sr, sc
 
     do row = 1, size(states)
         sr = states(row)
         do col = 1,size(states)
             sc = states(col)
-            az_mat(row, col) = kronecker(sr%ms,sc%ms)*kronecker(sr%nz,sc%nz-1) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s) * sqrt(real(sc%nz,r_kind))
+            kron = kronecker(sr%ms,sc%ms)*kronecker(sr%nz,sc%nz-1) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s)
+            az_mat(row, col) = kron*  sqrt(real(sc%nz,r_kind))
         end do
     end do
 end function
@@ -397,7 +400,7 @@ pure function pauli_p(states)
         sr = states(row)
         do col = 1,size(states)
             sc = states(col)
-            pauli_p(row, col) = kronecker(sr%ms,sc%ms+2)*kronecker(sr%nz,sc%nz) * kronecker(sr%nr, sc%nr) * kronecker(sr%ml, sc%ml)
+            pauli_p(row, col) = kronecker(sr%ms,sc%ms+2)*kronecker(sr%nz,sc%nz) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s)
         end do
     end do
 end function
@@ -412,7 +415,7 @@ pure function pauli_m(states) !!Destructor operator for pauli matrix
         sr = states(row)
         do col = 1,size(states)
             sc = states(col)
-            pauli_m(row, col) = kronecker(sr%ms,sc%ms-2)*kronecker(sr%nz,sc%nz) * kronecker(sr%nr, sc%nr) * kronecker(sr%ml, sc%ml)
+            pauli_m(row, col) = kronecker(sr%ms,sc%ms-2)*kronecker(sr%nz,sc%nz) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s)
         end do
     end do
 end function
@@ -427,7 +430,7 @@ pure function cosphi_m(states) !! matrix w. elements <m_l' | cosphi | m_l > = 1/
         sr = states(row)
         do col = 1,size(states)
             sc = states(col)
-            cosphi_m(row, col) = 0.5_r_kind*(kronecker(sr%ml,sc%ml+1) + kronecker(sr%ml,sc%ml-1))*   kronecker(sr%nz,sc%nz) * kronecker(sr%nr, sc%nr)* kronecker(sr%ms, sc%ms)
+            cosphi_m(row, col) = 0.5_r_kind*(kronecker(sr%ml,sc%ml+1) + kronecker(sr%ml,sc%ml-1))*   kronecker(sr%nz,sc%nz) * kronecker(sr%nperp, sc%nperp)* kronecker(sr%ms, sc%ms)
         end do
     end do
 end function
@@ -442,7 +445,7 @@ pure function expiphi(states) !! matrix w. elements <m_l' | cosphi | m_l > = 1/2
         sr = states(row)
         do col = 1,size(states)
             sc = states(col)
-            expiphi(row, col) = (kronecker(sr%ml,sc%ml+1))*   kronecker(sr%nz,sc%nz) * kronecker(sr%nr, sc%nr)* kronecker(sr%ms, sc%ms)
+            expiphi(row, col) = (kronecker(sr%ml,sc%ml+1))*   kronecker(sr%nz,sc%nz) * kronecker(sr%nperp, sc%nperp)* kronecker(sr%ms, sc%ms)
         end do
     end do
 end function
@@ -457,7 +460,7 @@ pure function isinphi_m(states) !! matrix w. elements <m_l' | isinphi | m_l > = 
         sr = states(row)
         do col = 1,size(states)
             sc = states(col)
-            isinphi_m(row, col) = 0.5_r_kind*(kronecker(sr%ml,sc%ml+1) - kronecker(sr%ml,sc%ml-1))*   kronecker(sr%nz,sc%nz) * kronecker(sr%nr, sc%nr) * kronecker(sr%ms, sc%ms)
+            isinphi_m(row, col) = 0.5_r_kind*(kronecker(sr%ml,sc%ml+1) - kronecker(sr%ml,sc%ml-1))*   kronecker(sr%nz,sc%nz) * kronecker(sr%nperp, sc%nperp) * kronecker(sr%ms, sc%ms)
         end do
     end do
 end function
@@ -500,7 +503,7 @@ pure function kin_en(states, hbaromega_z, hbaromega_perp) !Nuclear Physics A A m
             !0.5_r_kind * (hbaromega_perp * (npc+ 1) + hbaromega_z * (nzc + 1))
 
             kin_en(row, col) = kin_en(row,col) + kronecker(nrr, nrc - 1)*kronecker(nzr, nzc) * kronecker(mlr, mlc) * 0.5 * hbaromega_perp * sqrt(real(nrr*(nrr+mlc),r_kind))
-            !kin_en(row, col) = kin_en(row,col) -kronecker(nrr, nrc)*kronecker(nzr, nzc-2) * kronecker(mlr, mlc) * 0.25 * hbaromega_z * sqrt(real(nzr * (nzr - 1),r_kind))
+            kin_en(row, col) = kin_en(row,col) -kronecker(nrr, nrc)*kronecker(nzr, nzc-2) * kronecker(mlr, mlc) * 0.25 * hbaromega_z * sqrt(real(nzr * (nzr - 1),r_kind))
             kin_en(row, col) = kin_en(row,col) * kronecker(msr, msc)
         end do
     end do

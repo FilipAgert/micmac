@@ -5,7 +5,7 @@ program run_ho
     implicit none
 
 
-    integer, parameter :: max_n = 4
+    integer, parameter :: max_n = 10
     integer, parameter :: A = 238, Z=92
     type(an_ho_state), dimension(:), allocatable :: states
     type(an_ho_state) :: state1, state2
@@ -66,17 +66,17 @@ program run_ho
     VCpot%radius = radius
     call VCpot%set_charge_dens(Z)
 
-    do n = 1, numstates
-        state1 = states(n)
-        do m = 1, numstates
-            state2 = states(m)
-            inprod(n,m) = mat_elem_axsym(state1, state2, unitel,mass_p,hbaromegaz,hbaromegaperp)
-            invrho(n,m) = mat_elem_axsym(state1, state2, inv_rho_pot,mass_p,hbaromegaz,hbaromegaperp)
-            rhopotmat(n,m) =mat_elem_axsym(state1, state2, rh,mass_p,hbaromegaz,hbaromegaperp)
-           ! Vc(n,m) = mat_elem_axsym(state1, state2, VCpot, mass_p, hbaromegaz, hbaromegaperp)
-        end do
-        ! write(*,'(I5,A,I5,A)') n, " out of ", numstates, " rows completed"
-    end do
+    ! do n = 1, numstates
+    !     state1 = states(n)
+    !     do m = 1, numstates
+    !         state2 = states(m)
+    !         inprod(n,m) = mat_elem_axsym(state1, state2, unitel,mass_p,hbaromegaz,hbaromegaperp)
+    !         invrho(n,m) = mat_elem_axsym(state1, state2, inv_rho_pot,mass_p,hbaromegaz,hbaromegaperp)
+    !         rhopotmat(n,m) =mat_elem_axsym(state1, state2, rh,mass_p,hbaromegaz,hbaromegaperp)
+    !        ! Vc(n,m) = mat_elem_axsym(state1, state2, VCpot, mass_p, hbaromegaz, hbaromegaperp)
+    !     end do
+    !     ! write(*,'(I5,A,I5,A)') n, " out of ", numstates, " rows completed"
+    ! end do
 
     ! do n = 1, numstates !!Use the fact that matrix elements are symmetric.
     !     state1 = states(n)
@@ -215,40 +215,40 @@ program run_ho
     ! end do
 
     !hbaromegaz = hbaromegaperp
-    matr = Vso_mat(states, A, def, radius, hbaromegaz, hbaromegaperp, mass_p, Vwsdepth)!matmul(inv_rho_mat(states,hbaromegaz, hbaromegaperp,mass_p),matmul(pauli_m(states), Rp_mat(states)+S_mat(states)) -matmul(pauli_p(states), R_mat(states)+Sp_mat(states))) !kin_en(states, hbaromegaz, hbaromegaperp)! + transpose(expiphi(states))
+    matr = matmul(inv_rho_mat(states,hbaromegaz, hbaromegaperp,mass_p),matmul(pauli_m(states), Rp_mat(states)+S_mat(states)) -matmul(pauli_p(states), R_mat(states)+Sp_mat(states))) !kin_en(states, hbaromegaz, hbaromegaperp)! + transpose(expiphi(states))
     open(3,file="data/out/mat.dat")
     write(*,*)
     write(3,*) "[cosphi, R]"
-    write(3,'(25x)',advance='no')
+    write(3,'(23x)',advance='no')
     do n = 1, numstates
-        write(3,'(I5)',advance='no') states(n)%ml
+        write(3,'(A, I5)',advance='no')"r ", states(n)%r
     end do
     write(3,*)
-    write(3,'(25x)',advance='no')
+    write(3,'(23x)',advance='no')
     do n = 1, numstates
-        write(3,'(I5)',advance='no') states(n)%nz
+        write(3,'(A,I5)',advance='no')"s ", states(n)%s
     end do
     write(3,*)
 
-    write(3,'(25x)',advance='no')
+    write(3,'(23x)',advance='no')
     do n = 1, numstates
-        write(3,'(I5)',advance='no') states(n)%nr
-        write(*,*) states(n)%nr
+        write(3,'(A,I5)',advance='no')"nz", states(n)%nz
+        !write(,*) states(n)%nr
     end do
     write(3,*)
-    write(3,'(25x)',advance='no')
+    write(3,'(23x)',advance='no')
     do n = 1, numstates
-        write(3,'(I5)',advance='no') states(n)%ms
+        write(3,'(A,I5)',advance='no')"ms", states(n)%ms
     end do
 
     write(3,*)
     write(3,*)
 
     do n = 1, numstates
-        write(3,'(4I5, 5x, 100F5.1)') states(n)%ml, states(n)%nz,states(n)%nr,  states(n)%ms,matr(n,:)
+        write(3,'(4I5, 5x, 3000F5.1)') states(n)%r, states(n)%s,states(n)%nz,  states(n)%ms,matr(n,:)
     end do
 
-    ! matr = Vso_mat(states, A, def, radius, hbaromegaz, hbaromegaperp, mass_p, Vwsdepth)
+    !matr = Vso_mat(states, A, def, radius, hbaromegaz, hbaromegaperp, mass_p, Vwsdepth)
     ! write(*,*)
     ! write(*,*) "SO"
     ! write(*,*)" 0  1  1  0"
