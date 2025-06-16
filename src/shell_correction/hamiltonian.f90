@@ -588,4 +588,83 @@ module Hamiltonian
         real(r_kind), dimension(size(A1,1),size(A1,2)) :: commutator
         commutator = matmul(A1,A2)-matmul(A2,A1)
     end function
+
+    pure real(r_kind) elemental function S0(eta,s1,s2)
+        type(an_ho_state), intent(in) :: s1, s2
+        real(r_kind), intent(in) :: eta
+        S0 = (gnl(eta, s1%nr, s1%ml) * gnlp(eta, s2%nr, s2%ml) +gnl(eta, s2%nr, s2%ml) * gnlp(eta, s1%nr, s1%ml) ) / sqrt(eta)
+    end function
+
+    pure real(r_kind) elemental function Sp(eta,s1,s2)
+        type(an_ho_state), intent(in) :: s1, s2
+        real(r_kind), intent(in) :: eta
+        integer :: K
+        K = s2%ml + s2%ms*0.5_r_kind
+        Sp = - gnl(eta,s1%nr,s1%ml)*gnl(eta,s2%nr,s2%ml) *(K+0.5_r_kind) / sqrt(eta) - gnlp(eta,s1%nr, s1%ml) * gnl(eta,s2%nr,s2%ml)
+    end function
+
+    pure real(r_kind) elemental function Sm(eta,s1,s2)
+        type(an_ho_state), intent(in) :: s1, s2
+        real(r_kind), intent(in) :: eta
+        Sm = Sp(eta, s2, s1)
+    end function
+
+    real(r_kind) function T0(eta,s1,s2, SO_WS,alpha_z, alpha_perp)
+        type(an_ho_state), intent(in) :: s1, s2
+        real(r_kind), intent(in) :: eta, alpha_z, alpha_perp
+        type(WS_pot), intent(in) :: SO_WS
+        integer :: i
+        real(r_kind) :: zeta, z, rho,r ,theta
+        T0 = 0
+        call precompute()
+        rho = eta_to_rho(eta, alpha_perp)
+        do i = 1,gauss_order
+            zeta = her_x(i)
+            z = zeta_to_z(zeta, alpha_z)
+            theta = theta_cyl(rho, z)
+            r = rad_cyl(rho, z)
+
+
+            T0 = T0 + her_w(i)*SO_WS%eval(r,theta) * Hmn(zeta, s1%nz) * Hmn(zeta, s2%nz)
+        end do
+    end function
+
+    real(r_kind) function Tminus(eta,s1,s2, SO_WS,alpha_z, alpha_perp)
+        type(an_ho_state), intent(in) :: s1, s2
+        real(r_kind), intent(in) :: eta, alpha_z, alpha_perp
+        type(WS_pot), intent(in) :: SO_WS
+        integer :: i
+        real(r_kind) :: zeta, z, rho,r ,theta
+        Tminus = 0
+        call precompute()
+        rho = eta_to_rho(eta, alpha_perp)
+        do i = 1,gauss_order
+            zeta = her_x(i)
+            z = zeta_to_z(zeta, alpha_z)
+            theta = theta_cyl(rho, z)
+            r = rad_cyl(rho, z)
+
+
+            Tminus = Tminus + her_w(i)*SO_WS%eval(r,theta) * Hmn(zeta, s1%nz) * Hmnp(zeta, s2%nz)
+        end do
+    end function
+
+    real(r_kind) function Tplus(eta,s1,s2, SO_WS,alpha_z, alpha_perp)
+        type(an_ho_state), intent(in) :: s1, s2
+        real(r_kind), intent(in) :: eta, alpha_z, alpha_perp
+        type(WS_pot), intent(in) :: SO_WS
+        Tplus = Tminus(eta, s2, s1, SO_WS, alpha_z, alpha_perp) !!change of indices·
+    end function
+
+
+
+    pure elemental real(r_kind) function zeta_to_z(zeta, alpha)
+        real(r_kind), intent(in) :: zeta, alpha
+        zeta_to_z = zeta / alpha
+    end function
+
+    pure elemental real(r_kind) function eta_to_rho(eta, alpha)
+    real(r_kind), intent(in) :: eta, alpha
+    eta_to_rho = sqrt(eta) / alpha
+end function
 end module

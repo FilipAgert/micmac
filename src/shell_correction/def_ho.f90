@@ -5,7 +5,7 @@ module def_ho
     implicit none
     private
     public :: an_ho_state, get_ho_states, getnumstates, betadef, getnumstatesupto, fac, Hn, lna, pauli_p, pauli_m, pauli_z, R_mat, Rp_mat, S_mat, Sp_mat, alpha, cosphi_m, azp_mat, az_mat, isinphi_m
-    public :: kronecker, lz, expiphi, kin_en
+    public :: kronecker, lz, expiphi, kin_en, gnl, gnlp, hmn, hmnp
 
 
 
@@ -510,25 +510,8 @@ pure function kin_en(states, hbaromega_z, hbaromega_perp) !Nuclear Physics A A m
 
 end function
 
-pure real(r_kind) elemental function S0(eta,s1,s2)
-    type(an_ho_state), intent(in) :: s1, s2
-    real(r_kind), intent(in) :: eta
-    S0 = (gnl(eta, s1%nr, s1%ml) * gnlp(eta, s2%nr, s2%ml) +gnl(eta, s2%nr, s2%ml) * gnlp(eta, s1%nr, s1%ml) ) / sqrt(eta)
-end function
 
-pure real(r_kind) elemental function Sp(eta,s1,s2)
-    type(an_ho_state), intent(in) :: s1, s2
-    real(r_kind), intent(in) :: eta
-    integer :: K
-    K = s2%ml + s2%ms
-    Sp = - gnl(eta,s1%nr,s1%ml)*gnl(eta,s2%nr,s2%ml) *(K+0.5_r_kind) / sqrt(eta) - gnlp(eta,s1%nr, s1%ml) * gnl(eta,s2%nr,s2%ml)
-end function
 
-pure real(r_kind) elemental function Sm(eta,s1,s2)
-    type(an_ho_state), intent(in) :: s1, s2
-    real(r_kind), intent(in) :: eta
-    Sm = Sp(eta, s2, s1)
-end function
 
 pure real(r_kind) elemental function gnl(x,n,l) !!modified laguerre polynomial
     integer, intent(in) :: n, l
