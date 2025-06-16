@@ -272,13 +272,15 @@ module Hamiltonian
         real(r_kind), intent(in) :: mass !!In units MeV/c^2
         real(r_kind), intent(in) :: omegaperp, omegaz !!In units MeV/hbar
         integer :: il, ih
-        real(r_kind) :: rolling, z, rho, alphaz, alpharho, u, x, factz, factrho, xpart, r, ang, dist
+        real(r_kind) :: rolling, z, rho, alphaz, alpharho, u, x, factz, factrho, xpart, r, ang
         !The phi integral turns out to be a kronecker delta * 2pi
         if (state1%ml /= state2%ml) then 
-            elem = 0
+            elem = 0.0_r_kind
             return
-        else if(state1%mj /= state2%mj) then !Spin orthogonality
-            elem = 0
+        endif
+        
+        if(state1%ms /= state2%ms) then !Spin orthogonality
+            elem = 0.0_r_kind
             return
         endif
         elem = 1.0_r_kind !!from phi part.
@@ -504,7 +506,7 @@ module Hamiltonian
         real(r_kind), intent(in) :: omegaz, omegaperp !!Frequencies in units MeV/hbar
         real(r_kind), intent(in) :: mass!!Frequencies in units MeV/c^2
         real(r_kind), dimension(size(states),size(states)) :: sigma_z, sigma_p, sigma_m
-        real(r_kind), dimension(size(states), size(states)) :: Sp, Sm, Rp, Rm, dVdz, dVdrho, cosphi, az, azp, isinphi, costerm, isinterm, zterm
+        real(r_kind), dimension(size(states), size(states)) :: Sp, Sm, Rp, Rm, dVdz, dVdrho, cosphi, az, azp, isinphi, costerm, isinterm, zterm, momz
         real(r_kind) :: alpha_z, alpha_perp, factor
         type(dWs_dz) :: dzmat
         type(dWs_drho) :: drhomat

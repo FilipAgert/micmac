@@ -245,7 +245,7 @@ pure real(r_kind) elemental function lna(x,n,a) result(res) !gen laguerre polyno
 end function
 
 
-pure recursive function fac(n) result(res)
+pure elemental recursive function fac(n) result(res)
     integer(kind=i_kind) :: res
     integer, intent(in) :: n
     if(n == 0 .or. n == 1) then
@@ -508,6 +508,38 @@ pure function kin_en(states, hbaromega_z, hbaromega_perp) !Nuclear Physics A A m
         end do
     end do
 
+end function
+
+pure real(r_kind) elemental function S0(nzr, nzc, eta)
+    integer, intent(in) :: nzr, nzc
+    real(r_kind), intent(in) :: eta
+
+
+end function
+
+pure real(r_kind) elemental function gnl(x,n,l) !!modified laguerre polynomial
+    integer, intent(in) :: n, l
+    real(r_kind), intent(in) :: x
+    gnl = x**(l*1.0_r_kind/2.0) * sqrt(1.0_r_kind*fac(n)/(fac(n+l))) * Lna(x,n,l)
+end function
+
+pure real(r_kind) elemental function gnlp(x,n,l) !!modified laguerre polynomial derivative
+    integer, intent(in) :: n, l
+    real(r_kind), intent(in) :: x
+    gnlp = (gnl(x,n,l) * (2*n+l-x) - gnl(x,n-1,l) * 2* sqrt(real(n*(n+l),r_kind)))/sqrt(x)
+end function
+
+
+pure real(r_kind) elemental function Hmn(x,n) !!modified hermite polynomial
+    integer, intent(in) :: n
+    real(r_kind), intent(in) :: x
+    Hmn = Hn(x,n)/sqrt(real(2**n * fac(n) * sqrt(pi),r_kind))
+end function
+
+pure real(r_kind) elemental function Hmnp(x,n) !!mod hermite polynomial derivative
+    integer, intent(in) :: n
+    real(r_kind), intent(in) :: x
+    Hmnp = Hmn(x,n-1)*sqrt(0.5_r_kind*n) - Hmn(x,n) *sqrt(0.5_r_kind*(n+1))
 end function
 
 

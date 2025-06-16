@@ -215,30 +215,30 @@ program run_ho
     ! end do
 
     !hbaromegaz = hbaromegaperp
-    matr = matmul(inv_rho_mat(states,hbaromegaz, hbaromegaperp,mass_p),matmul(pauli_m(states), Rp_mat(states)+S_mat(states)) -matmul(pauli_p(states), R_mat(states)+Sp_mat(states))) !kin_en(states, hbaromegaz, hbaromegaperp)! + transpose(expiphi(states))
+    matr = matmul(inv_rho_mat(states, hbaromegaz, hbaromegaperp, mass_p),matmul(matmul(pauli_m(states), Rp_mat(states)+S_mat(states)) -matmul(pauli_p(states), R_mat(states)+Sp_mat(states)) - matmul(lz(states),pauli_z(states)), az_mat(states)-azp_mat(states))) !kin_en(states, hbaromegaz, hbaromegaperp)! + transpose(expiphi(states))
     open(3,file="data/out/mat.dat")
     write(*,*)
     write(3,*) "[cosphi, R]"
-    write(3,'(23x)',advance='no')
+    write(3,'(19x, A5)',advance='no') "r    "
     do n = 1, numstates
-        write(3,'(A, I5)',advance='no')"r ", states(n)%r
+        write(3,'(I5)',advance='no') states(n)%r
     end do
     write(3,*)
-    write(3,'(23x)',advance='no')
+    write(3,'(19x, A5)',advance='no') "s   "
     do n = 1, numstates
-        write(3,'(A,I5)',advance='no')"s ", states(n)%s
+        write(3,'(I5)',advance='no') states(n)%s
     end do
     write(3,*)
 
-    write(3,'(23x)',advance='no')
+    write(3,'(19x, A5)',advance='no')"nz   "
     do n = 1, numstates
-        write(3,'(A,I5)',advance='no')"nz", states(n)%nz
+        write(3,'(I5)',advance='no') states(n)%nz
         !write(,*) states(n)%nr
     end do
     write(3,*)
-    write(3,'(23x)',advance='no')
+    write(3,'(19x, A5)',advance='no')"ms   "
     do n = 1, numstates
-        write(3,'(A,I5)',advance='no')"ms", states(n)%ms
+        write(3,'(I5)',advance='no') states(n)%ms
     end do
 
     write(3,*)
