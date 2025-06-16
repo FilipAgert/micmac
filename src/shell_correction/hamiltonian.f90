@@ -697,7 +697,7 @@ module Hamiltonian
 
         if(s1%ml == s2%ml + 1 .and. s1%ms == s2%ms - 1) then
 
-        elseif( s1%ml == s2%ml - 1 .and. s1%ms == s2%ms + 1       )then
+        elseif( s1%ml == s2%ml - 1 .and. s1%ms == s2%ms + 1)then
 
         else
             write(*,*) "Error: states dont have the correct quantum numbers in ms and ml"

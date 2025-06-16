@@ -1,1 +1,11 @@
 in the s and T matrices, check if sigma is half integer or integer
+
+in the off diagonal elements,
+we have lambda' = lambda pm 1 but Sigma = sigma' mp 1
+
+is this a misprint of the apostrohpes?
+can investigate via the T+, T-
+
+
+
+Tplus and T0 matrix need only to be computed once. can also do this for the VWS matrix for even faster computation
