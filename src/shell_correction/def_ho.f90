@@ -5,6 +5,7 @@ module def_ho
     implicit none
     private
     public :: an_ho_state, get_ho_states, getnumstates, betadef, getnumstatesupto, fac, Hn, lna, pauli_p, pauli_m, pauli_z, R_mat, Rp_mat, S_mat, Sp_mat, alpha, cosphi_m, azp_mat, az_mat, isinphi_m
+    public :: kronecker, lz, expiphi, kin_en
 
 
 
@@ -109,16 +110,19 @@ function get_ho_states(N) result(states)
         qrem = N - nz
         do nr = 0, qrem/2 !!integer division. if remaining is 3, we want n = 0, 1
             ml = qrem - 2*nr
+            mlp = ml
             do mlp = -ml, ml, max(2*ml,1)
-                do omega = 2*mlp - 1, 2*mlp + 1, 2 
-                    write(*,*) "  N     nz    ml    mj"
-                    write(*,'(5I6)') N, nz, mlp, omega
+                do omega = 2*mlp - 1, 2*mlp + 1, 2 !abs(2*mlp - 1), 2*mlp + 1, 2  !2*mlp - 1, 2*mlp + 1, 2 
+                    ! write(*,*) "  N     nz    ml    mj"
+                    ! write(*,'(5I6)') N, nz, mlp, omega
                     ms = omega-2*mlp
                     idx = idx + 1
                     nperp = 2*nr + abs(mlp)
-                    r = (nperp + mlp)/2
-                    s = (nperp - mlp)/2
-
+                    r = (nperp + abs(mlp))/2
+                    s = (nperp - abs(mlp))/2
+                    if(r-s /= ml) then
+                        print*, "ERROR! R-S is not ml"
+                    endif
 
                     p = (-1)**N
                     state = an_ho_state(nz = nz, nr = nr, ml=mlp, mj=omega, r= r, s=s, N=N, pi=p, nperp = nperp, ms=ms)
@@ -393,7 +397,7 @@ pure function pauli_p(states)
         sr = states(row)
         do col = 1,size(states)
             sc = states(col)
-            pauli_p(row, col) = kronecker(sr%ms,sc%ms+2)*kronecker(sr%nz,sc%nz) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s)
+            pauli_p(row, col) = kronecker(sr%ms,sc%ms+2)*kronecker(sr%nz,sc%nz) * kronecker(sr%nr, sc%nr) * kronecker(sr%ml, sc%ml)
         end do
     end do
 end function
@@ -408,7 +412,7 @@ pure function pauli_m(states) !!Destructor operator for pauli matrix
         sr = states(row)
         do col = 1,size(states)
             sc = states(col)
-            pauli_m(row, col) = kronecker(sr%ms,sc%ms-2)*kronecker(sr%nz,sc%nz) * kronecker(sr%r, sc%r) * kronecker(sr%s, sc%s)
+            pauli_m(row, col) = kronecker(sr%ms,sc%ms-2)*kronecker(sr%nz,sc%nz) * kronecker(sr%nr, sc%nr) * kronecker(sr%ml, sc%ml)
         end do
     end do
 end function
@@ -428,6 +432,21 @@ pure function cosphi_m(states) !! matrix w. elements <m_l' | cosphi | m_l > = 1/
     end do
 end function
 
+pure function expiphi(states) !! matrix w. elements <m_l' | cosphi | m_l > = 1/2 if |m_l-m_l'| = 1,
+                               !! 0, otherwise
+    type(an_ho_state), intent(in) :: states(:)
+    real(r_kind), dimension(size(states), size(states)) :: expiphi
+    integer :: row, col
+    type(an_ho_state) :: sr, sc
+    do row = 1,size(states)
+        sr = states(row)
+        do col = 1,size(states)
+            sc = states(col)
+            expiphi(row, col) = (kronecker(sr%ml,sc%ml+1))*   kronecker(sr%nz,sc%nz) * kronecker(sr%nr, sc%nr)* kronecker(sr%ms, sc%ms)
+        end do
+    end do
+end function
+
 pure function isinphi_m(states) !! matrix w. elements <m_l' | isinphi | m_l > = \pm 1/2 if m_l-m_l' = \mp 1,
                                !! 0, otherwise
     type(an_ho_state), intent(in) :: states(:)
@@ -442,5 +461,51 @@ pure function isinphi_m(states) !! matrix w. elements <m_l' | isinphi | m_l > = 
         end do
     end do
 end function
+
+
+pure function lz(states)
+    type(an_ho_state), intent(in) :: states(:)
+    real(r_kind), dimension(size(states), size(states)) :: lz
+    integer :: row
+    type(an_ho_state) :: sr
+    lz = 0
+    do row = 1,size(states)
+        sr = states(row)
+        lz(row,row) = sr%ml
+    end do
+end function
+
+pure function kin_en(states, hbaromega_z, hbaromega_perp) !Nuclear Physics A A method for solving the independent-particle Schrödinger equation with a deformed average field
+                                                            !Volume 135, Issue 2, 2 October 1969, Pages 432-444
+    type(an_ho_state), intent(in) :: states(:)
+    real(r_kind), dimension(size(states), size(states)) :: kin_en
+    integer :: row, col, nzr, nzc, nrr, nrc, mlr, mlc, msr, msc, npc
+    real(r_kind), intent(in) :: hbaromega_z, hbaromega_perp
+    type(an_ho_state) :: sr,sc
+    
+    do row = 1,size(states)
+        sr = states(row)
+        nzr = sr%nz
+        nrr = sr%nr
+        mlr = sr%ml
+        msr = sr%ms
+        do col = 1, size(states)
+            sc = states(col)
+            nzc = sc%nz
+            nrc = sc%nr
+            mlc = sc%ml
+            msc = sc%ms
+            npc = sc%nperp
+            !kin_en(row, col) = kronecker(nrr, nrc) * kronecker(nzr, nzc) * kronecker(mlr, mlc) * &
+            !0.5_r_kind * (hbaromega_perp * (npc+ 1) + hbaromega_z * (nzc + 1))
+
+            kin_en(row, col) = kin_en(row,col) + kronecker(nrr, nrc - 1)*kronecker(nzr, nzc) * kronecker(mlr, mlc) * 0.5 * hbaromega_perp * sqrt(real(nrr*(nrr+mlc),r_kind))
+            !kin_en(row, col) = kin_en(row,col) -kronecker(nrr, nrc)*kronecker(nzr, nzc-2) * kronecker(mlr, mlc) * 0.25 * hbaromega_z * sqrt(real(nzr * (nzr - 1),r_kind))
+            kin_en(row, col) = kin_en(row,col) * kronecker(msr, msc)
+        end do
+    end do
+
+end function
+
 
 end module def_ho

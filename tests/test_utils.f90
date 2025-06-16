@@ -2,7 +2,7 @@ module test_utils
     use constants
     implicit none
     private
-    public :: eq, eq_r
+    public :: eq, eq_r, eq_mat, print_matrix
 
     real(r_kind), parameter :: epsilon = 1e-6
 
@@ -25,5 +25,32 @@ module test_utils
         endif
     end function
 
+    logical function eq_mat(mat1,mat2)
+        real(r_kind), intent(in), dimension(:,:) :: mat1, mat2
+        integer :: row, col
+        do row = 1, size(mat1,1)
+            do col = 1,size(mat2,2)
+                if(abs(mat1(row,col)-mat2(row,col)) < epsilon) then
+                    eq_mat = .true.
+                else
+                    eq_mat = .false.
+                    return
+                endif
+            end do
+        end do
+    end function
+    subroutine print_matrix(A)
+        implicit none
+        real(r_kind), dimension(:,:), intent(in) :: A
+        integer :: i, j, n, m
+    
+        n = size(A, 1)
+        m = size(A, 2)
+    
+        do i = 1, n
+            write(*,'(100(f12.5,1x))') (A(i,j), j=1,m)
+        end do
+    end subroutine print_matrix
+    
 
 end module test_utils
