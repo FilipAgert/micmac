@@ -664,7 +664,50 @@ module Hamiltonian
     end function
 
     pure elemental real(r_kind) function eta_to_rho(eta, alpha)
-    real(r_kind), intent(in) :: eta, alpha
-    eta_to_rho = sqrt(eta) / alpha
-end function
+        real(r_kind), intent(in) :: eta, alpha
+        eta_to_rho = sqrt(eta) / alpha
+    end function
+
+
+    real(r_kind)  function VSO_diag_elem(s1,s2,SO_WS,alpha_z,alpha_perp) result(matelem)
+        type(an_ho_state), intent(in) :: s1, s2
+        real(r_kind), intent(in) :: alpha_z, alpha_perp
+        type(WS_pot), intent(in) :: SO_WS
+        integer :: ii
+        real(r_kind) :: eta
+        matelem = 0
+        if(s1%ml /= s2%ml .and. s1%ms /= s2%ms) then
+            write(*,*) "Error: states are non diagonal in diagonal element calculation"
+            call exit
+        endif
+
+        do ii = 1, gauss_order
+            eta = lag_x(ii)
+            matelem = matelem + S0(eta, s1, s2) * T0(eta, s1, s2, SO_WS, alpha_z, alpha_perp) * lag_w(ii)
+        end do
+    end function
+
+    real(r_kind)  function VSO_off_diag_elem(s1,s2,SO_WS,alpha_z,alpha_perp) result(matelem)
+        type(an_ho_state), intent(in) :: s1, s2
+        real(r_kind), intent(in) :: alpha_z, alpha_perp
+        type(WS_pot), intent(in) :: SO_WS
+        integer :: ii
+        real(r_kind) :: eta
+        matelem = 0
+
+        if(s1%ml == s2%ml + 1 .and. s1%ms == s2%ms - 1) then
+
+        elseif( s1%ml == s2%ml - 1 .and. s1%ms == s2%ms + 1       )then
+
+        else
+            write(*,*) "Error: states dont have the correct quantum numbers in ms and ml"
+            call exit
+        endif
+
+        do ii = 1, gauss_order
+            eta = lag_x(ii)
+            matelem = matelem + lag_w(ii) * (Sp(eta, s1, s2) * Tplus(eta, s1, s2, SO_WS, alpha_z, alpha_perp) + &
+                                            Sm(eta, s1, s2) * Tminus(eta, s1, s2, SO_WS, alpha_z, alpha_perp))
+        end do
+    end function
 end module
