@@ -495,9 +495,9 @@ module Hamiltonian
         ddrhomat = ddrhomat -alpha(mass, omegaperp)**2 * rmat
     end function
 
-    function Vso_mat(states, A, def, R0, omegaz, omegaperp, mass, WS_depth)
+    function Vso_mat(states, A, def, R0, omegaz, omegaperp, mass, WS_depth, lambda)
         implicit none
-        type(an_ho_state), intent(in) :: states(:) 
+        type(an_ho_state), intent(in) :: states(:)
         integer, intent(in) :: A !!mass number
         type(betadef), intent(in) :: def !!deformation of body
         real(r_kind), intent(in) :: R0 !!radius as r0*A**(1/3). Where r0 is r0_so from constants.f90
@@ -505,81 +505,40 @@ module Hamiltonian
         real(r_kind), dimension(size(states),size(states)) :: Vso_mat
         real(r_kind), intent(in) :: omegaz, omegaperp !!Frequencies in units MeV/hbar
         real(r_kind), intent(in) :: mass!!Frequencies in units MeV/c^2
-        real(r_kind), dimension(size(states),size(states)) :: sigma_z, sigma_p, sigma_m
-        real(r_kind), dimension(size(states), size(states)) :: Sp, Sm, Rp, Rm, dVdz, dVdrho, cosphi, az, azp, isinphi, costerm, isinterm, zterm, momz
-        real(r_kind) :: alpha_z, alpha_perp, factor
-        type(dWs_dz) :: dzmat
-        type(dWs_drho) :: drhomat
-        integer :: row, col
-        sigma_z = real(pauli_z(states),r_kind)
-        sigma_p = real(pauli_p(states),r_kind)
-        sigma_m = real(pauli_m(states),r_kind)
-        Sp = Sp_mat(states)
-        Sm = S_mat(states)
-        Rp = Rp_mat(states)
-        Rm = R_mat(states)
-        cosphi = cosphi_m(states)
-        isinphi = isinphi_m(states)
-        azp = azp_mat(states)
-        az = transpose(azp)
+        real(r_kind), intent(in) ::lambda !!multiplicative factor
+        real(r_kind) :: alpha_z, alpha_perp, kappa
+        type(WS_pot) :: so_ws
+        integer ::numstates, row, col, l1, l2, ms1, ms2
+        type(an_ho_state) :: s1, s2
+
+        kappa = -lambda*(hbarc/(2*mass))**2
+        !setup potential
+        so_ws%def = def
+        so_ws%radius = R0
+        so_ws%V_0 = WS_depth
 
         alpha_z = alpha(mass, omegaz)
         alpha_perp = alpha(mass, omegaperp)
-        write(*,*) "here"
-        dzmat%def = def
-        dzmat%radius = R0
-        dzmat%V_0 = WS_depth
-        drhomat%def = def
-        drhomat%radius = R0
-        drhomat%V_0 = WS_depth
-        dvdz = 0
-        do row = 1, size(states)
-            do col = 1, size(states)
-                dvDz(row, col) = mat_elem_axsym(states(row), states(col), dzmat, mass, omegaz, omegaperp)
 
-                dVdrho(row, col) = mat_elem_axsym(states(row), states(col), drhomat, mass, omegaz, omegaperp)
+        numstates = size(states)
+        Vso_mat = 0
+        do row = 1, numstates
+            s1 = states(row)
+            l1 = s1%ml
+            ms1 = s1%ms
+            do col = 1,numstates
+                s2 = states(col)
+                l2 = s2%ml
+                ms2 = s2%ms
 
+                if(ms1 == ms2 .and. l1 == l2) then
+                    Vso_mat(row,col) = VSO_diag_elem(s1,s2,so_ws,alpha_z,alpha_perp)
+                elseif((ms1 == ms2 + 1 .and. l1 == l2 - 1) .or. (ms1 == ms2 - 1 .and. l1 == l2 + 1)) then
+                    Vso_mat(row,col) = VSO_off_diag_elem(s1,s2,so_ws,alpha_z,alpha_perp)
+                endif          
             end do
         end do
-! Define each term in the spin-orbit potential
-        zterm = alpha_perp * (matmul(sigma_p, Rm - Sm) + matmul(sigma_m, Rp - Sp))
-
-        costerm = matmul(cosphi, &
-                     0.5_r_kind * alpha_perp * matmul(sigma_z, Rp + Rm - Sp - Sm) + &
-                     1.0_r_kind / sqrt(2.0_r_kind) * alpha_z * matmul(sigma_m - sigma_p, azp - az) )
-        
-        isinterm = matmul(isinphi, &
-                      0.5_r_kind * alpha_perp * matmul(sigma_z, Rp - Rm + Sm - Sp) - &
-                      1.0_r_kind / sqrt(2.0_r_kind) * alpha_z * matmul(sigma_m + sigma_p, azp - az) )
-        
-        write(*,*) "isinphi term"
-        do row = 1,size(states)
-            write(*,'(10F5.1)')isinphi(row,:) - costerm(row,:)
-        end do
-
-
-        write(*,*) "z term"
-        do row = 1,size(states)
-            write(*,'(10F5.1)')zterm(row,:)
-
-        end do
-
-        write(*,*) "cos term"
-        do row = 1,size(states)
-            write(*,'(10F5.1)')costerm(row,:)
-
-        end do
-
-        write(*,*) "sin term"
-        do row = 1,size(states)
-            write(*,'(10F5.1)')isinterm(row,:)
-
-        end do
-
-        
-        factor = lambda_n * (hbarc / mass)**2 / 4.0_r_kind !! (hbar/ (mass * c))^2, with mass in units MeV/c^2
-        
-        Vso_mat = matmul(dVdrho,inv_rho_mat(states,omegaz,omegaperp,mass)) !matmul(inv_rho_mat(states, omegaz, omegaperp, mass), matmul(sigma_m,Rp+Rm) - matmul(sigma_p,Rm+Sp)))
+        Vso_mat = Vso_mat*kappa
     end function
 
 
@@ -683,7 +642,7 @@ module Hamiltonian
 
         do ii = 1, gauss_order
             eta = lag_x(ii)
-            matelem = matelem + S0(eta, s1, s2) * T0(eta, s1, s2, SO_WS, alpha_z, alpha_perp) * lag_w(ii)
+            matelem = matelem + S0(eta, s1, s2) * T0(eta, s1, s2, SO_WS, alpha_z, alpha_perp) * lag_w(ii)*alpha_perp* s1%ml * s1%ms !== 2*lambda*sigma where sigma = +- 1/2
         end do
     end function
 
@@ -709,5 +668,6 @@ module Hamiltonian
             matelem = matelem + lag_w(ii) * (Sp(eta, s1, s2) * Tplus(eta, s1, s2, SO_WS, alpha_z, alpha_perp) + &
                                             Sm(eta, s1, s2) * Tminus(eta, s1, s2, SO_WS, alpha_z, alpha_perp))
         end do
+        matelem = matelem * alpha_perp*alpha_z
     end function
 end module
