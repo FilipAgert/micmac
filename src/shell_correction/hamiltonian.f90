@@ -495,10 +495,50 @@ module Hamiltonian
         ddrhomat = ddrhomat -alpha(mass, omegaperp)**2 * rmat
     end function
 
-    function Vso_mat(states, A, def, R0, omegaz, omegaperp, mass, WS_depth, lambda)
+    function VWS_mat(states, def, R0, omegaz, omegaperp, mass, WS_depth, lambda)
         implicit none
         type(an_ho_state), intent(in) :: states(:)
-        integer, intent(in) :: A !!mass number
+        type(betadef), intent(in) :: def !!deformation of body
+        real(r_kind), intent(in) :: R0 !!radius as r0*A**(1/3). Where r0 is r0_so from constants.f90
+        real(r_kind), intent(in) :: WS_depth !!WS potental well depth
+        real(r_kind), dimension(size(states),size(states)) :: VWS_mat
+        real(r_kind), intent(in) :: omegaz, omegaperp !!Frequencies in units MeV/hbar
+        real(r_kind), intent(in) :: mass!!Frequencies in units MeV/c^2
+        real(r_kind), intent(in) ::lambda !!multiplicative factor
+        real(r_kind) :: alpha_z, alpha_perp
+        type(WS_pot) :: VWS
+        integer ::numstates, row, col
+        type(an_ho_state) :: s1, s2
+        call precompute()
+
+        !setup potential
+        VWS%def = def
+        VWS%radius = R0
+        VWS%V_0 = WS_depth
+
+        alpha_z = alpha(mass, omegaz)
+        alpha_perp = alpha(mass, omegaperp)
+
+        numstates = size(states)
+        VWS_mat = 0
+        do row = 1, numstates
+            s1 = states(row)
+            do col = 1,row
+                s2 = states(col)
+                VWS_mat(row,col) = VWS_elem(s1,s2,VWS, alpha_z, alpha_perp)
+            end do
+        end do
+
+        do row = 1,numstates
+            do col = row +1, numstates
+                VWS_mat(row, col) = VWS_mat(col, row)
+            end do
+        end do
+    end function
+
+    function Vso_mat(states, def, R0, omegaz, omegaperp, mass, WS_depth, lambda)
+        implicit none
+        type(an_ho_state), intent(in) :: states(:)
         type(betadef), intent(in) :: def !!deformation of body
         real(r_kind), intent(in) :: R0 !!radius as r0*A**(1/3). Where r0 is r0_so from constants.f90
         real(r_kind), intent(in) :: WS_depth !!WS potental well depth
@@ -510,6 +550,7 @@ module Hamiltonian
         type(WS_pot) :: so_ws
         integer ::numstates, row, col, l1, l2, ms1, ms2
         type(an_ho_state) :: s1, s2
+        call precompute()
 
         kappa = -lambda*(hbarc/(2*mass))**2
         !setup potential
@@ -526,16 +567,24 @@ module Hamiltonian
             s1 = states(row)
             l1 = s1%ml
             ms1 = s1%ms
-            do col = 1,numstates
+            do col = 1,row
                 s2 = states(col)
                 l2 = s2%ml
                 ms2 = s2%ms
-
+                print*, l1, ms1, l2, ms2
+                
                 if(ms1 == ms2 .and. l1 == l2) then
                     Vso_mat(row,col) = VSO_diag_elem(s1,s2,so_ws,alpha_z,alpha_perp)
+                    print*, "diag"
                 elseif((ms1 == ms2 + 1 .and. l1 == l2 - 1) .or. (ms1 == ms2 - 1 .and. l1 == l2 + 1)) then
                     Vso_mat(row,col) = VSO_off_diag_elem(s1,s2,so_ws,alpha_z,alpha_perp)
-                endif          
+                endif        
+            end do
+        end do
+
+        do row = 1,numstates
+            do col = row +1, numstates
+                Vso_mat(row, col) = Vso_mat(col, row)
             end do
         end do
         Vso_mat = Vso_mat*kappa
@@ -557,7 +606,7 @@ module Hamiltonian
     pure real(r_kind) elemental function Sp(eta,s1,s2)
         type(an_ho_state), intent(in) :: s1, s2
         real(r_kind), intent(in) :: eta
-        integer :: K
+        real(r_kind) :: K
         K = s2%ml + s2%ms*0.5_r_kind
         Sp = - gnl(eta,s1%nr,s1%ml)*gnl(eta,s2%nr,s2%ml) *(K+0.5_r_kind) / sqrt(eta) - gnlp(eta,s1%nr, s1%ml) * gnl(eta,s2%nr,s2%ml)
     end function
@@ -627,6 +676,45 @@ module Hamiltonian
         eta_to_rho = sqrt(eta) / alpha
     end function
 
+    
+
+    real(r_kind) function VWS_elem(s1,s2,V_WS,alpha_z,alpha_perp) result(matelem)
+            type(an_ho_state), intent(in) :: s1, s2
+        real(r_kind), intent(in) :: alpha_z, alpha_perp
+        type(WS_pot), intent(in) :: V_WS
+        integer :: ii
+        real(r_kind) :: eta
+        call precompute()
+        matelem = 0.0_r_kind
+        if(s1%ml /= s2%ml .or. s1%ms /= s2%ms) then
+            matelem = 0.0_r_kind
+            return
+        endif
+
+        do ii = 1, gauss_order
+            eta = lag_x(ii)
+            matelem = matelem + lag_w(ii) * Z_matelem(eta, s1,s2,V_WS,alpha_z,alpha_perp) * gnl(eta, s1%nr,s1%ml) * gnl(eta, s2%nr, s2%ml) 
+        end do
+
+    end function
+
+    real(r_kind) function Z_matelem(eta, s1,s2,V_WS,alpha_z, alpha_perp)
+        type(an_ho_state), intent(in) :: s1, s2
+        real(r_kind), intent(in) :: alpha_z, alpha_perp, eta
+        type(WS_pot), intent(in) :: V_WS
+        integer :: ii
+        real(r_kind) :: zeta, z, rho, r, theta
+        Z_matelem = 0.0_r_kind
+        rho = eta_to_rho(eta, alpha_perp)
+        do ii = 1, gauss_order
+            zeta = her_x(ii)
+            z = zeta_to_z(zeta,alpha_z)
+            theta = theta_cyl(rho, z)
+            r = rad_cyl(rho ,z)
+            Z_matelem = Z_matelem + her_w(ii) * Hmn(zeta, s1%nz) * Hmn(zeta, s2%nz) * V_WS%eval(r, theta) 
+        end do
+    end function
+
 
     real(r_kind)  function VSO_diag_elem(s1,s2,SO_WS,alpha_z,alpha_perp) result(matelem)
         type(an_ho_state), intent(in) :: s1, s2
@@ -634,7 +722,7 @@ module Hamiltonian
         type(WS_pot), intent(in) :: SO_WS
         integer :: ii
         real(r_kind) :: eta
-        matelem = 0
+        matelem = 0.0_r_kind
         if(s1%ml /= s2%ml .and. s1%ms /= s2%ms) then
             write(*,*) "Error: states are non diagonal in diagonal element calculation"
             call exit

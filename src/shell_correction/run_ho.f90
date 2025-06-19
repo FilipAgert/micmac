@@ -5,7 +5,7 @@ program run_ho
     implicit none
 
 
-    integer, parameter :: max_n = 10
+    integer, parameter :: max_n = 8
     integer, parameter :: A = 238, Z=92
     type(an_ho_state), dimension(:), allocatable :: states
     type(an_ho_state) :: state1, state2
@@ -215,7 +215,7 @@ program run_ho
     ! end do
 
     !hbaromegaz = hbaromegaperp
-    matr = matmul(inv_rho_mat(states, hbaromegaz, hbaromegaperp, mass_p),matmul(matmul(pauli_m(states), Rp_mat(states)+S_mat(states)) -matmul(pauli_p(states), R_mat(states)+Sp_mat(states)) - matmul(lz(states),pauli_z(states)), az_mat(states)-azp_mat(states))) !kin_en(states, hbaromegaz, hbaromegaperp)! + transpose(expiphi(states))
+    matr = kin_en(states, hbaromegaz,hbaromegaperp)!Vso_mat(states, def, radius, hbaromegaz, hbaromegaperp, mass_p, Vwsdepth,lambda_p) !matmul(inv_rho_mat(states, hbaromegaz, hbaromegaperp, mass_p),matmul(matmul(pauli_m(states), Rp_mat(states)+S_mat(states)) -matmul(pauli_p(states), R_mat(states)+Sp_mat(states)) - matmul(lz(states),pauli_z(states)), az_mat(states)-azp_mat(states))) !kin_en(states, hbaromegaz, hbaromegaperp)! + transpose(expiphi(states))
     open(3,file="data/out/mat.dat")
     write(*,*)
     write(3,*) "[cosphi, R]"

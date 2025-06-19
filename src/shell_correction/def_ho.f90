@@ -1,5 +1,5 @@
 module def_ho
-    use constants, only: r_kind, hbarc, pi, i_kind
+    use constants, only: r_kind, hbarc, pi, i_kind, use_ml_sym
     use micmac, only: deformation
     use optimise, only:func_1d, conj_grad_method
     implicit none
@@ -90,18 +90,20 @@ end function
 pure elemental integer function getnumstates(N) result(num) !!get number of states in one major shell of h.o
     integer, intent(in) :: N
     num = (N+1)*(N+2)!!incl spin degeneracy
+    if(use_ml_sym) num = num / 2
 end function
 
 pure elemental integer function getnumstatesupto(N) result(num) !!get number of states in all major shells up to N
     integer, intent(in) :: N
     num = (N+1)*(N+2)*(N+3)/3 !!incl spin degeneracy
+    if(use_ml_sym) num = num / 2
 end function
 
 function get_ho_states(N) result(states)
     integer, intent(in) :: N !!ho quantum number
     type(an_ho_state), dimension(getnumstates(N)) :: states
     type(an_ho_state) :: state
-    integer :: nz, nr, ml, omega, qrem, idx,r , s, p, nperp, ms
+    integer :: nz, nr, ml, omega, qrem, idx,r , s, p, nperp, ms, lb
     idx = 0
     do nz = 0,N
         !we need nz + 2nr + ml = N.
@@ -109,9 +111,17 @@ function get_ho_states(N) result(states)
         do r = 0, qrem
             s = qrem - r
             ml = r - s
+            if(use_ml_sym .and. ml < 0) continue
+                
+            
             nperp = r + s
 
-            do omega = 2*ml - 1, 2*ml + 1, 2 !abs(2*mlp - 1), 2*mlp + 1, 2  !2*mlp - 1, 2*mlp + 1, 2 
+            if(use_ml_sym) then
+                lb = abs(2*ml-1)
+            else
+                lb = 2*ml-1
+            endif
+            do omega = lb, 2*ml + 1, 2 !abs(2*mlp - 1), 2*mlp + 1, 2  !2*mlp - 1, 2*mlp + 1, 2 
                 ! write(*,*) "  N     nz    ml    mj"
                 ! write(*,'(5I6)') N, nz, mlp, omega
                 ms = omega-2*ml
@@ -485,14 +495,14 @@ pure function kin_en(states, hbaromega_z, hbaromega_perp) !Nuclear Physics A A m
     integer :: row, col, nzr, nzc, nrr, nrc, mlr, mlc, msr, msc, npc
     real(r_kind), intent(in) :: hbaromega_z, hbaromega_perp
     type(an_ho_state) :: sr,sc
-    
+    kin_en = 0
     do row = 1,size(states)
         sr = states(row)
         nzr = sr%nz
         nrr = sr%nr
         mlr = sr%ml
         msr = sr%ms
-        do col = 1, size(states)
+        do col = row, size(states)
             sc = states(col)
             nzc = sc%nz
             nrc = sc%nr
@@ -501,10 +511,21 @@ pure function kin_en(states, hbaromega_z, hbaromega_perp) !Nuclear Physics A A m
             npc = sc%nperp
             !kin_en(row, col) = kronecker(nrr, nrc) * kronecker(nzr, nzc) * kronecker(mlr, mlc) * &
             !0.5_r_kind * (hbaromega_perp * (npc+ 1) + hbaromega_z * (nzc + 1))
+            if(msr /= msc .or. mlr /= mlc) continue
 
-            kin_en(row, col) = kin_en(row,col) + kronecker(nrr, nrc - 1)*kronecker(nzr, nzc) * kronecker(mlr, mlc) * 0.5 * hbaromega_perp * sqrt(real(nrr*(nrr+mlc),r_kind))
-            kin_en(row, col) = kin_en(row,col) -kronecker(nrr, nrc)*kronecker(nzr, nzc-2) * kronecker(mlr, mlc) * 0.25 * hbaromega_z * sqrt(real(nzr * (nzr - 1),r_kind))
-            kin_en(row, col) = kin_en(row,col) * kronecker(msr, msc)
+            kin_en(row, col) = kin_en(row,col) + kronecker(nzr, nzc) * kronecker(nrc, nrr) * 0.5_r_kind * (hbaromega_perp * (npc + 1) + hbaromega_z*(nzc + 1))!diag
+
+            kin_en(row, col) = kin_en(row,col) + kronecker(nzr, nzc) * kronecker(nrc-1, nrr) * 0.5_r_kind*hbaromega_perp*sqrt(real(nrr*(nrr+mlr)))!r -1
+
+            kin_en(row, col) = kin_en(row,col) - kronecker(nzr, nzc-2) * kronecker(nrc, nrr) * 0.25_r_kind*hbaromega_z*sqrt(real(nzr*(nzr-1)))!z - 2
+
+            kin_en(row, col) = kin_en(row,col) * kronecker(msr, msc) * kronecker(mlr, mlc)
+        end do
+    end do
+
+    do row = 1,size(states)
+        do col = 1, row
+            kin_en(row,col) = kin_en(col,row)
         end do
     end do
 
@@ -522,7 +543,11 @@ end function
 pure real(r_kind) elemental function gnlp(x,n,l) !!modified laguerre polynomial derivative
     integer, intent(in) :: n, l
     real(r_kind), intent(in) :: x
-    gnlp = (gnl(x,n,l) * (2*n+l-x) - gnl(x,n-1,l) * 2* sqrt(real(n*(n+l),r_kind)))/sqrt(x)
+    if(n == 0) then
+        gnlp = 0
+    else
+        gnlp = (gnl(x,n,l) * (2*n+l-x) - gnl(x,n-1,l) * 2* sqrt(real(n*(n+l),r_kind)))/sqrt(x)
+    endif
 end function
 
 
@@ -535,7 +560,11 @@ end function
 pure real(r_kind) elemental function Hmnp(x,n) !!mod hermite polynomial derivative
     integer, intent(in) :: n
     real(r_kind), intent(in) :: x
-    Hmnp = Hmn(x,n-1)*sqrt(0.5_r_kind*n) - Hmn(x,n) *sqrt(0.5_r_kind*(n+1))
+    if(n == 0) then
+        Hmnp = 0
+    else
+        Hmnp = Hmn(x,n-1)*sqrt(0.5_r_kind*n) - Hmn(x,n) *sqrt(0.5_r_kind*(n+1))
+    endif
 end function
 
 
