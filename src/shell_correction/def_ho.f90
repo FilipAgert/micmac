@@ -513,7 +513,7 @@ pure function kin_en(states, hbaromega_z, hbaromega_perp) !Nuclear Physics A A m
             !0.5_r_kind * (hbaromega_perp * (npc+ 1) + hbaromega_z * (nzc + 1))
             if(msr /= msc .or. mlr /= mlc) continue
 
-            kin_en(row, col) = kin_en(row,col) + kronecker(nzr, nzc) * kronecker(nrc, nrr) * 0.5_r_kind * (hbaromega_perp * (npc + 1) + hbaromega_z*(nzc + 1))!diag
+            kin_en(row, col) = kin_en(row,col) + kronecker(nzr, nzc) * kronecker(nrc, nrr) * 0.5_r_kind * (hbaromega_perp * (npc + 1) + hbaromega_z*(nzc + 0.5))!diag
 
             kin_en(row, col) = kin_en(row,col) + kronecker(nzr, nzc) * kronecker(nrc-1, nrr) * 0.5_r_kind*hbaromega_perp*sqrt(real(nrr*(nrr+mlr)))!r -1
 
