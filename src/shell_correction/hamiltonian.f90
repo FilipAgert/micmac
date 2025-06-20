@@ -7,12 +7,11 @@ module Hamiltonian
 
 
     private
-    public :: diagonalize, mat_elem_axsym, WS_pot, VC_pot, dist_min, Vso_mat, commutator, inv_rho, unit, rhopot, ddrhomat, rhomat, inv_rho_mat
+    public :: diagonalize, mat_elem_axsym, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels
 
     integer, parameter :: gauss_order =99
     real(r_kind), dimension(gauss_order) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
-    real(r_kind), dimension(gauss_order, gauss_order) :: V_Coul_precomputed!!Cached values of the coulomb potential.
-    logical :: precomputed = .false.
+    logical :: precomputed_quad = .false.
 
 
     real(r_kind), parameter :: aws = 0.70_r_kind !! (fm) WS potential diffusiveness
@@ -45,41 +44,6 @@ module Hamiltonian
         real(r_kind) :: V_0
     contains
         procedure :: eval => eval_WS
-    end type
-
-    type,extends(potential) :: inv_rho
-
-    contains
-        procedure :: eval => eval_inv_rho
-    end type
-
-    type,extends(potential) :: rhopot
-
-    contains
-        procedure :: eval => eval_rho
-    end type
-
-    type,extends(potential) :: unit
-
-    contains
-        procedure :: eval => eval_unit
-    end type
-    !!!!!!!!!!!!!!!!!!!!!
-    type, abstract, extends(WS_pot) :: WS_derivative
-    contains
-        procedure :: pot => eval_WS_wrapper
-    end type
-    !!!!!!!!!!!!!!!!!!!!!
-    type, extends(WS_derivative) :: dWs_dz
-    contains
-        procedure :: eval => eval_dWs_dz
-    end type
-
-    !!!!!!!!!!!!!!
-    type, extends(WS_derivative) :: dWs_drho
-
-    contains
-        procedure :: eval => eval_dWs_drho
     end type
 
 
@@ -129,8 +93,8 @@ module Hamiltonian
 
 
 
-    subroutine precompute()
-        if(precomputed) then
+    subroutine precompute_quad()
+        if(precomputed_quad) then
             return
         endif
 
@@ -152,7 +116,7 @@ module Hamiltonian
         
         call legendre_dr_compute(gauss_order, leg_x, leg_w)
 
-        precomputed = .true.
+        precomputed_quad = .true.
 
 
 
@@ -162,6 +126,10 @@ module Hamiltonian
     subroutine set_charge_VC(self, ZZ)
         class(VC_pot) :: self
         integer, intent(in) :: ZZ !!proton number
+        if(self%radius < 1e-6)then
+            print*, "error: radius not set correctly for coulomb potential"
+            call exit
+        endif
         self%charge_dens = coul_charge_density(ZZ, self%radius)
     end subroutine
 
@@ -208,7 +176,7 @@ module Hamiltonian
         !Do the integral int_V     dr^3/|r-r'| at the point r.
         integer :: iu, it, ix
         real(r_kind) :: u, t, x, int_theta, int_radius_ub, rolling
-        call precompute()
+        call precompute_quad()
 
         rolling = 0.0_r_kind
         do iu = 1, gauss_order
@@ -223,6 +191,11 @@ module Hamiltonian
                     rolling = rolling + leg_w(iu)*leg_w(it)*leg_w(ix)*pi*int_radius_ub**3*(x+1.0_r_kind)**2 / (8.0_r_kind) &
                             / sqrt(r**2 + int_radius_ub**2 * (x+1.0_r_kind)**2 / 4.0_r_kind &
                                     + r*int_radius_ub*(x+1.0_r_kind)* (sin(theta)*sin(acos(u))*cos(pi+pi*t) + u*cos(theta)))
+                    
+                    ! if(isnan(rolling)) then
+                    !     print*, "isnan in coul: iu, it, ix:"
+                    !     print*, iu, it, ix
+                    ! endif
                 end do
             end do
         end do
@@ -258,7 +231,6 @@ module Hamiltonian
     pure elemental real(r_kind) function surfRadius(theta, def, R0) !!computes distance to surface
         real(r_kind), intent(in) :: theta, R0
         type(betadef), intent(in) :: def
-        real(r_kind) :: dist
         surfRadius = R0 * (1.0_r_kind + def%beta2 * Y20(theta) + def%beta4*Y40(theta))
     end function
 
@@ -285,7 +257,7 @@ module Hamiltonian
         endif
         elem = 1.0_r_kind !!from phi part.
 
-        call precompute()
+        call precompute_quad()
 
         
         alphaz = alpha(mass, omegaz)
@@ -371,61 +343,7 @@ module Hamiltonian
         eval_ws = -self%V_0/ (1 + exp(dist/aws))
     end function
 
-    real(r_kind) function eval_inv_rho(self,r, theta) !!axially symmetric. function of z and rho
-        real(r_kind), intent(in) :: r, theta
-        class(inv_rho), intent(in) :: self
-        real(r_kind) :: rho
-        rho = r*sin(theta)
-        if (rho == 0.0_r_kind) rho = 1e-12_r_kind
-        eval_inv_rho = 1.0_r_kind/rho
-    end function
 
-    real(r_kind) function eval_rho(self,r, theta) !!axially symmetric. function of z and rho
-        real(r_kind), intent(in) :: r, theta
-        class(rhopot), intent(in) :: self
-        real(r_kind) :: rho
-        rho = r*sin(theta)
-        eval_rho = rho
-    end function
-
-
-    real(r_kind) function eval_ws_wrapper(self,r, theta) !!Calls the 
-        real(r_kind), intent(in) :: r, theta
-        class(WS_derivative), intent(in) :: self
-        eval_ws_wrapper = eval_ws(self, r, theta)
-    end function
-
-
-    real(r_kind) function eval_dWs_dz(self, r, theta)
-        real(r_kind), intent(in) :: r, theta
-        class(dWs_dz), intent(in) :: self
-        real(r_kind) :: rprime, thetaprime
-        real(r_kind), parameter :: dz = 1e-6
-        
-        rprime = r + cos(theta)*dz
-        thetaprime = theta - sin(theta) * dz /r
-
-        eval_dWs_dz = (self%pot(rprime, thetaprime) - self%pot(r, theta)) / dz
-    end function
-
-    real(r_kind) function eval_dWs_drho(self, r, theta)
-        real(r_kind), intent(in) :: r, theta
-        class(dWs_drho), intent(in) :: self
-        real(r_kind) :: rprime, thetaprime
-        real(r_kind), parameter :: drho = 1e-6
-        
-        rprime = r + sin(theta)*drho !! new r after we have rho' = rho+drho
-        thetaprime = theta + cos(theta) * drho / r !!new theta after rho' = rho+drho
-
-        eval_dWs_drho = (self%pot(rprime, thetaprime) - self%pot(r, theta)) / drho
-    end function
-
-    real(r_kind) function eval_unit(self, r, theta)
-        real(r_kind), intent(in) :: r, theta
-        class(unit), intent(in) :: self
-        eval_unit = 1.0_r_kind
-    end function
-    
     real(r_kind) function surfdist(r,theta,def, radius) result(dist) !!Finds shortest distance to surface of nucleus.
         real(r_kind), intent(in) :: r, theta, radius
         type(betadef), intent(in) :: def
@@ -437,65 +355,51 @@ module Hamiltonian
         call conj_grad_method(ang, dist, conv, distfunc, 0.0_r_kind, pi,theta,1e-5_r_kind)
     end function
 
-
-    function inv_rho_mat(states,omegaz, omegaperp, mass) !!matrix for 1/rho
+    function coul_mat(states, def, R0,ZZ, mass, omegaz, omegaperp)
+        implicit none
         type(an_ho_state), intent(in) :: states(:)
+        type(betadef), intent(in) :: def !!deformation of body
+        real(r_kind), intent(in) :: R0 !!radius as r0*A**(1/3). Where r0 is r0_so from constants.f90
+        real(r_kind), dimension(size(states),size(states)) :: coul_mat
+        integer, intent(in) :: ZZ!!proton number
+        real(r_kind) :: alpha_z, alpha_perp
+        type(VC_pot) :: cp
         real(r_kind), intent(in) :: omegaz, omegaperp !!Frequencies in units MeV/hbar
         real(r_kind), intent(in) :: mass!!Frequencies in units MeV/c^2
-        real(r_kind), dimension(size(states), size(states)) :: inv_rho_mat
-        integer :: row, col
-        type(an_ho_state) :: sr, sc
-        type(inv_rho) :: invrhopot
-        inv_rho_mat = 0
-        do row = 1,size(states)
-            sr = states(row)
-            do col = 1,size(states)
-                sc = states(col)
-                inv_rho_mat(row,col) = mat_elem_axsym(sr, sc, invrhopot, mass ,omegaz, omegaperp)
+        integer ::numstates, row, col
+        type(an_ho_state) :: s1, s2
+        call precompute_quad()
+
+        !setup potential
+
+        cp%def = def
+        cp%radius = R0
+        call cp%set_charge_dens(ZZ)
+
+
+        alpha_z = alpha(mass, omegaz)
+        alpha_perp = alpha(mass, omegaperp)
+
+        numstates = size(states)
+        coul_mat = 0
+        do row = 1, numstates
+            s1 = states(row)
+            do col = 1,row
+                s2 = states(col)
+                coul_mat(row,col) = pot_elem(s1,s2,cp, alpha_z, alpha_perp)
+
             end do
         end do
-    end function
 
-    function rhomat(states,omegaz, omegaperp, mass) !!rho
-        type(an_ho_state), intent(in) :: states(:)
-        real(r_kind), intent(in) :: omegaz, omegaperp !!Frequencies in units MeV/hbar
-        real(r_kind), intent(in) :: mass!!Frequencies in units MeV/c^2
-        real(r_kind), dimension(size(states), size(states)) :: rhomat
-        integer :: row, col
-        type(an_ho_state) :: sr, sc
-        type(rhopot) :: rhop
-        rhomat = 0
-        do row = 1,size(states)
-            sr = states(row)
-            do col = 1,size(states)
-                sc = states(col)
-                rhomat(row,col) = mat_elem_axsym(sr, sc, rhop, mass ,omegaz, omegaperp)
+        do row = 1,numstates
+            do col = row +1, numstates
+                coul_mat(row, col) = coul_mat(col, row)
             end do
         end do
+
     end function
 
-    function ddrhomat(states, omegaperp, mass,rmat, invrhomat) !!matrix for 1/rho
-        type(an_ho_state), intent(in) :: states(:)
-        real(r_kind), intent(in) :: omegaperp !!Frequencies in units MeV/hbar
-        real(r_kind), intent(in) :: mass!!Frequencies in units MeV/c^2
-        real(r_kind), dimension(size(states), size(states)) :: ddrhomat, rmat, invrhomat
-        integer :: row, col, np, ml
-        type(an_ho_state) :: sr, sc
-        
-        do row = 1,size(states)
-            sr = states(row)
-            do col = 1,size(states)
-                sc = states(col)
-                np = sc%nr
-                ml = sc%ml
-                ddrhomat(row,col) = sc%ml * invrhomat(row, col)  &
-            - 2.0_r_kind*  kronecker(sr%nr, sc%nr - 1) * kronecker(sr%ml, sc%ml + 1) * sqrt(np*(np+ml+1.0_r_kind)*(np+ml+2.0_r_kind))
-            end do
-        end do
-        ddrhomat = ddrhomat -alpha(mass, omegaperp)**2 * rmat
-    end function
-
-    function VWS_mat(states, def, R0, omegaz, omegaperp, mass, WS_depth, lambda)
+    function VWS_mat(states, def, R0, omegaz, omegaperp, mass, WS_depth)
         implicit none
         type(an_ho_state), intent(in) :: states(:)
         type(betadef), intent(in) :: def !!deformation of body
@@ -504,12 +408,11 @@ module Hamiltonian
         real(r_kind), dimension(size(states),size(states)) :: VWS_mat
         real(r_kind), intent(in) :: omegaz, omegaperp !!Frequencies in units MeV/hbar
         real(r_kind), intent(in) :: mass!!Frequencies in units MeV/c^2
-        real(r_kind), intent(in) ::lambda !!multiplicative factor
         real(r_kind) :: alpha_z, alpha_perp
         type(WS_pot) :: VWS
         integer ::numstates, row, col
         type(an_ho_state) :: s1, s2
-        call precompute()
+        call precompute_quad()
 
         !setup potential
         VWS%def = def
@@ -525,7 +428,7 @@ module Hamiltonian
             s1 = states(row)
             do col = 1,row
                 s2 = states(col)
-                VWS_mat(row,col) = VWS_elem(s1,s2,VWS, alpha_z, alpha_perp)
+                VWS_mat(row,col) = pot_elem(s1,s2,VWS, alpha_z, alpha_perp)
             end do
         end do
 
@@ -550,7 +453,7 @@ module Hamiltonian
         type(WS_pot) :: so_ws
         integer ::numstates, row, col, l1, l2, ms1, ms2
         type(an_ho_state) :: s1, s2
-        call precompute()
+        call precompute_quad()
 
         kappa = -lambda*(hbarc/(2*mass))**2
         !setup potential
@@ -571,11 +474,9 @@ module Hamiltonian
                 s2 = states(col)
                 l2 = s2%ml
                 ms2 = s2%ms
-                print*, l1, ms1, l2, ms2
                 
                 if(ms1 == ms2 .and. l1 == l2) then
                     Vso_mat(row,col) = VSO_diag_elem(s1,s2,so_ws,alpha_z,alpha_perp)
-                    print*, "diag"
                 elseif((ms1 == ms2 + 1 .and. l1 == l2 - 1) .or. (ms1 == ms2 - 1 .and. l1 == l2 + 1)) then
                     Vso_mat(row,col) = VSO_off_diag_elem(s1,s2,so_ws,alpha_z,alpha_perp)
                 endif        
@@ -617,14 +518,15 @@ module Hamiltonian
         Sm = Sp(eta, s2, s1)
     end function
 
-    real(r_kind) function T0(eta,s1,s2, SO_WS,alpha_z, alpha_perp)
+    real(r_kind) function T0(eta,eta_ii,s1,s2, SO_WS,alpha_z, alpha_perp)
         type(an_ho_state), intent(in) :: s1, s2
         real(r_kind), intent(in) :: eta, alpha_z, alpha_perp
         type(WS_pot), intent(in) :: SO_WS
         integer :: i
+        integer, intent(in) :: eta_ii
         real(r_kind) :: zeta, z, rho,r ,theta
         T0 = 0
-        call precompute()
+        call precompute_quad()
         rho = eta_to_rho(eta, alpha_perp)
         do i = 1,gauss_order
             zeta = her_x(i)
@@ -633,18 +535,19 @@ module Hamiltonian
             r = rad_cyl(rho, z)
 
 
-            T0 = T0 + her_w(i)*SO_WS%eval(r,theta) * Hmn(zeta, s1%nz) * Hmn(zeta, s2%nz)
+            T0 = T0 + her_w(i)*SO_WS%eval_pre(eta_ii,i,r,theta) * Hmn(zeta, s1%nz) * Hmn(zeta, s2%nz)
         end do
     end function
 
-    real(r_kind) function Tminus(eta,s1,s2, SO_WS,alpha_z, alpha_perp)
+    real(r_kind) function Tminus(eta,eta_ii,s1,s2, SO_WS,alpha_z, alpha_perp)
         type(an_ho_state), intent(in) :: s1, s2
         real(r_kind), intent(in) :: eta, alpha_z, alpha_perp
         type(WS_pot), intent(in) :: SO_WS
+        integer, intent(in) :: eta_ii
         integer :: i
         real(r_kind) :: zeta, z, rho,r ,theta
         Tminus = 0
-        call precompute()
+        call precompute_quad()
         rho = eta_to_rho(eta, alpha_perp)
         do i = 1,gauss_order
             zeta = her_x(i)
@@ -653,15 +556,16 @@ module Hamiltonian
             r = rad_cyl(rho, z)
 
 
-            Tminus = Tminus + her_w(i)*SO_WS%eval(r,theta) * Hmn(zeta, s1%nz) * Hmnp(zeta, s2%nz)
+            Tminus = Tminus + her_w(i)*SO_WS%eval_pre(eta_ii,i,r,theta) * Hmn(zeta, s1%nz) * Hmnp(zeta, s2%nz)
         end do
     end function
 
-    real(r_kind) function Tplus(eta,s1,s2, SO_WS,alpha_z, alpha_perp)
+    real(r_kind) function Tplus(eta,eta_ii,s1,s2, SO_WS,alpha_z, alpha_perp)
         type(an_ho_state), intent(in) :: s1, s2
         real(r_kind), intent(in) :: eta, alpha_z, alpha_perp
         type(WS_pot), intent(in) :: SO_WS
-        Tplus = Tminus(eta, s2, s1, SO_WS, alpha_z, alpha_perp) !!change of indices·
+        integer, intent(in) :: eta_ii
+        Tplus = Tminus(eta, eta_ii,s2, s1, SO_WS, alpha_z, alpha_perp) !!change of indices·
     end function
 
 
@@ -678,13 +582,13 @@ module Hamiltonian
 
     
 
-    real(r_kind) function VWS_elem(s1,s2,V_WS,alpha_z,alpha_perp) result(matelem)
-            type(an_ho_state), intent(in) :: s1, s2
+    real(r_kind) function pot_elem(s1,s2,pot,alpha_z,alpha_perp) result(matelem)
+        type(an_ho_state), intent(in) :: s1, s2
         real(r_kind), intent(in) :: alpha_z, alpha_perp
-        type(WS_pot), intent(in) :: V_WS
+        class(potential),intent(in) :: pot
         integer :: ii
         real(r_kind) :: eta
-        call precompute()
+        call precompute_quad()
         matelem = 0.0_r_kind
         if(s1%ml /= s2%ml .or. s1%ms /= s2%ms) then
             matelem = 0.0_r_kind
@@ -693,16 +597,17 @@ module Hamiltonian
 
         do ii = 1, gauss_order
             eta = lag_x(ii)
-            matelem = matelem + lag_w(ii) * Z_matelem(eta, s1,s2,V_WS,alpha_z,alpha_perp) * gnl(eta, s1%nr,s1%ml) * gnl(eta, s2%nr, s2%ml) 
+            matelem = matelem + lag_w(ii) * Z_matelem(eta, ii,s1,s2,pot,alpha_z,alpha_perp) * gnl(eta, s1%nr,s1%ml) * gnl(eta, s2%nr, s2%ml) 
         end do
 
     end function
 
-    real(r_kind) function Z_matelem(eta, s1,s2,V_WS,alpha_z, alpha_perp)
+    real(r_kind) function Z_matelem(eta, eta_ii,s1,s2,pot,alpha_z, alpha_perp)
         type(an_ho_state), intent(in) :: s1, s2
         real(r_kind), intent(in) :: alpha_z, alpha_perp, eta
-        type(WS_pot), intent(in) :: V_WS
+        class(potential), intent(in) :: pot
         integer :: ii
+        integer, intent(in) ::eta_ii
         real(r_kind) :: zeta, z, rho, r, theta
         Z_matelem = 0.0_r_kind
         rho = eta_to_rho(eta, alpha_perp)
@@ -711,7 +616,17 @@ module Hamiltonian
             z = zeta_to_z(zeta,alpha_z)
             theta = theta_cyl(rho, z)
             r = rad_cyl(rho ,z)
-            Z_matelem = Z_matelem + her_w(ii) * Hmn(zeta, s1%nz) * Hmn(zeta, s2%nz) * V_WS%eval(r, theta) 
+            Z_matelem = Z_matelem + her_w(ii) * Hmn(zeta, s1%nz) * Hmn(zeta, s2%nz) * pot%eval_pre(eta_ii,ii,r, theta) 
+            ! if(isnan(Z_matelem)) then
+            !     print*, "eta:", eta
+            !     print*, "eta_ii:", eta_ii
+            !     print*, her_w(ii)
+            !     print*, Hmn(zeta, s1%nz)
+            !     print*, Hmn(zeta,s2%nz)
+            !     print*, pot%eval_pre(eta_ii,ii,r,theta)
+
+            !     pause
+            ! endif
         end do
     end function
 
@@ -730,7 +645,7 @@ module Hamiltonian
 
         do ii = 1, gauss_order
             eta = lag_x(ii)
-            matelem = matelem + S0(eta, s1, s2) * T0(eta, s1, s2, SO_WS, alpha_z, alpha_perp) * lag_w(ii)*alpha_perp* s1%ml * s1%ms !== 2*lambda*sigma where sigma = +- 1/2
+            matelem = matelem + S0(eta, s1, s2) * T0(eta, ii,s1, s2, SO_WS, alpha_z, alpha_perp) * lag_w(ii)*alpha_perp* s1%ml * s1%ms !== 2*lambda*sigma where sigma = +- 1/2
         end do
     end function
 
@@ -753,9 +668,31 @@ module Hamiltonian
 
         do ii = 1, gauss_order
             eta = lag_x(ii)
-            matelem = matelem + lag_w(ii) * (Sp(eta, s1, s2) * Tplus(eta, s1, s2, SO_WS, alpha_z, alpha_perp) + &
-                                            Sm(eta, s1, s2) * Tminus(eta, s1, s2, SO_WS, alpha_z, alpha_perp))
+            matelem = matelem + lag_w(ii) * (Sp(eta, s1, s2) * Tplus(eta, ii,s1, s2, SO_WS, alpha_z, alpha_perp) + &
+                                            Sm(eta, s1, s2) * Tminus(eta, ii,s1, s2, SO_WS, alpha_z, alpha_perp))
         end do
         matelem = matelem * alpha_perp*alpha_z
     end function
+
+
+    subroutine print_levels(E, V)
+        real(r_kind), intent(in) :: E(:), V(:,:)
+        integer :: sz, i, numstates
+        sz = size(E)
+        numstates = 0
+
+        write(*, '(A,A)')"Energy (MeV)"
+        do i = sz, 1, -1
+            if(E(i) > 0) then!skip unbound states
+                cycle
+            else
+                numstates = numstates + 1
+                write(*, '(1F11.2,A)')E(i) ,","
+            endif
+        end do
+        write(*,*)
+        write(*,'(A,I5)') "Number of bound particles:", numstates*2
+
+
+    end subroutine
 end module
