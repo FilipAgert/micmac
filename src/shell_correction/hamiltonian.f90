@@ -136,7 +136,7 @@ module Hamiltonian
     pure real(r_kind) function coul_charge_density(ZZ, radius) result(rho)
         integer, intent(in) :: ZZ !!proton number
         real(r_kind), intent(in) :: radius
-        rho = ZZ *3.0_r_kind/(4.0_r_kind * pi*4*pi * epsilonzero * radius**3)  !! Charge /( Volume * 4piepsilonzero)
+        rho = (ZZ-1) *3.0_r_kind/(4.0_r_kind * pi*4*pi * epsilonzero * radius**3)  !! Charge /( Volume * 4piepsilonzero)
 
     end function
 
@@ -155,7 +155,7 @@ module Hamiltonian
         integer :: info
 
         N = size(H,1)
-        write(*,*) N
+        ! write(*,*) N
         lda = N
         lwork = 10*N
         allocate(work(lwork))
@@ -681,13 +681,13 @@ module Hamiltonian
         sz = size(E)
         numstates = 0
 
-        write(*, '(A,A)')"Energy (MeV)"
+        ! write(*, '(A,A)')"Energy (MeV)"
         do i = sz, 1, -1
             if(E(i) > 0) then!skip unbound states
                 cycle
             else
                 numstates = numstates + 1
-                write(*, '(1F11.2,A)')E(i) ,","
+                write(*, '(1F11.5,A)', advance='no')E(i) ,","
             endif
         end do
         write(*,*)
