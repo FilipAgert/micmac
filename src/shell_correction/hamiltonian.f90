@@ -477,7 +477,8 @@ module Hamiltonian
                 
                 if(ms1 == ms2 .and. l1 == l2) then
                     Vso_mat(row,col) = VSO_diag_elem(s1,s2,so_ws,alpha_z,alpha_perp)
-                elseif((ms1 == ms2 + 1 .and. l1 == l2 - 1) .or. (ms1 == ms2 - 1 .and. l1 == l2 + 1)) then
+                elseif((ms1 == ms2 + 2 .and. l1 == l2 - 1) .or. (ms1 == ms2 - 2 .and. l1 == l2 + 1)) then
+                    print*, "elem"
                     Vso_mat(row,col) = VSO_off_diag_elem(s1,s2,so_ws,alpha_z,alpha_perp)
                 endif        
             end do
@@ -508,7 +509,7 @@ module Hamiltonian
         type(an_ho_state), intent(in) :: s1, s2
         real(r_kind), intent(in) :: eta
         real(r_kind) :: K
-        K = s2%ml + s2%ms*0.5_r_kind
+        K = s1%ml + s1%ms*0.5_r_kind
         Sp = - gnl(eta,s1%nr,s1%ml)*gnl(eta,s2%nr,s2%ml) *(K+0.5_r_kind) / sqrt(eta) - gnlp(eta,s1%nr, s1%ml) * gnl(eta,s2%nr,s2%ml)
     end function
 
@@ -657,9 +658,9 @@ module Hamiltonian
         real(r_kind) :: eta
         matelem = 0
 
-        if(s1%ml == s2%ml + 1 .and. s1%ms == s2%ms - 1) then
+        if(s1%ml == s2%ml + 1 .and. s1%ms == s2%ms - 2) then
 
-        elseif( s1%ml == s2%ml - 1 .and. s1%ms == s2%ms + 1)then
+        elseif( s1%ml == s2%ml - 1 .and. s1%ms == s2%ms + 2)then
 
         else
             write(*,*) "Error: states dont have the correct quantum numbers in ms and ml"
