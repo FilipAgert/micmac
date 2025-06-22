@@ -51,8 +51,8 @@ module constants
 
     real(r_kind), parameter :: r0_p = 1.275_r_kind !fm. for proton
     real(r_kind), parameter :: r0_n = 1.347_r_kind !fm. for neutron
-    real(r_kind), parameter :: r0_so_p = 1.31_r_kind !fm. for proton
-    real(r_kind), parameter :: r0_so_n = 1.32_r_kind !fm. for neutron
+    real(r_kind), parameter :: r0_so_p = 1.32_r_kind !fm. for proton
+    real(r_kind), parameter :: r0_so_n = 1.31_r_kind !fm. for neutron
     real(r_kind), parameter :: lambda_p = 36.0_r_kind ! for proton
     real(r_kind), parameter :: lambda_n = 35.0_r_kind !for neutron
 
