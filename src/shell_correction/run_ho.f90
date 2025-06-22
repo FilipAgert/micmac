@@ -5,7 +5,7 @@ program run_ho
     implicit none
 
 
-    integer, parameter :: max_n = 8
+    integer, parameter :: max_n = 12
     integer, parameter :: A = 208, Z=82
     type(an_ho_state), dimension(:), allocatable :: states
     type(betadef) :: def 
@@ -23,9 +23,6 @@ program run_ho
     hbaromega0 = 41.0_r_kind * A**(-1.0_r_kind/3.0_r_kind) !!MeV
     hbaromegaperp = def%omega_perp(hbaromega0) !! omega = Mev/hbar
     hbaromegaz = def%omega_z(hbaromega0)
-    radius = r0 * A**(1.0_r_kind/3.0_r_kind)
-    radius_so = r0_so_n* A**(1.0_r_kind/3.0_r_kind)
-
     I = (A-2.0_r_kind*Z)/A
     Vwsdepth = V0 * (1.0_r_kind+kappa*I)
     write(*,'(A,F10.3)') "Well depth:", Vwsdepth
@@ -62,6 +59,10 @@ program run_ho
 
     allocate(E(numstates), V(numstates, numstates))
     call diagonalize(E,V,Hp)
+
+    call print_levels(E,V)
+
+    call diagonalize(E,V,Hn)
     call print_levels(E,V)
 
 
@@ -123,13 +124,13 @@ program run_ho
         type(betadef) :: def
         real(r_kind) :: hbaromegaz, hbaromegaperp, Vwsdepth, I
         type(an_ho_state) :: states(:)
-        real(r_kind), dimension(size(states),size(states)) :: H, VSO, VC, VWS, Tkin
+        real(r_kind), dimension(size(states),size(states)) :: H, VSO, VWS, Tkin
         radius = r0_n * A**(1.0_r_kind/3.0_r_kind)
         radius_so = r0_so_n* A**(1.0_r_kind/3.0_r_kind)
         I = (A-2.0_r_kind*Z)/A
         Vwsdepth = V0 * (1.0_r_kind-kappa_ws*I)
-        Vws = Vws_mat(states,def,radius, hbaromegaz,hbaromegaperp,mass_p,Vwsdepth)
-        Vso = Vso_mat(states, def, radius_so, hbaromegaz,hbaromegaperp, mass_p, Vwsdepth, lambda_n)
+        Vws = Vws_mat(states,def,radius, hbaromegaz,hbaromegaperp,mass_n,Vwsdepth)
+        Vso = Vso_mat(states, def, radius_so, hbaromegaz,hbaromegaperp, mass_n, Vwsdepth, lambda_n)
         Tkin = kin_en(states, hbaromegaz, hbaromegaperp)
         H = Vws + Vso + Tkin
 
