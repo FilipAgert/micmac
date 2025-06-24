@@ -12,6 +12,7 @@ FIT_EXEN = runfit.exe
 FISS_EXEN = fiss_bar.exe
 TAB_EXEN = write_tab.exe
 HO_EXEN = ho.exe
+ST_EXEN = strut.exe
 
 # Flags
 LIBS = -llapack -lblas -fopenmp
@@ -20,7 +21,7 @@ CC = gfortran $(FLAGS) -J$(DMOD) $(LIBS) -L$(DLIB) -c
 CCL = gfortran -o
 
 # Objects
-OBJECTS = $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o $(DOBJ)/fitting.o $(DOBJ)/optimise.o $(DOBJ)/def_ho.o $(DOBJ)/quadrule.o $(DOBJ)/hamiltonian.o
+OBJECTS = $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o $(DOBJ)/fitting.o $(DOBJ)/optimise.o $(DOBJ)/def_ho.o $(DOBJ)/quadrule.o $(DOBJ)/hamiltonian.o $(DOBJ)/strutinsky.o $(DOBJ)/brent.o
 TEST_OBJECTS = $(DOBJ)/test_micmac.o $(DOBJ)/test_utils.o $(DOBJ)/test_fitting.o $(DOBJ)/test_optimise.o $(DOBJ)/test_ho.o
 MAIN_OBJ = $(DOBJ)/main.o
 TEST_OBJ = $(DOBJ)/run_tests.o
@@ -28,6 +29,7 @@ FIT_OBJ = $(DOBJ)/runfit.o
 FISS_OBJ = $(DOBJ)/run_fissbarr.o
 HO_OBJ = $(DOBJ)/run_ho.o
 TAB_OBJ = $(DOBJ)/table_writer.o
+ST_OBJ =$(DOBJ)/run_strut.o
 VPATH = $(DSRC):$(DTEST):$(DSRC)/$(DSH)
 
 # Default target
@@ -47,7 +49,8 @@ $(DOBJ)/run_fissbarr.o: $(DSRC)/run_fissbarr.f90 $(DOBJ)/constants.o $(DOBJ)/mic
 $(DOBJ)/table_writer.o: $(DSRC)/table_writer.f90 $(DOBJ)/constants.o $(DOBJ)/micmac.o
 $(DOBJ)/test_ho.o: $(DTEST)/test_ho.f90 $(DOBJ)/def_ho.o $(DOBJ)/constants.o
 $(DOBJ)/def_ho.o: $(DSRC)/$(DSH)/def_ho.f90 $(DOBJ)/constants.o $(DOBJ)/optimise.o $(DOBJ)/quadrule.o
-$(DOBH)/run_ho.o: $(DSRC)/$(DSH)/run_ho.o $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/hamiltonian.o
+$(DOBH)/run_ho.o: $(DSRC)/$(DSH)/run_ho.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/hamiltonian.o
+$(DOBH)/run_strut.o: $(DSRC)/$(DSH)/run_strut.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/hamiltonian.o $(DOBJ)/strutinsky.o $(DOBJ)/brent.o
 # Ensure required directories exist
 $(DOBJ) $(DEXE) $(DMOD) $(DTEST):
 	mkdir -p $@
@@ -70,6 +73,9 @@ $(DEXE)/$(FISS_EXEN): $(FISS_OBJ) $(OBJECTS) | $(DEXE)
 $(DEXE)/$(HO_EXEN): $(HO_OBJ) $(OBJECTS) | $(DEXE)
 	$(CCL) $@ $(HO_OBJ) $(OBJECTS) $(LIBS)
 
+$(DEXE)/$(ST_EXEN): $(ST_OBJ) $(OBJECTS) | $(DEXE)
+	$(CCL) $@ $(ST_OBJ) $(OBJECTS) $(LIBS)
+
 $(DEXE)/$(TEST_EXE): $(TEST_OBJ) $(OBJECTS) $(TEST_OBJECTS) | $(DEXE)
 	$(CCL) $@ $(TEST_OBJ) $(OBJECTS) $(TEST_OBJECTS) $(LIBS)
 
@@ -86,6 +92,8 @@ fiss: $(DEXE)/$(FISS_EXEN)
 buildtab: $(DEXE)/$(TAB_EXEN)
 
 ho: $(DEXE)/$(HO_EXEN)
+
+st: $(DEXE)/$(ST_EXEN)
 
 run: $(DEXE)/$(EXEN)
 	$(DEXE)/$(EXEN)
@@ -104,6 +112,9 @@ runtab: buildtab
 
 runho: ho
 	$(DEXE)/$(HO_EXEN)
+
+runst: st
+	$(DEXE)/$(ST_EXEN)
 
 clean:
 	rm -rf $(DOBJ)/*.o $(DEXE)/*.exe $(DMOD)/*.mod

@@ -57,4 +57,7 @@ module constants
     real(r_kind), parameter :: lambda_n = 35.0_r_kind !for neutron
 
 
+    integer, parameter :: max_n =14
+
+
 end module constants

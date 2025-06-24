@@ -7,9 +7,9 @@ module Hamiltonian
 
 
     private
-    public :: diagonalize, mat_elem_axsym, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels
+    public :: diagonalize, mat_elem_axsym, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels, H_protons, H_neutrons, get_levels
 
-    integer, parameter :: gauss_order =99
+    integer, parameter :: gauss_order =64
     real(r_kind), dimension(gauss_order) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
     logical :: precomputed_quad = .false.
 
@@ -273,7 +273,7 @@ module Hamiltonian
             rho = sqrt(x)/alpharho
             ! write(*,'(A,F10.3, A, F10.3)')"x:", x, " w:", lag_w(il)
             ! pause
-            xpart = x ** ((abs(state1%ml)*1.0_r_kind + abs(state2%ml) * 1.0_r_kind)/2.0_r_kind) * lna(x,state1%nr,abs(state1%ml)) * lna(x,state2%nr,abs(state2%ml))
+            xpart = x ** ((abs(state1%ml)*1.0_r_kind + abs(state2%ml) * 1.0_r_kind)/2.0_r_kind) * lna(x,state1%nr,real(abs(state1%ml),r_kind)) * lna(x,state2%nr,real(abs(state2%ml),r_kind))
             do ih = 1, gauss_order
                 u = her_x(ih)
                 z = u/alphaz
@@ -478,7 +478,6 @@ module Hamiltonian
                 if(ms1 == ms2 .and. l1 == l2) then
                     Vso_mat(row,col) = VSO_diag_elem(s1,s2,so_ws,alpha_z,alpha_perp)
                 elseif((ms1 == ms2 + 2 .and. l1 == l2 - 1) .or. (ms1 == ms2 - 2 .and. l1 == l2 + 1)) then
-                    print*, "elem"
                     Vso_mat(row,col) = VSO_off_diag_elem(s1,s2,so_ws,alpha_z,alpha_perp)
                 endif        
             end do
@@ -684,16 +683,87 @@ module Hamiltonian
 
         ! write(*, '(A,A)')"Energy (MeV)"
         do i = sz, 1, -1
-            if(E(i) > 0) then!skip unbound states
-                cycle
-            else
-                numstates = numstates + 1
-                write(*, '(1F11.5,A)', advance='no')E(i) ,","
-            endif
+            !if(E(i) > 0) then!skip unbound states
+            !    cycle
+            !else
+            numstates = numstates + 1
+            write(*, '(1F11.5,A)', advance='no')E(i) ,","
+            !endif
         end do
         write(*,*)
         write(*,'(A,I5)') "Number of bound particles:", numstates*2
 
 
     end subroutine
+
+
+    subroutine get_levels(E_P, E_N,Z,A,def, max_N)
+        real(r_kind),allocatable, intent(out) :: E_P(:), E_N(:)
+        integer, intent(in) :: Z, A, max_N
+        type(betadef), intent(in) :: def
+        integer :: i, numstates, idx, shelldegen, n
+        real(r_kind), allocatable :: V(:,:), H(:,:), Vws(:,:), Tkin(:,:), Vso(:,:), Vc(:,:)
+        type(an_ho_state), allocatable :: states(:)
+        real(r_kind) :: hbaromega0, hbaromegaz, hbaromegaperp,  kappa, Vwsdepth_p, Vwsdepth_n
+        numstates = getnumstatesupto(max_n)
+        allocate(E_p(numstates),E_n(numstates), V(numstates,numstates), states(numstates), H(numstates,numstates))
+
+        hbaromega0 = 41.0_r_kind * A**(-1.0_r_kind/3.0_r_kind) !!MeV
+        hbaromegaperp = def%omega_perp(hbaromega0) !! omega = Mev/hbar
+        hbaromegaz = def%omega_z(hbaromega0)
+        numstates = getnumstatesupto(max_n)
+        allocate(states(numstates))
+
+        
+        idx = 1
+        do n = 0, max_n
+            shelldegen = getnumstates(n)
+            write(*,*) "N: ", N
+            write(*,*) "Degen: ", shelldegen
+            states(idx:idx+shelldegen - 1) = get_ho_states(n)
+            idx = idx + shelldegen
+        end do
+
+        H = H_protons(states, Z, A, def, hbaromegaz, hbaromegaperp)
+        call diagonalize(E_p, V, H)
+        H = H_neutrons(states, Z, A, def, hbaromegaz, hbaromegaperp)
+        call diagonalize(E_n, V, H)
+    end subroutine
+
+    function H_protons(states, Z,A,def,hbaromegaz, hbaromegaperp) result(H)
+        implicit none
+        integer :: Z, A
+        type(betadef) :: def
+        real(r_kind) :: hbaromegaz, hbaromegaperp, Vwsdepth, I,radius,radius_so
+        type(an_ho_state) :: states(:)
+        real(r_kind), dimension(size(states),size(states)) :: H, VSO, VC, VWS, Tkin
+        radius = r0_p * A**(1.0_r_kind/3.0_r_kind)
+        radius_so = r0_so_p* A**(1.0_r_kind/3.0_r_kind)
+        I = (A-2.0_r_kind*Z)/A
+        Vwsdepth = V0_ws * (1.0_r_kind+kappa_ws*I)
+        Vc = coul_mat(states, def, radius, Z, mass_p, hbaromegaz, hbaromegaperp)
+        Vws = Vws_mat(states,def,radius, hbaromegaz,hbaromegaperp,mass_p,Vwsdepth)
+        Vso = Vso_mat(states, def, radius_so, hbaromegaz,hbaromegaperp, mass_p, Vwsdepth, lambda_p)
+        Tkin = kin_en(states, hbaromegaz, hbaromegaperp)
+        H = Vc + Vws + Vso + Tkin
+
+    end function
+
+    function H_neutrons(states, Z,A,def,hbaromegaz, hbaromegaperp) result(H)
+        implicit none
+        integer :: Z, A
+        type(betadef) :: def
+        real(r_kind) :: hbaromegaz, hbaromegaperp, Vwsdepth, I, radius,radius_so
+        type(an_ho_state) :: states(:)
+        real(r_kind), dimension(size(states),size(states)) :: H, VSO, VWS, Tkin
+        radius = r0_n * A**(1.0_r_kind/3.0_r_kind)
+        radius_so = r0_so_n* A**(1.0_r_kind/3.0_r_kind)
+        I = (A-2.0_r_kind*Z)/A
+        Vwsdepth = V0_ws * (1.0_r_kind-kappa_ws*I)
+        Vws = Vws_mat(states,def,radius, hbaromegaz,hbaromegaperp,mass_n,Vwsdepth)
+        Vso = Vso_mat(states, def, radius_so, hbaromegaz,hbaromegaperp, mass_n, Vwsdepth, lambda_n)
+        Tkin = kin_en(states, hbaromegaz, hbaromegaperp)
+        H = Vws + Vso + Tkin
+
+    end function
 end module

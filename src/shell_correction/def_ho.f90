@@ -225,7 +225,7 @@ pure real(r_kind) elemental function phi2drad(r,nr,ml, mass, omega) result(val) 
 
     alph =  alpha(mass, omega)
     ar2 = (alph*r)**2
-    val = r ** ml * exp(-ar2/2) * lna(ar2,nr,ml)
+    val = r ** ml * exp(-ar2/2) * lna(ar2,nr,real(ml,r_kind))
     val = val * ho_fact2d(alph,ml,nr)!!normalization constant
 end function
 
@@ -237,7 +237,8 @@ end function
 
 pure real(r_kind) elemental function lna(x,n,a) result(res) !gen laguerre polynomial iterative version
     real(r_kind), intent(in) :: x
-    integer, intent(in) :: n, a
+    integer, intent(in) :: n
+    real(r_kind), intent(in) :: a
     real(r_kind), dimension(0:n) :: lnas
     integer :: nn
     lnas(0) = 1.0_r_kind
@@ -537,7 +538,7 @@ end function
 pure real(r_kind) elemental function gnl(x,n,l) !!modified laguerre polynomial
     integer, intent(in) :: n, l
     real(r_kind), intent(in) :: x
-    gnl = x**(l*1.0_r_kind/2.0) * sqrt(1.0_r_kind*fac(n)/(fac(n+l))) * Lna(x,n,l)
+    gnl = x**(l*1.0_r_kind/2.0) * sqrt(1.0_r_kind*fac(n)/(fac(n+l))) * Lna(x,n,real(l,r_kind))
 end function
 
 pure real(r_kind) elemental function gnlp(x,n,l) !!modified laguerre polynomial derivative

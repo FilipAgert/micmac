@@ -59,7 +59,6 @@ module optimise
             ! write(*,*) "running..."
             xstart = init_pos(ii,:)
             call conj_grad_method_nd(x, y, converged, func, x0, x1, xstart,dim)
-            hess = hessian(func,x,dim)
             ! write(*,*) "Converged: ", converged
             ! write(*,*) "xval: ", x
             ! write(*,*) "With yval:", y
@@ -127,6 +126,8 @@ module optimise
             ! print*, "Warning: X_min outside bounds with value: ", x_min
         endif
     end subroutine conj_grad_method
+
+
 
 
     subroutine conj_grad_method_nd(x_min, f_min, converged, func, lb, ub, x_start, dim) !!https://en.wikipedia.org/wiki/Conjugate_gradient_method

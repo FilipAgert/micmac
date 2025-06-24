@@ -5,7 +5,6 @@ program run_ho
     implicit none
 
 
-    integer, parameter :: max_n = 12
     integer, parameter :: A = 208, Z=82
     type(an_ho_state), dimension(:), allocatable :: states
     type(betadef) :: def 
@@ -15,7 +14,7 @@ program run_ho
     real(r_kind), parameter :: V0 = V0_ws
     real(r_kind), parameter ::r0 = r0_p
     real(r_kind), parameter :: kappa=kappa_ws
-    real(r_kind) :: hbaromega0, radius, hbaromegaperp, hbaromegaz, radius_so
+    real(r_kind) :: hbaromega0, hbaromegaperp, hbaromegaz
     real(r_kind) :: I, Vwsdepth
     real(r_kind), dimension(:,:), allocatable :: matr
 
@@ -59,10 +58,11 @@ program run_ho
 
     allocate(E(numstates), V(numstates, numstates))
     call diagonalize(E,V,Hp)
-
+    print *, "Protons"
     call print_levels(E,V)
 
     call diagonalize(E,V,Hn)
+    print*, "neutrons"
     call print_levels(E,V)
 
 
@@ -97,42 +97,5 @@ program run_ho
     end do
     close(3)
 
-    contains
-
-    function H_protons(states, Z,A,def,hbaromegaz, hbaromegaperp) result(H)
-        implicit none
-        integer :: Z, A
-        type(betadef) :: def
-        real(r_kind) :: hbaromegaz, hbaromegaperp, Vwsdepth, I
-        type(an_ho_state) :: states(:)
-        real(r_kind), dimension(size(states),size(states)) :: H, VSO, VC, VWS, Tkin
-        radius = r0_p * A**(1.0_r_kind/3.0_r_kind)
-        radius_so = r0_so_p* A**(1.0_r_kind/3.0_r_kind)
-        I = (A-2.0_r_kind*Z)/A
-        Vwsdepth = V0 * (1.0_r_kind+kappa_ws*I)
-        Vc = coul_mat(states, def, radius, Z, mass_p, hbaromegaz, hbaromegaperp)
-        Vws = Vws_mat(states,def,radius, hbaromegaz,hbaromegaperp,mass_p,Vwsdepth)
-        Vso = Vso_mat(states, def, radius_so, hbaromegaz,hbaromegaperp, mass_p, Vwsdepth, lambda_p)
-        Tkin = kin_en(states, hbaromegaz, hbaromegaperp)
-        H = Vc + Vws + Vso + Tkin
-
-    end function
-
-    function H_neutrons(states, Z,A,def,hbaromegaz, hbaromegaperp) result(H)
-        implicit none
-        integer :: Z, A
-        type(betadef) :: def
-        real(r_kind) :: hbaromegaz, hbaromegaperp, Vwsdepth, I
-        type(an_ho_state) :: states(:)
-        real(r_kind), dimension(size(states),size(states)) :: H, VSO, VWS, Tkin
-        radius = r0_n * A**(1.0_r_kind/3.0_r_kind)
-        radius_so = r0_so_n* A**(1.0_r_kind/3.0_r_kind)
-        I = (A-2.0_r_kind*Z)/A
-        Vwsdepth = V0 * (1.0_r_kind-kappa_ws*I)
-        Vws = Vws_mat(states,def,radius, hbaromegaz,hbaromegaperp,mass_n,Vwsdepth)
-        Vso = Vso_mat(states, def, radius_so, hbaromegaz,hbaromegaperp, mass_n, Vwsdepth, lambda_n)
-        Tkin = kin_en(states, hbaromegaz, hbaromegaperp)
-        H = Vws + Vso + Tkin
-
-    end function
+    
 end program
