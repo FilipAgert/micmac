@@ -4,8 +4,8 @@ module def_ho
     use optimise, only:func_1d, conj_grad_method
     implicit none
     private
-    public :: an_ho_state, get_ho_states, getnumstates, betadef, getnumstatesupto, fac, Hn, lna, pauli_p, pauli_m, pauli_z, R_mat, Rp_mat, S_mat, Sp_mat, alpha, cosphi_m, azp_mat, az_mat, isinphi_m
-    public :: kronecker, lz, expiphi, kin_en, gnl, gnlp, hmn, hmnp
+    public :: an_ho_state, get_ho_states, getnumstates, betadef, getnumstatesupto, fac, Hn, lna, alpha
+    public :: kronecker, kin_en, gnl, gnlp, hmn, hmnp
 
 
 
@@ -265,6 +265,18 @@ pure elemental recursive function fac(n) result(res)
         res = n* fac(n-1)
     endif
 end function
+
+pure integer function kronecker(a,b)
+    integer, intent(in) :: a,b
+    if(a == b) then
+        kronecker = 1
+    else
+        kronecker = 0
+    endif
+
+end function
+
+!!momentum operators
 
 pure function kin_en(states, hbaromega_z, hbaromega_perp) !Nuclear Physics A A method for solving the independent-particle Schrödinger equation with a deformed average field
                                                             !Volume 135, Issue 2, 2 October 1969, Pages 432-444
