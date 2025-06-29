@@ -16,7 +16,7 @@ ST_EXEN = strut.exe
 
 # Flags
 LIBS = -llapack -lblas -fopenmp
-FLAGS = -Wall -O3 -I$(DOBJ) -ffree-line-length-none -fcheck=all -fbacktrace -g -fimplicit-none 
+FLAGS = -Wall -O3 -I$(DOBJ) -ffree-line-length-none -fcheck=all -fbacktrace -g -fimplicit-none -fno-omit-frame-pointer
 CC = gfortran $(FLAGS) -J$(DMOD) $(LIBS) -L$(DLIB) -c
 CCL = gfortran -o
 
@@ -48,9 +48,10 @@ $(DOBJ)/test_fitting.o: $(DOBJ)/fitting.o
 $(DOBJ)/run_fissbarr.o: $(DSRC)/run_fissbarr.f90 $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/fitting.o
 $(DOBJ)/table_writer.o: $(DSRC)/table_writer.f90 $(DOBJ)/constants.o $(DOBJ)/micmac.o
 $(DOBJ)/test_ho.o: $(DTEST)/test_ho.f90 $(DOBJ)/def_ho.o $(DOBJ)/constants.o
-$(DOBJ)/def_ho.o: $(DSRC)/$(DSH)/def_ho.f90 $(DOBJ)/constants.o $(DOBJ)/optimise.o $(DOBJ)/quadrule.o
-$(DOBH)/run_ho.o: $(DSRC)/$(DSH)/run_ho.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/hamiltonian.o
-$(DOBH)/run_strut.o: $(DSRC)/$(DSH)/run_strut.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/hamiltonian.o $(DOBJ)/strutinsky.o $(DOBJ)/brent.o
+$(DOBJ)/def_ho.o: $(DSRC)/$(DSH)/def_ho.f90 $(DOBJ)/constants.o $(DOBJ)/optimise.o $(DOBJ)/quadrule.o $(DOBJ)/micmac.o
+$(DOBJ)/run_ho.o: $(DSRC)/$(DSH)/run_ho.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/hamiltonian.o
+$(DOBJ)/run_strut.o: $(DSRC)/$(DSH)/run_strut.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/hamiltonian.o $(DOBJ)/strutinsky.o $(DOBJ)/brent.o
+$(DOBJ)/strutinsky.o: $(DSRC)/$(DSH)/strutinsky.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/hamiltonian.o $(DOBJ)/brent.o
 # Ensure required directories exist
 $(DOBJ) $(DEXE) $(DMOD) $(DTEST):
 	mkdir -p $@

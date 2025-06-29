@@ -40,7 +40,7 @@ module constants
     integer, parameter :: num_def_params = 3
 
 
-    integer, parameter :: num_threads = 8
+    integer, parameter :: num_threads = 1
 
 
     !! Shell model parameters

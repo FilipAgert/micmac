@@ -3,7 +3,7 @@ module strutinsky
     use Hamiltonian, only: get_levels
     use def_ho, only: betadef, getnumstatesupto, lna
     use quadrule, only: laguerre_ss_compute, legendre_dr_compute
-    use brent, only: zero_rc
+    use brent, only: zero_rc, zero_rc2
 
 
     implicit none
@@ -33,51 +33,59 @@ module strutinsky
         precomputed_quad = .true.
     end subroutine
 
-    real(r_kind) function shell_correction(Z, A, def) result(Eshellcorr)
+    real(r_kind) function shell_correction(Z, A, def, fix_gamma) result(Eshellcorr)
         integer, intent(in) :: Z, A
         real(r_kind), dimension(:), allocatable :: E_n, E_p
         type(betadef), intent(in) :: def
+        logical, intent(in) :: fix_gamma
         real(r_kind) :: E_sh_corr_p, E_sh_corr_n, hbaromega0
         
-
+        write(*,'(A)') "Calculating single particle energies..."
         call get_levels(E_p, E_n, Z, A, def, max_n)
         hbaromega0 = 41.0_r_kind * A**(-1.0_r_kind/3.0_r_kind) !!MeV
-        E_sh_corr_p = get_shell(Z, E_p, hbaromega0)
-        E_sh_corr_n = get_shell(A-Z, E_n, hbaromega0)
+        write(*,'(A)') "Calculating shell correction..."
+        E_sh_corr_p = get_shell(Z, E_p, hbaromega0, fix_gamma)
+        E_sh_corr_n = get_shell(A-Z, E_n, hbaromega0, fix_gamma)
         Eshellcorr = E_sh_corr_p + E_sh_corr_n
     end function
 
-    real(r_kind) function get_shell(n_parts, levels, hbaromega0) result(E_shell)
+    real(r_kind) function get_shell(n_parts, levels, hbaromega0, fix_gamma) result(E_shell)
         integer, intent(in)::n_parts
         real(r_kind), intent(in) :: hbaromega0
         real(r_kind), dimension(:), intent(in) :: levels
-        real(r_kind) :: E_sh, gamma, fermi_sh, fermi_smooth, E_smooth, E_smoothp, E_smoothm, df, d2f, prev
+        real(r_kind) :: E_sh, gamma, fermi_sh, fermi_smooth,df, d2f, prev
         real(r_kind), parameter :: dg =1e-5
+        logical, intent(in) :: fix_gamma
         logical ::converged
         E_sh = shell_energy(n_parts, levels) !!gets full shell model shell energy
         gamma = hbaromega0
         fermi_sh = fermi_level_sh(n_parts, levels)
         converged = .false.
         prev = 0.0_r_kind
+        write(*,'(A,F10.3)') "start gamma: ", gamma
+        write(*,'(A,F10.3)') "1.2 hbaromega0", 1.2*hbaromega0
+
         do while(.not. converged)
             fermi_smooth = fermi_level_osc(n_parts, levels, gamma)
-            
-            E_smooth = smooth_e(levels, gamma, fermi_smooth)
-            E_smoothp = smooth_e(levels, gamma+dg, fermi_smooth)
-            E_smoothm = smooth_e(levels, gamma-dg, fermi_smooth)
-            df = (E_smoothp - E_smoothm)/(2.0_r_kind*dg)
-            d2f = (E_smoothp - 2.0_r_kind*E_smooth + E_smoothm)/(dg*dg)
-            
-            E_shell = E_sh - E_smooth
-            print*, "Shell correction: ", E_shell   
-            if(d2f .eq. 0.0_r_kind .or. abs(df/d2f) <1e-2 .or. abs(prev - E_shell) < 1e-3) then
+            if(fix_gamma) then
+                gamma = 1.2 * hbaromega0
                 converged = .true.
-    
+                exit
+            end if
+            df = F(levels, gamma, fermi_smooth)/gamma
+            d2f = (df - F(levels, gamma-dg, fermi_smooth)/(gamma-dg))/dg
+
+            if(d2f .eq. 0.0_r_kind .or. abs(df/d2f) <1e-5 ) then
+                converged = .true.
+
             end if
             gamma = gamma - df/d2f
-            print*, "gamma: ", gamma    
-            prev = E_shell
+            E_shell = E_sh - smooth_e(levels, gamma, fermi_smooth)
         end do
+        E_shell = E_sh - smooth_e(levels, gamma, fermi_smooth)
+        write(*,'(A,F10.3)') "Converged gamma: ", gamma
+        write(*,'(A,F10.3)') "Converged shell energy: ", E_shell
+
     end function
 
     function get_occ_numbers(levels, gamma, fermi) result(occ_numbers)
@@ -138,22 +146,6 @@ module strutinsky
         f_m = Peven(x,M) * exp(-x*x)/sqrt(pi)
     end function
 
-    pure real(r_kind) function avg_lev_dens(e, levels, gamma) result(g)
-        real(r_kind), intent(in) :: e, gamma
-        real(r_kind), dimension(:), intent(in) :: levels
-        real(r_kind) :: level_e
-        integer :: i, numlevels
-        integer, parameter :: degen = 2 !due to time reversal symmetry
-        integer, parameter:: M = 3
-        numlevels = size(levels)
-        g = 0.0_r_kind
-        do i = 1, numlevels
-            level_e = levels(i)
-            g = g +  f_m((level_e- e) / gamma, M)
-        end do
-        g = degen *g/gamma
-    end function
-
     pure real(r_kind) function shell_energy(A, levels) result(energy)
         real(r_kind), dimension(:), intent(in) :: levels
         integer, intent(in) :: A !!Particle number
@@ -177,8 +169,7 @@ module strutinsky
     real(r_kind) function smooth_e(levels, gamma, fermi) !!Energy of the smooth shell correction
         real(r_kind), dimension(:), intent(in) :: levels
         real(r_kind), intent(in) :: gamma, fermi
-        real(r_kind) :: u, occ_nbr(size(levels))
-        integer :: ii
+        real(r_kind) :: occ_nbr(size(levels))
 
         call precompute_quad()
         occ_nbr = get_occ_numbers(levels, gamma, fermi)
@@ -189,8 +180,8 @@ module strutinsky
         real(r_kind), dimension(:), intent(in) :: levels
         real(r_kind), intent(in) :: gamma
         integer, intent(in) :: num_parts
-        real(r_kind) :: u, Ef_sh, lb, ub, arg, val
-        integer :: ii, status
+        real(r_kind) :: Ef_sh, lb, ub, arg, val
+        integer :: status
         real(r_kind), parameter :: tol = 1e-3
 
 

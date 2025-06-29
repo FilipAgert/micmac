@@ -157,16 +157,23 @@ module Hamiltonian
         N = size(H,1)
         ! write(*,*) N
         lda = N
-        lwork = 10*N
+        lwork = 20*N
         allocate(work(lwork))
         call dsyev(jobz, uplo, N, H, lda, w, work, lwork, info)
 
         if (info /= 0) then
-            write(*,'(A,I10)') "Error using dsyev, info:", info
+            write(*,'(A,I10)') "Error using dsyev in diagonalisation, info:", info
             call exit
         endif
-        E = W
-        V = H
+        if(W(1) > W(size(E))) then !Reverse order if wrong order
+            E = W(size(W):1:-1) 
+            V = H(:,size(W):1:-1)
+        else
+            E = w
+            V = H
+        endif
+        deallocate(work)
+
     end subroutine
 
 
@@ -179,6 +186,10 @@ module Hamiltonian
         call precompute_quad()
 
         rolling = 0.0_r_kind
+        call omp_set_num_threads(num_threads)
+        !$omp parallel do private (iu, it, ix, u, int_theta, int_radius_ub, t, x) &
+        !$omp& reduction(+:rolling)
+
         do iu = 1, gauss_order
             u = leg_x(iu)
             int_theta = acos(u)
@@ -199,6 +210,7 @@ module Hamiltonian
                 end do
             end do
         end do
+        !$omp end parallel do
         eval_vc = rolling * self%charge_dens
     end function
 
@@ -424,6 +436,9 @@ module Hamiltonian
 
         numstates = size(states)
         VWS_mat = 0
+        call omp_set_num_threads(num_threads)
+        !$omp parallel shared(states,VWS,alpha_z,alpha_perp, VWS_mat) private(s1,s2)
+        !$omp do schedule(static)
         do row = 1, numstates
             s1 = states(row)
             do col = 1,row
@@ -431,7 +446,8 @@ module Hamiltonian
                 VWS_mat(row,col) = pot_elem(s1,s2,VWS, alpha_z, alpha_perp)
             end do
         end do
-
+        !$omp end do
+        !$omp end parallel
         do row = 1,numstates
             do col = row +1, numstates
                 VWS_mat(row, col) = VWS_mat(col, row)
@@ -466,6 +482,10 @@ module Hamiltonian
 
         numstates = size(states)
         Vso_mat = 0
+        call omp_set_num_threads(num_threads)
+
+        !$omp parallel shared(states,Vso_mat,alpha_z,alpha_perp,so_ws) private(s1,l1,ms1,s2,l2,ms2)
+        !$omp do schedule(static)
         do row = 1, numstates
             s1 = states(row)
             l1 = s1%ml
@@ -482,7 +502,8 @@ module Hamiltonian
                 endif        
             end do
         end do
-
+        !$omp end do
+        !$omp end parallel
         do row = 1,numstates
             do col = row +1, numstates
                 Vso_mat(row, col) = Vso_mat(col, row)
@@ -704,26 +725,22 @@ module Hamiltonian
         integer :: i, numstates, idx, shelldegen, n
         real(r_kind), allocatable :: V(:,:), H(:,:), Vws(:,:), Tkin(:,:), Vso(:,:), Vc(:,:)
         type(an_ho_state), allocatable :: states(:)
-        real(r_kind) :: hbaromega0, hbaromegaz, hbaromegaperp,  kappa, Vwsdepth_p, Vwsdepth_n
+        real(r_kind) :: hbaromega0, hbaromegaz, hbaromegaperp
         numstates = getnumstatesupto(max_n)
         allocate(E_p(numstates),E_n(numstates), V(numstates,numstates), states(numstates), H(numstates,numstates))
-
+        V = 0
+        E_p = 0
+        E_n =0
         hbaromega0 = 41.0_r_kind * A**(-1.0_r_kind/3.0_r_kind) !!MeV
         hbaromegaperp = def%omega_perp(hbaromega0) !! omega = Mev/hbar
         hbaromegaz = def%omega_z(hbaromega0)
         numstates = getnumstatesupto(max_n)
-        allocate(states(numstates))
-
-        
         idx = 1
         do n = 0, max_n
             shelldegen = getnumstates(n)
-            write(*,*) "N: ", N
-            write(*,*) "Degen: ", shelldegen
             states(idx:idx+shelldegen - 1) = get_ho_states(n)
             idx = idx + shelldegen
         end do
-
         H = H_protons(states, Z, A, def, hbaromegaz, hbaromegaperp)
         call diagonalize(E_p, V, H)
         H = H_neutrons(states, Z, A, def, hbaromegaz, hbaromegaperp)

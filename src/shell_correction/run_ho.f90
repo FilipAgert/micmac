@@ -10,21 +10,18 @@ program run_ho
     type(betadef) :: def 
     integer :: n, shelldegen, idx, numstates
     real(r_kind), dimension(:,:), allocatable :: Vws, Tkin, V, VC,Vso,Hn,Hp
-    real(r_kind), dimension(:), allocatable :: E
+    real(r_kind), dimension(:), allocatable :: E, E_n, E_p
     real(r_kind), parameter :: V0 = V0_ws
     real(r_kind), parameter ::r0 = r0_p
     real(r_kind), parameter :: kappa=kappa_ws
     real(r_kind) :: hbaromega0, hbaromegaperp, hbaromegaz
-    real(r_kind) :: I, Vwsdepth
+
     real(r_kind), dimension(:,:), allocatable :: matr
 
     def = betadef(beta2 = 0, beta4=0)
     hbaromega0 = 41.0_r_kind * A**(-1.0_r_kind/3.0_r_kind) !!MeV
     hbaromegaperp = def%omega_perp(hbaromega0) !! omega = Mev/hbar
     hbaromegaz = def%omega_z(hbaromega0)
-    I = (A-2.0_r_kind*Z)/A
-    Vwsdepth = V0 * (1.0_r_kind+kappa*I)
-    write(*,'(A,F10.3)') "Well depth:", Vwsdepth
     write(*,'(A,F10.3, A)')"omega:", hbaromega0, " MeV/hbar"
     write(*,'(A,F10.3, A)')"omegaz:", hbaromegaz, " MeV/hbar"
     write(*,'(A,F10.3, A)')"omegaperp", hbaromegaperp, " MeV/hbar"
@@ -35,21 +32,21 @@ program run_ho
     idx = 1
     do n = 0, max_n
         shelldegen = getnumstates(n)
-        write(*,*) "N: ", N
-        write(*,*) "Degen: ", shelldegen
         states(idx:idx+shelldegen - 1) = get_ho_states(n)
         idx = idx + shelldegen
     end do
-    write(*,*) states(1)%header()
+    ! write(*,*) states(1)%header()
 
-    do n = 1, numstates
-        write(*,*) states(n)%text()
-    end do
+    ! do n = 1, numstates
+    !     write(*,*) states(n)%text()
+    ! end do
 
     !Protons
     allocate(Vws(numstates,numstates), Tkin(numstates,numstates), Hn(numstates,numstates),Hp(numstates,numstates), Vc(numstates, numstates), Vso(numstates,numstates))
-    Hp = H_protons(states, Z, A, def, hbaromegaz, hbaromegaperp)
-    Hn = H_neutrons(states, Z, A, def, hbaromegaz, hbaromegaperp)
+    ! Hp = H_protons(states, Z, A, def, hbaromegaz, hbaromegaperp)
+    ! Hn = H_neutrons(states, Z, A, def, hbaromegaz, hbaromegaperp)
+    allocate(E_p(numstates), E_n(numstates))
+    call get_levels(E_n, E_p,Z,A,def, max_n)
 
     !neutrons
     
