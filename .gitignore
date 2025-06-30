@@ -35,3 +35,5 @@
 .venv/*
 
 data/out/*
+
+perf.*

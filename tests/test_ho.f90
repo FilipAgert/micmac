@@ -107,6 +107,7 @@ contains
 
 
         actual = vcoul%eval(0.0_r_kind, 0.0_r_kind)
+        expected = 
 
         
         expected = pi/2
