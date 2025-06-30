@@ -182,26 +182,32 @@ module Hamiltonian
         real(r_kind), intent(in) :: r, theta
         !Do the integral int_V     dr^3/|r-r'| at the point r.
         integer :: iu, it, ix
-        real(r_kind) :: u, t, x, int_theta, int_radius_ub, rolling
+        real(r_kind) :: u, t, x, int_theta, int_radius_ub, rolling, acosu, sintheta, sinacosu, cospipit, costheta
         call precompute_quad()
+
+        sintheta = sin(theta)
+        costheta = cos(theta)
 
         rolling = 0.0_r_kind
         call omp_set_num_threads(num_threads)
-        !$omp parallel do private (iu, it, ix, u, int_theta, int_radius_ub, t, x) &
-        !$omp& reduction(+:rolling)
+        !//$omp parallel do private (iu, it, ix, u, int_theta, int_radius_ub, t, x) &
+        !//$omp& reduction(+:rolling)
 
         do iu = 1, gauss_order
             u = leg_x(iu)
             int_theta = acos(u)
             int_radius_ub = surfRadius(int_theta, self%def, self%radius)
+            sinacosu = sin(acos(u))
             do it = 1, gauss_order
                 t = leg_x(it)
+                cospipit = cos(pi + pi*t)
+
                 do ix = 1,gauss_order
                     x = leg_x(ix)
 
                     rolling = rolling + leg_w(iu)*leg_w(it)*leg_w(ix)*pi*int_radius_ub**3*(x+1.0_r_kind)**2 / (8.0_r_kind) &
                             / sqrt(r**2 + int_radius_ub**2 * (x+1.0_r_kind)**2 / 4.0_r_kind &
-                                    + r*int_radius_ub*(x+1.0_r_kind)* (sin(theta)*sin(acos(u))*cos(pi+pi*t) + u*cos(theta)))
+                                    + r*int_radius_ub*(x+1.0_r_kind)* (sintheta*sinacosu*cospipit + u*costheta))
                     
                     ! if(isnan(rolling)) then
                     !     print*, "isnan in coul: iu, it, ix:"
@@ -210,7 +216,7 @@ module Hamiltonian
                 end do
             end do
         end do
-        !$omp end parallel do
+        !//$omp end parallel do
         eval_vc = rolling * self%charge_dens
     end function
 
@@ -437,8 +443,8 @@ module Hamiltonian
         numstates = size(states)
         VWS_mat = 0
         call omp_set_num_threads(num_threads)
-        !$omp parallel shared(states,VWS,alpha_z,alpha_perp, VWS_mat) private(s1,s2)
-        !$omp do schedule(static)
+        !//$omp parallel shared(states,VWS,alpha_z,alpha_perp, VWS_mat) private(s1,s2)
+        !//$omp do schedule(static)
         do row = 1, numstates
             s1 = states(row)
             do col = 1,row
@@ -446,8 +452,8 @@ module Hamiltonian
                 VWS_mat(row,col) = pot_elem(s1,s2,VWS, alpha_z, alpha_perp)
             end do
         end do
-        !$omp end do
-        !$omp end parallel
+        !//$omp end do
+        !//$omp end parallel
         do row = 1,numstates
             do col = row +1, numstates
                 VWS_mat(row, col) = VWS_mat(col, row)
@@ -484,8 +490,8 @@ module Hamiltonian
         Vso_mat = 0
         call omp_set_num_threads(num_threads)
 
-        !$omp parallel shared(states,Vso_mat,alpha_z,alpha_perp,so_ws) private(s1,l1,ms1,s2,l2,ms2)
-        !$omp do schedule(static)
+        !//$omp parallel shared(states,Vso_mat,alpha_z,alpha_perp,so_ws) private(s1,l1,ms1,s2,l2,ms2)
+        !//$omp do schedule(static)
         do row = 1, numstates
             s1 = states(row)
             l1 = s1%ml
@@ -502,8 +508,8 @@ module Hamiltonian
                 endif        
             end do
         end do
-        !$omp end do
-        !$omp end parallel
+        !//$omp end do
+        !//$omp end parallel
         do row = 1,numstates
             do col = row +1, numstates
                 Vso_mat(row, col) = Vso_mat(col, row)
@@ -741,6 +747,7 @@ module Hamiltonian
             states(idx:idx+shelldegen - 1) = get_ho_states(n)
             idx = idx + shelldegen
         end do
+        print*, "Calculating proton hamiltonian..."
         H = H_protons(states, Z, A, def, hbaromegaz, hbaromegaperp)
         call diagonalize(E_p, V, H)
         H = H_neutrons(states, Z, A, def, hbaromegaz, hbaromegaperp)
@@ -758,10 +765,14 @@ module Hamiltonian
         radius_so = r0_so_p* A**(1.0_r_kind/3.0_r_kind)
         I = (A-2.0_r_kind*Z)/A
         Vwsdepth = V0_ws * (1.0_r_kind+kappa_ws*I)
-        Vc = coul_mat(states, def, radius, Z, mass_p, hbaromegaz, hbaromegaperp)
+        write(*,*) "Wood-Saxon hamiltonian..."
         Vws = Vws_mat(states,def,radius, hbaromegaz,hbaromegaperp,mass_p,Vwsdepth)
+        write(*,*) "Spin-orbit hamiltonian..."
         Vso = Vso_mat(states, def, radius_so, hbaromegaz,hbaromegaperp, mass_p, Vwsdepth, lambda_p)
+        write(*,*) "Kinetic-Energy hamiltonian..."  
         Tkin = kin_en(states, hbaromegaz, hbaromegaperp)
+        write(*,*) "Coulomb-potential hamiltonian..."
+        Vc = coul_mat(states, def, radius, Z, mass_p, hbaromegaz, hbaromegaperp)
         H = Vc + Vws + Vso + Tkin
 
     end function
