@@ -327,16 +327,18 @@ end function
 pure real(r_kind) elemental function gnl(x,n,l) !!modified laguerre polynomial
     integer, intent(in) :: n, l
     real(r_kind), intent(in) :: x
-    gnl = x**(l*1.0_r_kind/2.0) * sqrt(1.0_r_kind*fac(n)/(fac(n+l))) * Lna(x,n,real(l,r_kind))
+    gnl = x**(l*1.0_r_kind/2.0) * sqrt(1.0_r_kind*fac(n)/(fac(n+l)*1.0_r_kind)) * Lna(x,n,real(l,r_kind))
 end function
 
 pure real(r_kind) elemental function gnlp(x,n,l) !!modified laguerre polynomial derivative
     integer, intent(in) :: n, l
     real(r_kind), intent(in) :: x
+    real(r_kind), parameter :: dx = 1e-7
     if(n == 0) then
         gnlp = 0
     else
-        gnlp = (gnl(x,n,l) * (2*n+l-x) - gnl(x,n-1,l) * 2* sqrt(real(n*(n+l),r_kind)))/sqrt(x)
+        gnlp = (gnl(x,n,l) * (2*n+l-x) &
+                - gnl(x,n-1,l) * 2* sqrt(real(n*(n+l),r_kind)))/sqrt(x)
     endif
 end function
 
@@ -344,17 +346,19 @@ end function
 pure real(r_kind) elemental function Hmn(x,n) !!modified hermite polynomial
     integer, intent(in) :: n
     real(r_kind), intent(in) :: x
-    Hmn = Hn(x,n)/sqrt(real(2**n * fac(n) * sqrt(pi),r_kind))
+    if(n < 0) then
+        Hmn = 0
+    else
+        Hmn = Hn(x,n)/sqrt(real(2**n * fac(n) * sqrt(pi),r_kind))
+    endif
 end function
 
 pure real(r_kind) elemental function Hmnp(x,n) !!mod hermite polynomial derivative
     integer, intent(in) :: n
     real(r_kind), intent(in) :: x
-    if(n == 0) then
-        Hmnp = 0
-    else
-        Hmnp = Hmn(x,n-1)*sqrt(0.5_r_kind*n) - Hmn(x,n) *sqrt(0.5_r_kind*(n+1))
-    endif
+
+    Hmnp = Hmn(x,n-1)*sqrt(0.5_r_kind*n) - Hmn(x,n+1) *sqrt(0.5_r_kind*(n+1))
+
 end function
 
 
