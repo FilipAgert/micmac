@@ -58,7 +58,7 @@ module strutinsky
         logical, intent(in) :: fix_gamma
         logical ::converged
         E_sh = shell_energy(n_parts, levels) !!gets full shell model shell energy
-        gamma = hbaromega0
+        gamma = hbaromega0*1.2
         fermi_sh = fermi_level_sh(n_parts, levels)
         converged = .false.
         prev = 0.0_r_kind

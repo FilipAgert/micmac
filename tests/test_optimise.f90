@@ -46,7 +46,7 @@ module test_optimise
             n_passed = n_passed + 1
         else
             n_failed = n_failed + 1
-            print *, "FAIL: test_example - expected", expected, "but got", actual
+            print *, "FAIL: 1dminloc - expected", expected, "but got", actual
         end if
 
          
@@ -67,7 +67,7 @@ module test_optimise
             n_passed = n_passed + 1
         else
             n_failed = n_failed + 1
-            print *, "FAIL: test_example - expected", expected, "but got", actual
+            print *, "FAIL: 1dminval - expected", expected, "but got", actual
         end if
 
     end subroutine

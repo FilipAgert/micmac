@@ -8,7 +8,7 @@ module Hamiltonian
 
     private
     public :: diagonalize, mat_elem_axsym, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels, H_protons, H_neutrons, get_levels
-
+    public :: S0, Sp, Sm, T0, Tplus, gnlp, gnl, Tminus, VSO_off_diag_elem_v2, VSO_off_diag_elem
     integer, parameter :: gauss_order =64
     real(r_kind), dimension(gauss_order) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
     logical :: precomputed_quad = .false.
@@ -182,7 +182,7 @@ module Hamiltonian
         real(r_kind), intent(in) :: r, theta
         !Do the integral int_V     dr^3/|r-r'| at the point r.
         integer :: iu, it, ix
-        real(r_kind) :: u, t, x, int_theta, int_radius_ub, rolling, acosu, sintheta, sinacosu, cospipit, costheta
+        real(r_kind) :: u, t, x, int_theta, int_radius_ub, rolling, sintheta, sinacosu, cospipit, costheta
         call precompute_quad()
 
         sintheta = sin(theta)
@@ -355,7 +355,7 @@ module Hamiltonian
         class(WS_pot), intent(in) :: self
         real(r_kind) ::dist
         dist = sqrt(surfdist(r,theta,self%def, self%radius)) 
-        if(r < self%radius) then
+        if(r < surfRadius(theta, self%def,self%radius)) then
             dist = - dist
         endif
         eval_ws = -self%V_0/ (1 + exp(dist/aws))
@@ -398,6 +398,7 @@ module Hamiltonian
         alpha_z = alpha(mass, omegaz)
         alpha_perp = alpha(mass, omegaperp)
 
+
         numstates = size(states)
         coul_mat = 0
         do row = 1, numstates
@@ -439,7 +440,6 @@ module Hamiltonian
 
         alpha_z = alpha(mass, omegaz)
         alpha_perp = alpha(mass, omegaperp)
-
         numstates = size(states)
         VWS_mat = 0
         call omp_set_num_threads(num_threads)
@@ -478,6 +478,7 @@ module Hamiltonian
         call precompute_quad()
 
         kappa = -lambda*(hbarc/(2*mass))**2
+        ! print*, "kappa:", kappa
         !setup potential
         so_ws%def = def
         so_ws%radius = R0
@@ -504,7 +505,7 @@ module Hamiltonian
                 if(ms1 == ms2 .and. l1 == l2) then
                     Vso_mat(row,col) = VSO_diag_elem(s1,s2,so_ws,alpha_z,alpha_perp)
                 elseif((ms1 == ms2 + 2 .and. l1 == l2 - 1) .or. (ms1 == ms2 - 2 .and. l1 == l2 + 1)) then
-                    Vso_mat(row,col) = VSO_off_diag_elem(s1,s2,so_ws,alpha_z,alpha_perp)
+                    Vso_mat(row,col) = VSO_off_diag_elem_v2(s1,s2,so_ws,alpha_z,alpha_perp)
                 endif        
             end do
         end do
@@ -531,18 +532,29 @@ module Hamiltonian
         S0 = (gnl(eta, s1%nr, s1%ml) * gnlp(eta, s2%nr, s2%ml) +gnl(eta, s2%nr, s2%ml) * gnlp(eta, s1%nr, s1%ml) ) / sqrt(eta)
     end function
 
-    pure real(r_kind) elemental function Sp(eta,s1,s2)
+     real(r_kind)  function Sp(eta,s1,s2)
         type(an_ho_state), intent(in) :: s1, s2
         real(r_kind), intent(in) :: eta
         real(r_kind) :: K
-        K = s1%ml + s1%ms*0.5_r_kind
-        Sp = - gnl(eta,s1%nr,s1%ml)*gnl(eta,s2%nr,s2%ml) *(K+0.5_r_kind) / sqrt(eta) - gnlp(eta,s1%nr, s1%ml) * gnl(eta,s2%nr,s2%ml)
+
+        K = s2%ml + s2%ms*0.5_r_kind
+        print*, "K+0.5: ", K+0.5, " l1, l2:", s1%ml , s2%ml
+        print*, "first term: ",- gnl(eta,s1%nr,s1%ml)*gnl(eta,s2%nr,s2%ml) *(K+0.5_r_kind) /sqrt(eta)
+        print*, "second term:", - gnlp(eta,s1%nr, s1%ml) * gnl(eta,s2%nr,s2%ml)
+        Sp = - gnl(eta,s1%nr,s1%ml)*gnl(eta,s2%nr,s2%ml) *(K+0.5_r_kind)/sqrt(eta) - gnlp(eta,s1%nr, s1%ml) * gnl(eta,s2%nr,s2%ml)
+
     end function
 
-    pure real(r_kind) elemental function Sm(eta,s1,s2)
+     real(r_kind)  function Sm(eta,s1,s2)
         type(an_ho_state), intent(in) :: s1, s2
         real(r_kind), intent(in) :: eta
-        Sm = Sp(eta, s2, s1)
+        real(r_kind) :: K
+        K = s2%ml + s2%ms*0.5_r_kind
+        print*, "K-0.5 ", K-0.5, " l1, l2:", s1%ml , s2%ml
+        print*, "first term: ",-gnl(eta,s1%nr, s1%ml)*gnl(eta,s2%nr,s2%ml)*(K-0.5_r_kind)/sqrt(eta)
+        print*, "second term:", +gnl(eta,s1%nr,s1%ml)*gnlp(eta,s2%nr,s2%ml)
+        Sm = -gnl(eta,s1%nr, s1%ml)*gnl(eta,s2%nr,s2%ml)*(K-0.5_r_kind)/sqrt(eta)+gnl(eta,s1%nr,s1%ml)*gnlp(eta,s2%nr,s2%ml)
+
     end function
 
     real(r_kind) function T0(eta,eta_ii,s1,s2, SO_WS,alpha_z, alpha_perp)
@@ -592,9 +604,94 @@ module Hamiltonian
         real(r_kind), intent(in) :: eta, alpha_z, alpha_perp
         type(WS_pot), intent(in) :: SO_WS
         integer, intent(in) :: eta_ii
-        Tplus = Tminus(eta, eta_ii,s2, s1, SO_WS, alpha_z, alpha_perp) !!change of indices·
+        integer :: i
+        real(r_kind) :: zeta, z, rho,r ,theta
+        Tplus = 0
+        call precompute_quad()
+        rho = eta_to_rho(eta, alpha_perp)
+        do i = 1,gauss_order
+            zeta = her_x(i)
+            z = zeta_to_z(zeta, alpha_z)
+            theta = theta_cyl(rho, z)
+            r = rad_cyl(rho, z)
+
+
+            Tplus = Tplus + her_w(i)*SO_WS%eval_pre(eta_ii,i,r,theta) * Hmn(zeta, s2%nz) * Hmnp(zeta, s1%nz)
+        end do
     end function
 
+    real(r_kind) function I1(s1,s2, SO_WS,alpha_z, alpha_perp)
+        type(an_ho_state), intent(in) :: s1, s2
+        real(r_kind), intent(in) ::  alpha_z, alpha_perp
+        type(WS_pot), intent(in) :: SO_WS
+        integer :: nn, zz
+        real(r_kind) :: zeta, z, rho,r ,theta, eta, weta, wzeta, term
+
+
+        call precompute_quad()
+        I1 = 0
+        do nn = 1, gauss_order
+            eta = lag_x(nn)
+            weta = lag_w(nn)
+            term = 0
+            rho = eta_to_rho(eta, alpha_perp)
+
+
+            do zz = 1, gauss_order
+                zeta = her_x(zz)
+                wzeta = her_w(zz)
+                z = zeta_to_z(zeta, alpha_z)
+                theta = theta_cyl(rho, z)
+                r = rad_cyl(rho,z)
+                term = term + wzeta * SO_WS%eval_pre(nn,zz,r,theta) * (s1%ml * Hmn(zeta, s1%nz) * Hmnp(zeta, s2%nz) + s2%ml * Hmnp(zeta,s1%nz) * Hmn(zeta,s2%nz))
+
+            end do
+            term = term * weta * gnl(eta,s1%nr, s1%ml) * gnl(eta, s2%nr,s2%ml) / sqrt(eta)
+            I1 = I1 + term
+        end do
+        I1 = I1 * alpha_perp*alpha_z
+
+    end function
+
+    real(r_kind) function I2(s1,s2, SO_WS,alpha_z, alpha_perp)
+        type(an_ho_state), intent(in) :: s1, s2
+        real(r_kind), intent(in) ::  alpha_z, alpha_perp
+        type(WS_pot), intent(in) :: SO_WS
+        integer :: nn, zz
+        real(r_kind) :: zeta, z, rho,r ,theta, eta, weta, wzeta, term1, term2, pot, etafac
+
+
+        call precompute_quad()
+        I2 = 0
+        do nn = 1, gauss_order
+            eta = lag_x(nn)
+            weta = lag_w(nn)
+            term1 = 0
+            term2 = 0
+            rho = eta_to_rho(eta, alpha_perp)
+
+
+            do zz = 1, gauss_order
+                zeta = her_x(zz)
+                wzeta = her_w(zz)
+                z = zeta_to_z(zeta, alpha_z)
+                theta = theta_cyl(rho, z)
+                r = rad_cyl(rho,z)
+
+                pot = wzeta * SO_WS%eval_pre(nn,zz,r,theta)
+                term1 = term1 + pot * Hmnp(zeta, s1%nz)* Hmn(zeta, s2%nz)
+                term2 = term2 + pot * Hmn(zeta, s1%nz) * Hmnp(zeta, s2%nz)
+
+            end do
+            etafac = weta / sqrt(eta)
+            term1 = term1 * etafac * gnl(eta, s1%nr, s1%ml) * gnlp(eta, s2%nr, s2%ml)
+            term2 = term2 * etafac * gnlp(eta, s1%nr, s1%ml) * gnl(eta, s2%nr, s2%ml)
+
+            I2 = I2 + term1 - term2
+        end do
+        I2 = I2 * alpha_perp*alpha_z
+
+    end function
 
 
     pure elemental real(r_kind) function zeta_to_z(zeta, alpha)
@@ -618,7 +715,6 @@ module Hamiltonian
         call precompute_quad()
         matelem = 0.0_r_kind
         if(s1%ml /= s2%ml .or. s1%ms /= s2%ms) then
-            matelem = 0.0_r_kind
             return
         endif
 
@@ -643,7 +739,7 @@ module Hamiltonian
             z = zeta_to_z(zeta,alpha_z)
             theta = theta_cyl(rho, z)
             r = rad_cyl(rho ,z)
-            Z_matelem = Z_matelem + her_w(ii) * Hmn(zeta, s1%nz) * Hmn(zeta, s2%nz) * pot%eval_pre(eta_ii,ii,r, theta) 
+            Z_matelem = Z_matelem + her_w(ii) * Hmn(zeta, s1%nz) * Hmn(zeta, s2%nz)*pot%eval_pre(eta_ii,ii,r, theta) 
             ! if(isnan(Z_matelem)) then
             !     print*, "eta:", eta
             !     print*, "eta_ii:", eta_ii
@@ -672,8 +768,10 @@ module Hamiltonian
 
         do ii = 1, gauss_order
             eta = lag_x(ii)
-            matelem = matelem + S0(eta, s1, s2) * T0(eta, ii,s1, s2, SO_WS, alpha_z, alpha_perp) * lag_w(ii)*alpha_perp* s1%ml * s1%ms !== 2*lambda*sigma where sigma = +- 1/2
+            matelem = matelem + S0(eta, s1, s2) * T0(eta, ii,s1, s2, SO_WS, alpha_z, alpha_perp) * lag_w(ii) !== 2*lambda*sigma where sigma = +- 1/2
+            
         end do
+        matelem = matelem * alpha_perp**2 * s1%ml * s1%ms
     end function
 
     real(r_kind)  function VSO_off_diag_elem(s1,s2,SO_WS,alpha_z,alpha_perp) result(matelem)
@@ -699,6 +797,25 @@ module Hamiltonian
                                             Sm(eta, s1, s2) * Tminus(eta, ii,s1, s2, SO_WS, alpha_z, alpha_perp))
         end do
         matelem = matelem * alpha_perp*alpha_z
+    end function
+
+    real(r_kind)  function VSO_off_diag_elem_v2(s1,s2,SO_WS,alpha_z,alpha_perp) result(matelem)
+        type(an_ho_state), intent(in) :: s1, s2
+        real(r_kind), intent(in) :: alpha_z, alpha_perp
+        type(WS_pot), intent(in) :: SO_WS
+        integer :: ii
+        real(r_kind) :: eta
+        matelem = 0
+
+        if(s1%ml == s2%ml + 1 .and. s1%ms == s2%ms - 2) then
+            matelem = I1(s1,s2,SO_WS,alpha_z,alpha_perp) - I2(s1,s2,SO_WS,alpha_z,alpha_perp)
+        elseif( s1%ml == s2%ml - 1 .and. s1%ms == s2%ms + 2)then
+            matelem = I1(s1,s2,SO_WS,alpha_z,alpha_perp) + I2(s1,s2,SO_WS,alpha_z,alpha_perp)
+        else
+            write(*,*) "Error: states dont have the correct quantum numbers in ms and ml"
+            call exit
+        endif
+        matelem = matelem * (-0.5)
     end function
 
 
@@ -729,11 +846,11 @@ module Hamiltonian
         integer, intent(in) :: Z, A, max_N
         type(betadef), intent(in) :: def
         integer :: i, numstates, idx, shelldegen, n
-        real(r_kind), allocatable :: V(:,:), H(:,:), Vws(:,:), Tkin(:,:), Vso(:,:), Vc(:,:)
+        real(r_kind), allocatable :: V(:,:), H(:,:), Vws(:,:), Tkin(:,:), Vso(:,:), Vc(:,:), gs(:), Hp(:,:)
         type(an_ho_state), allocatable :: states(:)
-        real(r_kind) :: hbaromega0, hbaromegaz, hbaromegaperp
+        real(r_kind) :: hbaromega0, hbaromegaz, hbaromegaperp, Egs
         numstates = getnumstatesupto(max_n)
-        allocate(E_p(numstates),E_n(numstates), V(numstates,numstates), states(numstates), H(numstates,numstates))
+        allocate(E_p(numstates),E_n(numstates), V(numstates,numstates), states(numstates), H(numstates,numstates), gs(numstates), Hp(numstates,numstates))
         V = 0
         E_p = 0
         E_n =0
@@ -749,7 +866,38 @@ module Hamiltonian
         end do
         print*, "Calculating proton hamiltonian..."
         H = H_protons(states, Z, A, def, hbaromegaz, hbaromegaperp)
+        Hp = H
         call diagonalize(E_p, V, H)
+
+
+        block
+            real(r_kind), dimension(:,:), allocatable :: VSO, VC, VWS, Tkin
+            real(r_kind) :: radius, radius_so, Vwsdepth,I
+            allocate(VSO(numstates,numstates), VC(numstates,numstates), VWS(numstates,numstates), Tkin(numstates,numstates))
+            radius = r0_p * A**(1.0_r_kind/3.0_r_kind)
+            radius_so = r0_so_p* A**(1.0_r_kind/3.0_r_kind)
+            I = (A-2.0_r_kind*Z)/A
+            Vwsdepth = V0_ws * (1.0_r_kind+kappa_ws*I)
+            gs = V(:,1)
+            Egs = dot_product(gs,matmul(Hp,gs))
+            Vws = Vws_mat(states,def,radius, hbaromegaz,hbaromegaperp,mass_p,Vwsdepth)
+            Vso = Vso_mat(states, def, radius_so, hbaromegaz,hbaromegaperp, mass_p, Vwsdepth, lambda_p)
+            Tkin = kin_en(states, hbaromegaz, hbaromegaperp)
+            Vc = coul_mat(states, def, radius, Z, mass_p, hbaromegaz, hbaromegaperp)
+
+            Egs = dot_product(gs,matmul(Vws,gs))
+            print*, "Ews", Egs
+            Egs = dot_product(gs,matmul(Vso,gs))
+            print*, "E VSO", Egs
+            Egs = dot_product(gs,matmul(Vc,gs))
+            print*, "E VC", Egs
+            Egs = dot_product(gs,matmul(Tkin,gs))
+            print*, "Kin E", Egs
+
+
+        end block
+
+        print*, "Calculating neutron hamiltonian..."
         H = H_neutrons(states, Z, A, def, hbaromegaz, hbaromegaperp)
         call diagonalize(E_n, V, H)
     end subroutine
@@ -765,7 +913,7 @@ module Hamiltonian
         radius_so = r0_so_p* A**(1.0_r_kind/3.0_r_kind)
         I = (A-2.0_r_kind*Z)/A
         Vwsdepth = V0_ws * (1.0_r_kind+kappa_ws*I)
-        write(*,*) "Wood-Saxon hamiltonian..."
+        write(*,'(A,F10.3,A)') "Wood-Saxon hamiltonian. V0 = ", Vwsdepth, " MeV"
         Vws = Vws_mat(states,def,radius, hbaromegaz,hbaromegaperp,mass_p,Vwsdepth)
         write(*,*) "Spin-orbit hamiltonian..."
         Vso = Vso_mat(states, def, radius_so, hbaromegaz,hbaromegaperp, mass_p, Vwsdepth, lambda_p)
@@ -773,6 +921,8 @@ module Hamiltonian
         Tkin = kin_en(states, hbaromegaz, hbaromegaperp)
         write(*,*) "Coulomb-potential hamiltonian..."
         Vc = coul_mat(states, def, radius, Z, mass_p, hbaromegaz, hbaromegaperp)
+
+
         H = Vc + Vws + Vso + Tkin
 
     end function
@@ -788,8 +938,11 @@ module Hamiltonian
         radius_so = r0_so_n* A**(1.0_r_kind/3.0_r_kind)
         I = (A-2.0_r_kind*Z)/A
         Vwsdepth = V0_ws * (1.0_r_kind-kappa_ws*I)
+        write(*,'(A,F10.3,A)') "Wood-Saxon hamiltonian. V0 = ", Vwsdepth, " MeV"
         Vws = Vws_mat(states,def,radius, hbaromegaz,hbaromegaperp,mass_n,Vwsdepth)
+        write(*,*) "Spin-orbit hamiltonian..."
         Vso = Vso_mat(states, def, radius_so, hbaromegaz,hbaromegaperp, mass_n, Vwsdepth, lambda_n)
+        write(*,*) "Kinetic-Energy hamiltonian..."  
         Tkin = kin_en(states, hbaromegaz, hbaromegaperp)
         H = Vws + Vso + Tkin
 
