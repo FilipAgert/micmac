@@ -8,13 +8,14 @@ program run_ho
     integer, parameter :: A = 240, Z=94
     type(an_ho_state), dimension(:), allocatable :: states
     type(betadef) :: def 
+    type(VC_pot) :: pot
     integer :: n, shelldegen, idx, numstates, j
     real(r_kind), dimension(:,:), allocatable :: Vws, Tkin, V, VC,Vso,Hn,Hp
     real(r_kind), dimension(:), allocatable :: E, E_n, E_p
     real(r_kind), parameter :: V0 = V0_ws
     real(r_kind), parameter ::r0 = r0_p
     real(r_kind), parameter :: kappa=kappa_ws
-    real(r_kind) :: hbaromega0, hbaromegaperp, hbaromegaz, rad,Vwsdepth
+    real(r_kind) :: hbaromega0, hbaromegaperp, hbaromegaz, rad,Vwsdepth,matelem
 
     real(r_kind), dimension(:,:), allocatable :: matr
 
@@ -52,8 +53,9 @@ program run_ho
     print*, "Neutrons:", E_n(1:5)
     print*, "Protons:" ,E_p(1:5)
     !neutrons
-    Vc = coul_mat(states, def, rad, Z,mass_p,hbaromegaz, hbaromegaperp)!coul_mat(states, def, rad, Z, mass_p, hbaromegaz, hbaromegaperp)
+    Vc = kin_en(states, hbaromegaz, hbaromegaperp)!coul_mat(states, def, rad, Z,mass_p,hbaromegaz, hbaromegaperp)!coul_mat(states, def, rad, Z, mass_p, hbaromegaz, hbaromegaperp)
     matr = Vc
+
 
     allocate(E(numstates), V(numstates, numstates))
     !call diagonalize(E,V,Hn)

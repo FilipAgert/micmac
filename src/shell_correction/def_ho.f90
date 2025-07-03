@@ -299,7 +299,7 @@ pure function kin_en(states, hbaromega_z, hbaromega_perp) !Nuclear Physics A A m
         nrr = sr%nr
         mlr = sr%ml
         msr = sr%ms
-        do col = row, size(states)
+        do col = 1, size(states)
             sc = states(col)
             nzc = sc%nz
             nrc = sc%nr
@@ -308,20 +308,31 @@ pure function kin_en(states, hbaromega_z, hbaromega_perp) !Nuclear Physics A A m
             npc = sc%nperp
             !kin_en(row, col) = kronecker(nrr, nrc) * kronecker(nzr, nzc) * kronecker(mlr, mlc) * &
             !0.5_r_kind * (hbaromega_perp * (npc+ 1) + hbaromega_z * (nzc + 1))
-            if(msr /= msc .or. mlr /= mlc) continue
+            ! if(msr /= msc .or. mlr /= mlc) then! .or. mlr /= mlc) then
+            !     cycle
 
+            ! endif
+           
+            ! if(nzr == nzc .and. nrc == nrr) then 
+            !     kin_en(row, col) = 0.5_r_kind * (hbaromega_perp * (npc + 1) + hbaromega_z*(nzc + 0.5))!diag
+            ! else if(nzr == nzc .and.  nrr == nrc + 1) then
+            !     kin_en(row, col) = 0.5_r_kind*hbaromega_perp*sqrt(real(nrr*(nrr+mlr)))
+            ! else if(nzr == nzc + 2 .and. nrc == nrr) then
+            !     kin_en(row, col) = - 0.25_r_kind*hbaromega_z*sqrt(real(nzr*(nzr-1)))
+            ! endif
             kin_en(row, col) = kin_en(row,col) + kronecker(nzr, nzc) * kronecker(nrc, nrr) * 0.5_r_kind * (hbaromega_perp * (npc + 1) + hbaromega_z*(nzc + 0.5))!diag
 
-            kin_en(row, col) = kin_en(row,col) + kronecker(nzr, nzc) * kronecker(nrc-1, nrr) * 0.5_r_kind*hbaromega_perp*sqrt(real(nrr*(nrr+mlr)))!r -1
+            kin_en(row, col) = kin_en(row,col) + kronecker(nzr, nzc) * kronecker(nrc+1, nrr) * 0.5_r_kind*hbaromega_perp*sqrt(real(nrr*(nrr+mlr)))!r -1
 
-            kin_en(row, col) = kin_en(row,col) - kronecker(nzr, nzc-2) * kronecker(nrc, nrr) * 0.25_r_kind*hbaromega_z*sqrt(real(nzr*(nzr-1)))!z - 2
+            kin_en(row, col) = kin_en(row,col) - kronecker(nzr, nzc+2) * kronecker(nrc, nrr) * 0.25_r_kind*hbaromega_z*sqrt(real(nzr*(nzr-1)))!z - 2
 
             kin_en(row, col) = kin_en(row,col) * kronecker(msr, msc) * kronecker(mlr, mlc)
         end do
     end do
+    
 
     do row = 1,size(states)
-        do col = 1, row
+        do col = row, size(states)
             kin_en(row,col) = kin_en(col,row)
         end do
     end do

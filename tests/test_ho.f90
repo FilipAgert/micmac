@@ -111,7 +111,7 @@ contains
 
 
         actual = vcoul%eval(0.0_r_kind, 0.0_r_kind)
-        expected = el_pot(0.0_r_kind, vcoul%radius, Z-1.0_r_kind)
+        expected = el_pot(0.0_r_kind, vcoul%radius, vcoul%charge_dens)
        
         pass = eq_r(expected, actual)  ! Replace with actual call: e.g. call micmac_result(actual)
         if (pass) then
@@ -120,9 +120,8 @@ contains
             n_failed = n_failed + 1
             print *, "FAIL: Vc r = 0", expected, "but got", actual
         end if
-
         actual = vcoul%eval(1.0_r_kind, 0.0_r_kind)
-        expected = el_pot(1.0_r_kind, vcoul%radius, Z-1.0_r_kind)
+        expected = el_pot(1.0_r_kind, vcoul%radius, vcoul%charge_dens)
         
         pass = eq_r(expected, actual, 1e-1_r_kind)  !
         if (pass) then
@@ -133,7 +132,7 @@ contains
         end if
 
         actual = vcoul%eval(3.0_r_kind, 0.0_r_kind)
-        expected = el_pot(3.0_r_kind, vcoul%radius, Z-1.0_r_kind)
+        expected = el_pot(3.0_r_kind, vcoul%radius, vcoul%charge_dens)
         pass = eq_r(expected, actual, 1e-4_r_kind)  !
         if (pass) then
             n_passed = n_passed + 1
@@ -214,14 +213,6 @@ contains
     end subroutine
 
 
-    function el_pot(r,rad,Q) !!electric potential of a uniformly charged sphere
-        real(r_kind) :: r, rad, Q, el_pot
-        if(r .le. rad) then
-            el_pot = Q*(3.0-(r/rad)**2)/(4.0*pi*epsilonzero*2.0*rad)
-        else
-            el_pot = Q/(4.0*pi*epsilonzero * r)
-        endif
-    end function
 
     subroutine test_deriv(n_passed, n_failed)
         real(r_kind) :: expected, actual, x

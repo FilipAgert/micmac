@@ -8,7 +8,7 @@ module Hamiltonian
 
     private
     public :: diagonalize, mat_elem_axsym, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels, H_protons, H_neutrons, get_levels
-    public :: S0, Sp, Sm, T0, Tplus, gnlp, gnl, Tminus, VSO_off_diag_elem_v2, VSO_off_diag_elem
+    public :: S0, Sp, Sm, T0, Tplus, gnlp, gnl, Tminus, VSO_off_diag_elem_v2, VSO_off_diag_elem, el_pot
     integer, parameter :: gauss_order =64
     real(r_kind), dimension(gauss_order) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
     logical :: precomputed_quad = .false.
@@ -176,6 +176,15 @@ module Hamiltonian
 
     end subroutine
 
+    pure real(r_kind) function el_pot(r,rad,charge_dens) !!electric potential of a uniformly charged sphere
+        real(r_kind),intent(in) :: r, rad, charge_dens
+        if(r .le. rad) then !!inside nucleus
+            el_pot = 4.0_r_kind*pi/2.0_r_kind * (rad**2 - r**2/3.0_r_kind)!4(3.0-(r/rad)**2)/(2.0*rad)
+        else!outside nucleus
+            el_pot = 4.0_r_kind*pi/3.0_r_kind * rad**3/r
+        endif
+        el_pot = el_pot * charge_dens
+    end function
 
     real(r_kind) function eval_vc(self,r, theta) !!axially symmetric. function of z and rho
         class(VC_pot), intent(in) :: self
@@ -183,6 +192,13 @@ module Hamiltonian
         !Do the integral int_V     dr^3/|r-r'| at the point r.
         integer :: iu, it, ix
         real(r_kind) :: u, t, x, int_theta, int_radius_ub, rolling, sintheta, sinacosu, cospipit, costheta
+
+        if(self%def%eq(spherical_def) )then !!if spherical, use analytical formula
+            eval_vc = el_pot(r, self%radius, self%charge_dens)
+            return
+        endif
+
+
         call precompute_quad()
 
         sintheta = sin(theta)
@@ -477,7 +493,7 @@ module Hamiltonian
         type(an_ho_state) :: s1, s2
         call precompute_quad()
 
-        kappa = -lambda*(hbarc/(2*mass))**2
+        kappa = lambda*(hbarc/(2*mass))**2
         ! print*, "kappa:", kappa
         !setup potential
         so_ws%def = def
@@ -870,32 +886,32 @@ module Hamiltonian
         call diagonalize(E_p, V, H)
 
 
-        block
-            real(r_kind), dimension(:,:), allocatable :: VSO, VC, VWS, Tkin
-            real(r_kind) :: radius, radius_so, Vwsdepth,I
-            allocate(VSO(numstates,numstates), VC(numstates,numstates), VWS(numstates,numstates), Tkin(numstates,numstates))
-            radius = r0_p * A**(1.0_r_kind/3.0_r_kind)
-            radius_so = r0_so_p* A**(1.0_r_kind/3.0_r_kind)
-            I = (A-2.0_r_kind*Z)/A
-            Vwsdepth = V0_ws * (1.0_r_kind+kappa_ws*I)
-            gs = V(:,1)
-            Egs = dot_product(gs,matmul(Hp,gs))
-            Vws = Vws_mat(states,def,radius, hbaromegaz,hbaromegaperp,mass_p,Vwsdepth)
-            Vso = Vso_mat(states, def, radius_so, hbaromegaz,hbaromegaperp, mass_p, Vwsdepth, lambda_p)
-            Tkin = kin_en(states, hbaromegaz, hbaromegaperp)
-            Vc = coul_mat(states, def, radius, Z, mass_p, hbaromegaz, hbaromegaperp)
+        ! block
+        !     real(r_kind), dimension(:,:), allocatable :: VSO, VC, VWS, Tkin
+        !     real(r_kind) :: radius, radius_so, Vwsdepth,I
+        !     allocate(VSO(numstates,numstates), VC(numstates,numstates), VWS(numstates,numstates), Tkin(numstates,numstates))
+        !     radius = r0_p * A**(1.0_r_kind/3.0_r_kind)
+        !     radius_so = r0_so_p* A**(1.0_r_kind/3.0_r_kind)
+        !     I = (A-2.0_r_kind*Z)/A
+        !     Vwsdepth = V0_ws * (1.0_r_kind+kappa_ws*I)
+        !     gs = V(:,1)
+        !     Egs = dot_product(gs,matmul(Hp,gs))
+        !     Vws = Vws_mat(states,def,radius, hbaromegaz,hbaromegaperp,mass_p,Vwsdepth)
+        !     Vso = Vso_mat(states, def, radius_so, hbaromegaz,hbaromegaperp, mass_p, Vwsdepth, lambda_p)
+        !     Tkin = kin_en(states, hbaromegaz, hbaromegaperp)
+        !     Vc = coul_mat(states, def, radius, Z, mass_p, hbaromegaz, hbaromegaperp)
 
-            Egs = dot_product(gs,matmul(Vws,gs))
-            print*, "Ews", Egs
-            Egs = dot_product(gs,matmul(Vso,gs))
-            print*, "E VSO", Egs
-            Egs = dot_product(gs,matmul(Vc,gs))
-            print*, "E VC", Egs
-            Egs = dot_product(gs,matmul(Tkin,gs))
-            print*, "Kin E", Egs
+        !     Egs = dot_product(gs,matmul(Vws,gs))
+        !     print*, "Ews", Egs
+        !     Egs = dot_product(gs,matmul(Vso,gs))
+        !     print*, "E VSO", Egs
+        !     Egs = dot_product(gs,matmul(Vc,gs))
+        !     print*, "E VC", Egs
+        !     Egs = dot_product(gs,matmul(Tkin,gs))
+        !     print*, "Kin E", Egs
 
 
-        end block
+        ! end block
 
         print*, "Calculating neutron hamiltonian..."
         H = H_neutrons(states, Z, A, def, hbaromegaz, hbaromegaperp)
