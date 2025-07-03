@@ -5,7 +5,7 @@ module def_ho
     implicit none
     private
     public :: an_ho_state, get_ho_states, getnumstates, betadef, getnumstatesupto, fac, Hn, lna, alpha
-    public :: kronecker, kin_en, gnl, gnlp, hmn, hmnp
+    public :: kronecker, kin_en, gnl, gnlp, hmn, hmnp, spherical_def
 
 
 
@@ -13,11 +13,14 @@ module def_ho
         real(r_kind) :: beta2, beta4
 
         contains
+        procedure :: eq => def_equals
         procedure :: omega_perp => compute_omega_perp
         procedure :: omega_z => compute_omega_Z
         procedure :: omega_def => compute_omega_def
 
     end type
+
+    type(betadef), parameter :: spherical_def = betadef(beta2=0, beta4=0)
 
 
 
@@ -31,7 +34,11 @@ module def_ho
     !! Computes single particle energies in a shell model potential.
     contains 
 
+pure logical function def_equals(self, other) result(equality)
+    class(betadef), intent(in) :: self,other
+    equality = self%beta2==other%beta2 .and. self%beta4 == other%beta4 
 
+end function
 pure function compute_omega_def(self, omega0) result(omegadef)
     class(betadef), intent(in) :: self
     real(r_kind), intent(in) :: omega0
