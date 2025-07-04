@@ -7,7 +7,7 @@ module Hamiltonian
 
 
     private
-    public :: diagonalize, mat_elem_axsym, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels, H_protons, H_neutrons, get_levels
+    public :: diagonalize, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels, H_protons, H_neutrons, get_levels
     public :: S0, Sp, Sm, T0, Tplus, gnlp, gnl, Tminus, VSO_off_diag_elem_v2, VSO_off_diag_elem, el_pot
     integer, parameter :: gauss_order =50
     real(r_kind), dimension(gauss_order) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
@@ -270,89 +270,6 @@ module Hamiltonian
     end function
 
 
-    real(r_kind) function mat_elem_axsym(state1, state2, pot, mass, omegaz, omegaperp) result(elem) 
-        implicit none
-        !!Calculates matrix element for central part of WS potential.
-        !!uses 64 points gaussian quadrature
-        type(an_ho_state), intent(in) :: state1, state2
-        class(potential)  :: pot
-        real(r_kind), intent(in) :: mass !!In units MeV/c^2
-        real(r_kind), intent(in) :: omegaperp, omegaz !!In units MeV/hbar
-        integer :: il, ih
-        real(r_kind) :: rolling, z, rho, alphaz, alpharho, u, x, factz, factrho, xpart, r, ang
-        !The phi integral turns out to be a kronecker delta * 2pi
-        if (state1%ml /= state2%ml) then 
-            elem = 0.0_r_kind
-            return
-        endif
-        
-        if(state1%ms /= state2%ms) then !Spin orthogonality
-            elem = 0.0_r_kind
-            return
-        endif
-        elem = 1.0_r_kind !!from phi part.
-
-        call precompute_quad()
-
-        
-        alphaz = alpha(mass, omegaz)
-        alpharho = alpha(mass,omegaperp)
-
-        !in factors, split up the square roots to avoid integer overflow
-        factz = 1.0_r_kind/(sqrt(pi * 2_i_kind**(state1%nz+state2%nz))*sqrt(real(fac(state1%nz),r_kind))*sqrt(real(fac(state2%nz),r_kind))) 
-        factrho = sqrt(real(fac(state1%nr),r_kind))*sqrt(real( fac(state2%nr),r_kind)) / (sqrt(real(fac(state1%nr+abs(state1%ml)),r_kind)) * sqrt(real(fac(state2%nr+abs(state2%ml)),r_kind)))
-
-        rolling = 0.0_r_kind
-        do il = 1, gauss_order
-            x = lag_x(il)
-            rho = sqrt(x)/alpharho
-            ! write(*,'(A,F10.3, A, F10.3)')"x:", x, " w:", lag_w(il)
-            ! pause
-            xpart = x ** ((abs(state1%ml)*1.0_r_kind + abs(state2%ml) * 1.0_r_kind)/2.0_r_kind) * lna(x,state1%nr,real(abs(state1%ml),r_kind)) * lna(x,state2%nr,real(abs(state2%ml),r_kind))
-            do ih = 1, gauss_order
-                u = her_x(ih)
-                z = u/alphaz
-                r = rad_cyl(rho, z)
-                ang = theta_cyl(rho,z)
-                ! write(*,'(A,F10.3,A,F10.3,A,F10.3)')"z:", z, ", r:", r, " ang(deg):", ang*180/pi
-                rolling = rolling + lag_w(il) * her_w(ih) * Hn(u,state1%nz) * Hn(u, state2%nz) & !Z part
-                        * xpart * pot%eval_pre(il, ih, r,ang)   !!Xpart and mixed part.
-                if(isnan(xpart) .or. isnan(rolling)) then
-                    write(*,*) "u, x", u, x
-                    write(*,*) lag_w(il),her_w(ih), Hn(u,state1%nz), Hn(u, state2%nz) & !Z part
-                    ,xpart , pot%eval_pre(il, ih, r,ang)
-
-                    pause
-                endif
-                if(rho < 1e-6_r_kind) then
-                    write(*,*) rho
-                    write(*,*) lag_w(il) * her_w(ih) * Hn(u,state1%nz) * Hn(u, state2%nz) & !Z part
-                    * xpart
-
-                endif
-
-                ! write(*,'(A,F10.3)')"Pot:", Ws(r,ang,def, Ws_depth, radius)
-                ! write(*,*)
-                ! if(rolling < -1e6) then
-                !     write(*,*) rolling, lag_w(il), her_w(ih), u, z, r, ang, xpart
-                !     pause 'press enter to continue'
-                ! endif
-            end do
-            ! pause
-        end do
-
-        
-        elem = elem * factz * factrho * rolling
-        if(isnan(elem)) then
-            write(*,*) "elem, z fact, rho fact, sum", elem, factz, factrho, rolling
-            write(*,*) "nr1, ml1, nr2, ml2", state1%nr, state1%ml, state2%nr, state2%ml
-            write(*,*) fac(state1%nr),fac(state2%nr),fac(state1%nr+state1%ml), fac(state2%nr+state2%ml)
-            write(*,*) real(fac(state1%nr)*fac(state2%nr),r_kind),(sqrt(real(fac(state1%nr+state1%ml),r_kind)) * sqrt(real(fac(state2%nr+state2%ml),r_kind)))
-            pause
-        endif
-
-    end function
-
     real(r_kind) pure elemental function theta_cyl(rho,z)  !!Coordinate transform from cylindrical coordinates to spherical theta
         real(r_kind), intent(in):: rho,z
         if (z < 0) then
@@ -401,6 +318,7 @@ module Hamiltonian
         type(VC_pot) :: cp
         real(r_kind), intent(in) :: omegaz, omegaperp !!Frequencies in units MeV/hbar
         real(r_kind), intent(in) :: mass!!Frequencies in units MeV/c^2
+        real(r_kind), dimension(0:max_n,0:max_n, gauss_order) :: Z_mat
         integer ::numstates, row, col
         type(an_ho_state) :: s1, s2
         call precompute_quad()
@@ -410,7 +328,7 @@ module Hamiltonian
         cp%def = def
         cp%radius = R0
         call cp%set_charge_dens(ZZ)
-
+        call comp_zmat(Z_mat, cp, alpha_z, alpha_perp)
 
         alpha_z = alpha(mass, omegaz)
         alpha_perp = alpha(mass, omegaperp)
@@ -422,7 +340,7 @@ module Hamiltonian
             s1 = states(row)
             do col = 1,row
                 s2 = states(col)
-                coul_mat(row,col) = pot_elem(s1,s2,cp, alpha_z, alpha_perp)
+                coul_mat(row,col) = pot_elem_zmatpre(s1,s2,Z_mat)!
 
             end do
         end do
@@ -450,7 +368,6 @@ module Hamiltonian
 
         do nz = 0, max_n !!compute main diagonals
             do nzp = nz, min(max_n, nz+1)
-                write(*,*) nz, nzp
                 do ii = 1, gauss_order
                     eta = lag_x(ii)
                     Zmat(nzp, nz, ii) = Z_matelem(eta, ii,nzp,nz,pot,alpha_z,alpha_perp)
@@ -459,18 +376,19 @@ module Hamiltonian
                 computed(nzp, nz) = .true.
             end do
         end do
+
         do nzp = 1,max_n !reflect off diagonal.
             nz = nzp -1
             Zmat(nzp, nz, :) = Zmat(nz, nzp, :)
             computed(nzp, nz) = .true.
         end do
-        write(str, '(A,I2,A)')'(',max_n+1,'F10.3)'
+        ! write(str, '(A,I2,A)')'(',max_n+1,'F10.3)'
 
-        do nz = 0, max_n
-            write(*, str) Zmat(nz,:,1)
-        end do
+        ! do nz = 0, max_n
+        !     write(*, str) Zmat(nz,:,1)
+        ! end do
 
-        !!compute off diagonals:
+        !!compute off diagonals using recurrence relation:
         do diag = 2, max_n
             do nz = diag, max_n
                 nzp = nz - diag
@@ -532,20 +450,18 @@ module Hamiltonian
             end do
 
         end do
-        do nz = 0, max_n
-            write(*, str) Zmat(nz,:,1)
-        end do
-        do nz = 0, max_n
+        ! do nz = 0, max_n
+        !     write(*, str) Zmat(nz,:,1)
+        ! end do
+        do nz = 0, max_n !reflect to lower triangular matrix.
             do nzp = nz, max_n
                 Zmat(nzp, nz,:) = Zmat(nz, nzp,:)
-
-
             end do
+        end do
 
-        end do
-        do nz = 0, max_n
-            write(*, str) Zmat(nz,:,1)
-        end do
+        ! do nz = 0, max_n
+        !     write(*, str) Zmat(nz,:,1)
+        ! end do
     end subroutine
 
     pure logical function within_bounds(val, lb, ub)
