@@ -196,12 +196,10 @@ contains
             print *, "FAIL: testst TpTm", expected, "but got", actual
         end if
 
-        expected = VSO_off_diag_elem_v2(s1, s2, pot, 1.0_r_kind, 1.0_r_kind)
-        actual =VSO_off_diag_elem_v2(s2, s1, pot, 1.0_r_kind, 1.0_r_kind)
-        val = VSO_off_diag_elem_v2(s2,s1,pot, 1.0_r_kind, 1.0_r_kind)
+        expected = VSO_off_diag_elem(s1, s2, pot, 1.0_r_kind, 1.0_r_kind)
+        actual =VSO_off_diag_elem_v2(s1, s2, pot, 1.0_r_kind, 1.0_r_kind)
         print*, expected
         print*, actual
-        print*, val
         pass = eq_r(expected, actual)  ! Replace with actual call: e.g. call micmac_result(actual)
         print*, "testing...", val, val2
         if (pass) then
