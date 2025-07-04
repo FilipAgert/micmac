@@ -527,6 +527,7 @@ module Hamiltonian
         real(r_kind), intent(in) :: mass!!Frequencies in units MeV/c^2
         real(r_kind), intent(in) ::lambda !!multiplicative factor
         real(r_kind) :: alpha_z, alpha_perp, kappa
+        real(r_kind), dimension(0:max_n, 0:max_n, gauss_order) :: T0
         type(WS_pot) :: so_ws
         integer ::numstates, row, col, l1, l2, ms1, ms2
         type(an_ho_state) :: s1, s2
@@ -545,7 +546,7 @@ module Hamiltonian
         numstates = size(states)
         Vso_mat = 0
         call omp_set_num_threads(num_threads)
-
+        T0 = T0_mat(So_ws, alpha_z, alpha_perp)
         !//$omp parallel shared(states,Vso_mat,alpha_z,alpha_perp,so_ws) private(s1,l1,ms1,s2,l2,ms2)
         !//$omp do schedule(static)
         do row = 1, numstates
@@ -558,7 +559,7 @@ module Hamiltonian
                 ms2 = s2%ms
                 
                 if(ms1 == ms2 .and. l1 == l2) then
-                    Vso_mat(row,col) = VSO_diag_elem(s1,s2,so_ws,alpha_z,alpha_perp)
+                    Vso_mat(row,col) = VSO_diag_elem(s1,s2,T0,alpha_perp)
                 elseif((ms1 == ms2 + 2 .and. l1 == l2 - 1) .or. (ms1 == ms2 - 2 .and. l1 == l2 + 1)) then
                     Vso_mat(row,col) = VSO_off_diag_elem_v2(s1,s2,so_ws,alpha_z,alpha_perp)
                 endif        
@@ -612,8 +613,17 @@ module Hamiltonian
 
     end function
 
-    real(r_kind) function T0(eta,eta_ii,s1,s2, SO_WS,alpha_z, alpha_perp)
-        type(an_ho_state), intent(in) :: s1, s2
+    function T0_mat(SO_WS, alpha_z, alpha_perp)
+        real(r_kind), dimension(0:max_n, 0:max_n, gauss_order) :: T0_mat
+        type(WS_pot), intent(in) :: SO_WS
+        real(r_kind), intent(in) :: alpha_z, alpha_perp
+        integer :: nz, nzp
+
+        call comp_zmat(T0_mat, SO_WS, alpha_z, alpha_perp)
+    end function
+
+    real(r_kind) function T0(eta,eta_ii,nz1,nz2, SO_WS,alpha_z, alpha_perp)
+        integer, intent(in) :: nz1, nz2
         real(r_kind), intent(in) :: eta, alpha_z, alpha_perp
         type(WS_pot), intent(in) :: SO_WS
         integer :: i
@@ -629,7 +639,7 @@ module Hamiltonian
             r = rad_cyl(rho, z)
 
 
-            T0 = T0 + her_w(i)*SO_WS%eval_pre(eta_ii,i,r,theta) * Hmn(zeta, s1%nz) * Hmn(zeta, s2%nz)
+            T0 = T0 + her_w(i)*SO_WS%eval_pre(eta_ii,i,r,theta) * Hmn(zeta, nz1) * Hmn(zeta, nz2)
         end do
     end function
 
@@ -827,10 +837,10 @@ module Hamiltonian
     end function
 
 
-    real(r_kind)  function VSO_diag_elem(s1,s2,SO_WS,alpha_z,alpha_perp) result(matelem)
+    real(r_kind)  function VSO_diag_elem(s1,s2,T0_mat,alpha_perp) result(matelem)
         type(an_ho_state), intent(in) :: s1, s2
-        real(r_kind), intent(in) :: alpha_z, alpha_perp
-        type(WS_pot), intent(in) :: SO_WS
+        real(r_kind), intent(in) :: alpha_perp
+        real(r_kind), dimension(0:max_n, 0:max_n, gauss_order) :: T0_mat
         integer :: ii
         real(r_kind) :: eta
         matelem = 0.0_r_kind
@@ -841,7 +851,7 @@ module Hamiltonian
 
         do ii = 1, gauss_order
             eta = lag_x(ii)
-            matelem = matelem + S0(eta, s1, s2) * T0(eta, ii,s1, s2, SO_WS, alpha_z, alpha_perp) * lag_w(ii) !== 2*lambda*sigma where sigma = +- 1/2
+            matelem = matelem + S0(eta, s1, s2) * T0_mat(s1%nz, s2%nz, ii)* lag_w(ii) !== 2*lambda*sigma where sigma = +- 1/2
             
         end do
         matelem = matelem * alpha_perp**2 * s1%ml * s1%ms
