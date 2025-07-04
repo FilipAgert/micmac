@@ -35,11 +35,12 @@ for energy in reversed(e_n):
 # Label sides
 ax.text(-0.5, 2, "Protons", ha='center', fontsize=10, color='red')
 ax.text(0.5, 2, "Neutrons", ha='center', fontsize=10, color='blue')
-
+ax.text(0,2, r"$^{240}$Pu", fontsize=12)
 # Format x-axis
 ax.set_xticks([])
 ax.set_xlim(-1, 1)
 ax.set_ylim(min(min(e_p),min(e_n))-5,0)
 
 plt.tight_layout()
+plt.savefig('scheme.png')
 plt.show()

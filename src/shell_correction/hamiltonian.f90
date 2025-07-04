@@ -9,9 +9,10 @@ module Hamiltonian
     private
     public :: diagonalize, mat_elem_axsym, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels, H_protons, H_neutrons, get_levels
     public :: S0, Sp, Sm, T0, Tplus, gnlp, gnl, Tminus, VSO_off_diag_elem_v2, VSO_off_diag_elem, el_pot
-    integer, parameter :: gauss_order =64
+    integer, parameter :: gauss_order =50
     real(r_kind), dimension(gauss_order) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
     logical :: precomputed_quad = .false.
+
 
 
     real(r_kind), parameter :: aws = 0.70_r_kind !! (fm) WS potential diffusiveness
@@ -434,6 +435,124 @@ module Hamiltonian
 
     end function
 
+    subroutine comp_zmat(Zmat, pot,alpha_z, alpha_perp) !!use the reccurence relations to compute the Zmat completely from the main diagonals
+        real(r_kind), dimension(0:max_n,0:max_n, gauss_order), intent(out) :: Zmat
+        logical, dimension(0:max_n, 0:max_n) :: computed
+        class(potential) :: pot
+        real(r_kind), intent(in) :: alpha_z, alpha_perp
+        real(r_kind) :: eta
+        integer :: nz, nzp, ii, diag
+        character(len=50) :: str
+
+        call precompute_quad()
+        Zmat = 0
+        computed = .false.
+
+        do nz = 0, max_n !!compute main diagonals
+            do nzp = nz, min(max_n, nz+1)
+                write(*,*) nz, nzp
+                do ii = 1, gauss_order
+                    eta = lag_x(ii)
+                    Zmat(nzp, nz, ii) = Z_matelem(eta, ii,nzp,nz,pot,alpha_z,alpha_perp)
+
+                end do
+                computed(nzp, nz) = .true.
+            end do
+        end do
+        do nzp = 1,max_n !reflect off diagonal.
+            nz = nzp -1
+            Zmat(nzp, nz, :) = Zmat(nz, nzp, :)
+            computed(nzp, nz) = .true.
+        end do
+        write(str, '(A,I2,A)')'(',max_n+1,'F10.3)'
+
+        do nz = 0, max_n
+            write(*, str) Zmat(nz,:,1)
+        end do
+
+        !!compute off diagonals:
+        do diag = 2, max_n
+            do nz = diag, max_n
+                nzp = nz - diag
+
+                if(computed(nzp, nz)) cycle
+
+
+                if(within_bounds(nzp + 1,0, max_n) .and. within_bounds(nz - 1, 0, max_n)) then
+                    if(.not. computed(nzp + 1, nz - 1)) then
+                        do ii = 1, gauss_order
+                            eta = lag_x(ii)
+                            Zmat(nzp + 1, nz - 1, ii) = Z_matelem(eta, ii,nzp + 1,nz - 1,pot,alpha_z,alpha_perp)
+                            
+                        end do
+                        computed(nzp + 1, nz - 1) = .true.
+                    endif
+
+
+                    Zmat(nzp, nz, :) = Zmat(nzp, nz, :) + Zmat(nzp+1, nz-1,:) * sqrt((nzp+1.0_r_kind)/nz)
+                    if(nz==0) then
+                        write(*,*) "ERR: divide by zero nz, nzp: ", nz, nzp
+                    endif
+                endif
+
+                if(within_bounds(nzp - 1,0, max_n) .and. within_bounds(nz - 1, 0, max_n)) then
+                    if(.not. computed(nzp - 1, nz - 1)) then
+                        do ii = 1, gauss_order
+                            eta = lag_x(ii)
+                            Zmat(nzp - 1, nz - 1, ii) = Z_matelem(eta, ii,nzp - 1,nz - 1,pot,alpha_z,alpha_perp)
+        
+                        end do
+                        computed(nzp - 1, nz - 1) = .true.
+                    endif
+
+
+                    Zmat(nzp, nz, :) = Zmat(nzp, nz, :) + Zmat(nzp-1, nz-1,:) * sqrt(real(nzp,r_kind)/nz)
+                    if(nz==0) then
+                        write(*,*) "ERR: divide by zero nz, nzp: ", nz, nzp
+                    endif
+                endif
+
+                if(within_bounds(nzp,0, max_n) .and. within_bounds(nz - 2, 0, max_n)) then
+                    if(.not. computed(nzp, nz - 2)) then
+                        do ii = 1, gauss_order
+                            eta = lag_x(ii)
+                            Zmat(nzp, nz - 2, ii) = Z_matelem(eta, ii,nzp,nz - 2,pot,alpha_z,alpha_perp)
+        
+                        end do
+                        computed(nzp, nz - 2) = .true.
+                    endif
+
+
+                    Zmat(nzp, nz, :) = Zmat(nzp, nz, :) - Zmat(nzp, nz-2,:) * sqrt((nz-1.0_r_kind)/nz)
+                    if(nz==0) then
+                        write(*,*) "ERR: divide by zero: nz, nzp: ", nz, nzp
+                    endif
+                endif
+                computed(nzp, nz) = .true.
+            end do
+
+        end do
+        do nz = 0, max_n
+            write(*, str) Zmat(nz,:,1)
+        end do
+        do nz = 0, max_n
+            do nzp = nz, max_n
+                Zmat(nzp, nz,:) = Zmat(nz, nzp,:)
+
+
+            end do
+
+        end do
+        do nz = 0, max_n
+            write(*, str) Zmat(nz,:,1)
+        end do
+    end subroutine
+
+    pure logical function within_bounds(val, lb, ub)
+        integer, intent(in) :: val, lb, ub
+        within_bounds = val .ge. lb .and. val .le. ub
+    end function
+
     function VWS_mat(states, def, R0, omegaz, omegaperp, mass, WS_depth)
         implicit none
         type(an_ho_state), intent(in) :: states(:)
@@ -444,6 +563,7 @@ module Hamiltonian
         real(r_kind), intent(in) :: omegaz, omegaperp !!Frequencies in units MeV/hbar
         real(r_kind), intent(in) :: mass!!Frequencies in units MeV/c^2
         real(r_kind) :: alpha_z, alpha_perp
+        real(r_kind), dimension(0:max_n,0:max_n, gauss_order) :: Z_mat
         type(WS_pot) :: VWS
         integer ::numstates, row, col
         type(an_ho_state) :: s1, s2
@@ -459,13 +579,16 @@ module Hamiltonian
         numstates = size(states)
         VWS_mat = 0
         call omp_set_num_threads(num_threads)
+        call comp_zmat(Z_mat, VWS, alpha_z, alpha_perp)
+
+
         !//$omp parallel shared(states,VWS,alpha_z,alpha_perp, VWS_mat) private(s1,s2)
         !//$omp do schedule(static)
         do row = 1, numstates
             s1 = states(row)
             do col = 1,row
                 s2 = states(col)
-                VWS_mat(row,col) = pot_elem(s1,s2,VWS, alpha_z, alpha_perp)
+                VWS_mat(row,col) = pot_elem_zmatpre(s1,s2,Z_mat)!
             end do
         end do
         !//$omp end do
@@ -736,13 +859,31 @@ module Hamiltonian
 
         do ii = 1, gauss_order
             eta = lag_x(ii)
-            matelem = matelem + lag_w(ii) * Z_matelem(eta, ii,s1,s2,pot,alpha_z,alpha_perp) * gnl(eta, s1%nr,s1%ml) * gnl(eta, s2%nr, s2%ml) 
+            matelem = matelem + lag_w(ii) * Z_matelem(eta, ii,s1%nz,s2%nz,pot,alpha_z,alpha_perp) * gnl(eta, s1%nr,s1%ml) * gnl(eta, s2%nr, s2%ml) 
         end do
 
     end function
 
-    real(r_kind) function Z_matelem(eta, eta_ii,s1,s2,pot,alpha_z, alpha_perp)
+    real(r_kind) function pot_elem_zmatpre(s1,s2,Zmat) result(matelem)
         type(an_ho_state), intent(in) :: s1, s2
+        real(r_kind), intent(in), dimension(0:max_N, 0:max_N, gauss_order) :: Zmat
+        integer :: ii
+        real(r_kind) :: eta
+        call precompute_quad()
+        matelem = 0.0_r_kind
+        if(s1%ml /= s2%ml .or. s1%ms /= s2%ms) then
+            return
+        endif
+
+        do ii = 1, gauss_order
+            eta = lag_x(ii)
+            matelem = matelem + lag_w(ii) * Zmat(s1%nz, s2%nz, ii) * gnl(eta, s1%nr,s1%ml) * gnl(eta, s2%nr, s2%ml) 
+        end do
+
+    end function
+
+    real(r_kind) function Z_matelem(eta, eta_ii,nz1,nz2,pot,alpha_z, alpha_perp)
+        integer, intent(in) :: nz1, nz2
         real(r_kind), intent(in) :: alpha_z, alpha_perp, eta
         class(potential), intent(in) :: pot
         integer :: ii
@@ -755,7 +896,7 @@ module Hamiltonian
             z = zeta_to_z(zeta,alpha_z)
             theta = theta_cyl(rho, z)
             r = rad_cyl(rho ,z)
-            Z_matelem = Z_matelem + her_w(ii) * Hmn(zeta, s1%nz) * Hmn(zeta, s2%nz)*pot%eval_pre(eta_ii,ii,r, theta) 
+            Z_matelem = Z_matelem + her_w(ii) * Hmn(zeta, nz1) * Hmn(zeta, nz2)*pot%eval_pre(eta_ii,ii,r, theta) 
             ! if(isnan(Z_matelem)) then
             !     print*, "eta:", eta
             !     print*, "eta_ii:", eta_ii

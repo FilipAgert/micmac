@@ -5,7 +5,7 @@ program run_ho
     implicit none
 
 
-    integer, parameter :: A = 240, Z=94
+    integer, parameter :: A = 208, Z=82
     type(an_ho_state), dimension(:), allocatable :: states
     type(betadef) :: def 
     type(VC_pot) :: pot

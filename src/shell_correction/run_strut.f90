@@ -16,7 +16,7 @@ program run_strut
     write(*,'(A,2I4)') "Running shell correction calculation for Z,A=",Z,A
     !e_shell_corr= get_shell(A-Z, levels, omega_0, .false.)
     e_shell_corr = shell_correction(Z, A, betadef(beta2=0.0_r_kind, beta4=0.0_r_kind), .true.)
-    write(*,*) "Shell correction energy:", e_shell_corr
+    write(*,'(A,F10.3,A)') "Shell correction energy:", e_shell_corr, " MeV"
     
     contains
 

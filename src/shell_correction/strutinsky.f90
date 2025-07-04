@@ -43,8 +43,11 @@ module strutinsky
         write(*,'(A)') "Calculating single particle energies..."
         call get_levels(E_p, E_n, Z, A, def, max_n)
         hbaromega0 = 41.0_r_kind * A**(-1.0_r_kind/3.0_r_kind) !!MeV
-        write(*,'(A)') "Calculating shell correction..."
+        write(*,*)
+        write(*,'(A)') "Calculating shell correction for protons..."
         E_sh_corr_p = get_shell(Z, E_p, hbaromega0, fix_gamma)
+        write(*,*)
+        write(*,'(A)') "Calculating shell correction for neutrons..."
         E_sh_corr_n = get_shell(A-Z, E_n, hbaromega0, fix_gamma)
         Eshellcorr = E_sh_corr_p + E_sh_corr_n
     end function
@@ -62,8 +65,7 @@ module strutinsky
         fermi_sh = fermi_level_sh(n_parts, levels)
         converged = .false.
         prev = 0.0_r_kind
-        write(*,'(A,F10.3)') "start gamma: ", gamma
-        write(*,'(A,F10.3)') "1.2 hbaromega0", 1.2*hbaromega0
+        write(*,'(A,F10.3)') "gamma = 1.2 hbaromega0:", 1.2*hbaromega0
 
         do while(.not. converged)
             fermi_smooth = fermi_level_osc(n_parts, levels, gamma)
@@ -84,7 +86,7 @@ module strutinsky
         end do
         E_shell = E_sh - smooth_e(levels, gamma, fermi_smooth)
         write(*,'(A,F10.3)') "Converged gamma: ", gamma
-        write(*,'(A,F10.3)') "Converged shell energy: ", E_shell
+        write(*,'(A,F10.3, A)') "Converged shell energy: ", E_shell, " MeV"
 
     end function
 
