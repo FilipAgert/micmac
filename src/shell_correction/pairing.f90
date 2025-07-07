@@ -51,11 +51,41 @@ module pairing
 
     end subroutine
 
-    subroutine inv_J(J) !!take inverse of jacobian
-        real(r_kind), intent(inout) :: J(2,2)
+    !!subroutine uses singular value decomposition to invert a square matrix
+    subroutine inverse_SVD(A,N)
+        real(r_kind), intent(inout) :: A(N,N)
+        integer, intent(in) :: N
 
-        
-    end subroutine
+        character(len=1) :: JOBU, JOBVT
+        integer :: LDA, LDU, LDVT, INFO, LWORK
+        integer :: i
+        real(r_kind) :: S(N)
+        real(r_kind) :: WORK(5*N), U(N,N), VT(N,N), SIGMAINV(N,N), V(N,N)
+        external :: dgesvd
+        JOBU = 'A'  ! Compute all left singular vectors
+        JOBVT = 'A' ! Compute all right singular vectors
+        LDA = N
+        LDVT = N
+        LDU = N
+        LWORK = 5*N
+        call dgesvd(JOBU, JOBVT, N, N, A, LDA, S, U, LDU, VT, LDVT, WORK, LWORK, INFO)
+        if(INFO /= 0) then
+            WRITE(*,*) "Error in SVD computation. INFO: ", INFO
+            stop
+        end if
+        SIGMAINV = 0.0_r_kind
+        do i = 1,N
+            SIGMAINV(i,i) = 1.0_r_kind/S(i)
+        end do
+        V = transpose(VT)
+
+        A = MATMUL(V, MATMUL(SIGMAINV, TRANSPOSE(U)))
+        ! WRITE(*,*) "SVD Inverse matrix A:"
+        ! do i = 1, N
+        !     WRITE(*,*) A(i,:)
+        ! end do
+
+    end subroutine inverse_SVD
 
 
 end module pairing
