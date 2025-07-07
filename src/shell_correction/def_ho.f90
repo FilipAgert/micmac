@@ -368,7 +368,7 @@ pure real(r_kind) elemental function Hmn(x,n) !!modified hermite polynomial
     if(n < 0) then
         Hmn = 0
     else
-        Hmn = Hn(x,n)/sqrt(real(2**n * fac(n) * sqrt(pi),r_kind))
+        Hmn = Hn(x,n)/(sqrt(real(2_i_kind**n * sqrt(pi))) * sqrt(real(fac(n),r_kind)))
     endif
 end function
 

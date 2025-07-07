@@ -12,7 +12,7 @@ module strutinsky
 
     public :: shell_correction, fermi_level_osc, fermi_level_sh, Peven, get_shell
     logical :: precomputed_quad = .false.
-    integer, parameter :: gauss_order = 99
+    integer, parameter :: gauss_order = 90
     real(r_kind), dimension(gauss_order) :: lag_x, lag_w, leg_x, leg_w
     contains
 
@@ -43,15 +43,35 @@ module strutinsky
         write(*,'(A)') "Calculating single particle energies..."
         call get_levels(E_p, E_n, Z, A, def, max_n)
         hbaromega0 = 41.0_r_kind * A**(-1.0_r_kind/3.0_r_kind) !!MeV
+        call purge_levels(E_p, 3.2*hbaromega0, Z)
+        call purge_levels(E_n, 3.2*hbaromega0, A-Z)
+
         write(*,*)
         write(*,'(A)') "Calculating shell correction for protons..."
         E_sh_corr_p = get_shell(Z, E_p, hbaromega0, fix_gamma)
+
         write(*,*)
         write(*,'(A)') "Calculating shell correction for neutrons..."
         E_sh_corr_n = get_shell(A-Z, E_n, hbaromega0, fix_gamma)
         Eshellcorr = E_sh_corr_p + E_sh_corr_n
     end function
 
+    subroutine purge_levels(levels, lim, N) !!purge levels lim above fermi level
+        real(r_kind), dimension(:), allocatable, intent(inout) :: levels
+        real(r_kind), dimension(size(levels)) :: temp
+        real(r_kind), intent(in) :: lim
+        integer, intent(in) :: N !!particle number
+        real(r_kind) :: fermi
+        integer :: ii
+        fermi = fermi_level_sh(N, levels)
+        
+        ii = maxloc(levels, 1, levels .le. fermi+lim) !!find index of largest energy which is less than fermi level + limit
+
+        temp(1:ii) = levels(1:ii)
+        deallocate(levels)
+        allocate(levels(ii))
+        levels(1:ii) = temp(1:ii)
+    end subroutine
     real(r_kind) function get_shell(n_parts, levels, hbaromega0, fix_gamma) result(E_shell)
         integer, intent(in)::n_parts
         real(r_kind), intent(in) :: hbaromega0
@@ -79,9 +99,15 @@ module strutinsky
 
             if(d2f .eq. 0.0_r_kind .or. abs(df/d2f) <1e-5 ) then
                 converged = .true.
-
-            end if
+                exit
+            endif
             gamma = gamma - df/d2f
+            
+
+            ! if(gamma < 0.8 * hbaromega0 .or. gamma > 3*hbaromega0) then
+            !     write(*,*) "ERR: Gamma outside bounds:", gamma/hbaromega0 , " /hbaromega" 
+            !     gamma = hbaromega0
+            ! endif
             E_shell = E_sh - smooth_e(levels, gamma, fermi_smooth)
         end do
         E_shell = E_sh - smooth_e(levels, gamma, fermi_smooth)
@@ -125,6 +151,7 @@ module strutinsky
         F = 0.0_r_kind
         do ll = 1, numlevels
             E = levels(ll)
+            !if(E > 0) cycle
             t = (fermi - E)/gamma
             do ii = 1, gauss_order
                 u = lag_x(ii)
@@ -182,14 +209,33 @@ module strutinsky
         real(r_kind), dimension(:), intent(in) :: levels
         real(r_kind), intent(in) :: gamma
         integer, intent(in) :: num_parts
-        real(r_kind) :: Ef_sh, lb, ub, arg, val
+        real(r_kind) :: Ef_sh, lb, ub, arg, val, flb, fub
         integer :: status
         real(r_kind), parameter :: tol = 1e-3
 
 
         Ef_sh = fermi_level_sh(num_parts, levels)
-        lb = Ef_sh - gamma
-        ub = Ef_sh + gamma
+        lb = Ef_sh - 1.2*gamma
+        ub = Ef_sh + 2*gamma
+        flb = 1
+        lb = Ef_sh
+        do while(flb > 0)
+            lb = lb - gamma
+            flb = sum(get_occ_numbers(levels, gamma, lb),1) - num_parts 
+        end do
+        fub = -1
+        ub = Ef_sh
+        do while(fub < 0)
+            ub = ub + gamma
+            fub = sum(get_occ_numbers(levels, gamma, ub),1) - num_parts 
+        end do
+
+
+        if( flb * fub > 0.0_r_kind) then
+            write(*,'(A)') "Error: Same signs of lb and ub"
+            write(*,'(A,2F10.3)') "F(lb), F(ub) : ", flb, fub
+            call exit
+        endif
 
         status = 0
         call zero_rc(lb,ub,tol,arg,status,val) !Find occupation number by varying fermi level. Finds zero of sum(occ_nbr) - num_particles 
@@ -201,9 +247,9 @@ module strutinsky
             ! print*, "val: ", val, "fermi: ", arg
         end do
         fermi_osc = arg
-        ! write(*,*) "Fermi level smooth: ", fermi_osc
+        write(*,*) "Fermi level smooth: ", fermi_osc
         ! write(*,*) "Fermi level shell: ", Ef_sh
-        ! write(*,*) "Occupation number:", sum(get_occ_numbers(num_parts, levels, gamma, fermi_osc),1)
+        ! write(*,*) "Occupation number:", sum(get_occ_numbers(levels, gamma, fermi_osc),1)
         ! write(*,*) "Num particles:", num_parts
     end function
     

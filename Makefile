@@ -44,14 +44,15 @@ $(DOBJ)/mass_table.o: $(DSRC)/mass_table.f90 $(DOBJ)/constants.o
 $(DOBJ)/test_micmac.o: $(DOBJ)/micmac.o $(DOBJ)/constants.o $(DOBJ)/test_utils.o
 $(DOBJ)/run_tests.o: $(DOBJ)/test_micmac.o $(DOBJ)/test_utils.o $(DOBJ)/test_fitting.o $(DOBJ)/test_optimise.o
 $(DOBJ)/runfit.o: $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o $(DOBJ)/fitting.o 
-$(DOBJ)/test_fitting.o: $(DOBJ)/fitting.o
-$(DOBJ)/run_fissbarr.o: $(DSRC)/run_fissbarr.f90 $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/fitting.o
-$(DOBJ)/table_writer.o: $(DSRC)/table_writer.f90 $(DOBJ)/constants.o $(DOBJ)/micmac.o
+$(DOBJ)/test_fitting.o: $(DOBJ)/fitting.o $(DOBJ)/constants.o
+$(DOBJ)/run_fissbarr.o: $(DSRC)/run_fissbarr.f90 $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/fitting.o $(DOBJ)/constants.o
+$(DOBJ)/table_writer.o: $(DSRC)/table_writer.f90 $(DOBJ)/constants.o $(DOBJ)/micmac.o 
 $(DOBJ)/test_ho.o: $(DTEST)/test_ho.f90 $(DOBJ)/def_ho.o $(DOBJ)/constants.o
 $(DOBJ)/def_ho.o: $(DSRC)/$(DSH)/def_ho.f90 $(DOBJ)/constants.o $(DOBJ)/optimise.o $(DOBJ)/quadrule.o $(DOBJ)/micmac.o
 $(DOBJ)/run_ho.o: $(DSRC)/$(DSH)/run_ho.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/hamiltonian.o
 $(DOBJ)/run_strut.o: $(DSRC)/$(DSH)/run_strut.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/hamiltonian.o $(DOBJ)/strutinsky.o $(DOBJ)/brent.o
 $(DOBJ)/strutinsky.o: $(DSRC)/$(DSH)/strutinsky.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/hamiltonian.o $(DOBJ)/brent.o
+$(DOBJ)/hamiltonian.o: $(DSRC)/$(DSH)/hamiltonian.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/optimise.o $(DOBJ)/quadrule.o
 # Ensure required directories exist
 $(DOBJ) $(DEXE) $(DMOD) $(DTEST):
 	mkdir -p $@

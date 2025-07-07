@@ -328,11 +328,13 @@ module Hamiltonian
         cp%def = def
         cp%radius = R0
         call cp%set_charge_dens(ZZ)
-        call comp_zmat(Z_mat, cp, alpha_z, alpha_perp)
-
+        
+        Z_mat = 0
+        ! printflag = .true.
         alpha_z = alpha(mass, omegaz)
         alpha_perp = alpha(mass, omegaperp)
 
+        call comp_zmat(Z_mat, cp, alpha_z, alpha_perp)
 
         numstates = size(states)
         coul_mat = 0
@@ -350,6 +352,10 @@ module Hamiltonian
                 coul_mat(row, col) = coul_mat(col, row)
             end do
         end do
+
+        if(hasnan2d(coul_mat)) then
+            write(*,*) "Error: Coul Matrix has a NaN"
+        endif
 
     end function
 
@@ -383,7 +389,7 @@ module Hamiltonian
             computed(nzp, nz) = .true.
         end do
         ! write(str, '(A,I2,A)')'(',max_n+1,'F10.3)'
-
+        ! write(*,*) "After main diagonals:"
         ! do nz = 0, max_n
         !     write(*, str) Zmat(nz,:,1)
         ! end do
@@ -450,6 +456,7 @@ module Hamiltonian
             end do
 
         end do
+        ! write(*,*) "after recurrence:"
         ! do nz = 0, max_n
         !     write(*, str) Zmat(nz,:,1)
         ! end do
@@ -458,10 +465,14 @@ module Hamiltonian
                 Zmat(nzp, nz,:) = Zmat(nz, nzp,:)
             end do
         end do
-
+        ! write(*,*) "after reflection:"
         ! do nz = 0, max_n
         !     write(*, str) Zmat(nz,:,1)
         ! end do
+
+        if(hasnan3d(Zmat)) then
+            write(*,*) "Error: Zmat Matrix has a NaN"
+        endif
     end subroutine
 
     pure logical function within_bounds(val, lb, ub)
@@ -482,6 +493,7 @@ module Hamiltonian
         real(r_kind), dimension(0:max_n,0:max_n, gauss_order) :: Z_mat
         type(WS_pot) :: VWS
         integer ::numstates, row, col
+        logical :: hasnan
         type(an_ho_state) :: s1, s2
         call precompute_quad()
 
@@ -505,6 +517,9 @@ module Hamiltonian
             do col = 1,row
                 s2 = states(col)
                 VWS_mat(row,col) = pot_elem_zmatpre(s1,s2,Z_mat)!
+                ! if(isnan(VWS_mat(row,col))) then
+                !     write(*,*) "error: ", row, col, " is nan"
+                ! endif
             end do
         end do
         !//$omp end do
@@ -512,8 +527,16 @@ module Hamiltonian
         do row = 1,numstates
             do col = row +1, numstates
                 VWS_mat(row, col) = VWS_mat(col, row)
+                ! if(isnan(VWS_mat(row,col))) then
+                !     write(*,*) "error: ", row, col, " is nan"
+                ! endif
             end do
         end do
+        call write_mat_to_file(VWS_mat)
+        call nanloc(hasnan, row, col, VWS_mat)
+        if(hasnan) then
+            write(*,*) "Error: VWS Matrix has a NaN at row, col:", row, col
+        endif
     end function
 
     function Vso_mat(states, def, R0, omegaz, omegaperp, mass, WS_depth, lambda)
@@ -529,6 +552,7 @@ module Hamiltonian
         real(r_kind) :: alpha_z, alpha_perp, kappa
         real(r_kind), dimension(0:max_n, 0:max_n, gauss_order) :: T0, W0
         type(WS_pot) :: so_ws
+        logical :: hasnan
         integer ::numstates, row, col, l1, l2, ms1, ms2
         type(an_ho_state) :: s1, s2
         call precompute_quad()
@@ -561,9 +585,18 @@ module Hamiltonian
                 
                 if(ms1 == ms2 .and. l1 == l2) then
                     Vso_mat(row,col) = VSO_diag_elem(s1,s2,T0,alpha_perp)
+                    ! if(isnan(Vso_mat(row,col))) then
+                    !     write(*,*) "diagonal VSO element is not a number:"
+                    !     call exit 
+                    ! endif
                 elseif((ms1 == ms2 + 2 .and. l1 == l2 - 1) .or. (ms1 == ms2 - 2 .and. l1 == l2 + 1)) then
                     Vso_mat(row,col) = VSO_off_diag_elem_v2(s1,s2,W0,alpha_z,alpha_perp)
-                endif        
+                    ! if(isnan(Vso_mat(row,col))) then
+                    !     write(*,*) "Off diagonal VSO element is not a number:"
+                    !     call exit 
+                    ! endif
+                endif
+
             end do
         end do
         !//$omp end do
@@ -574,6 +607,11 @@ module Hamiltonian
             end do
         end do
         Vso_mat = Vso_mat*kappa
+        !call write_mat_to_file(Vso_mat)
+        call nanloc(hasnan, row, col, Vso_mat)
+        if(hasnan) then
+            write(*,*) "Error: VSO Matrix has a NaN at row, col:", row, col
+        endif
     end function
 
 
@@ -623,6 +661,7 @@ module Hamiltonian
     end function
 
     function W0_mat(SO_WS, alpha_z, alpha_perp) !!int tilde(h) h S
+        !!TOdo: use recurence relation to not have to compute entire matrix
         real(r_kind), dimension(0:max_n, 0:max_n, gauss_order) :: W0_mat
         type(WS_pot), intent(in) :: SO_WS
         real(r_kind), intent(in) :: alpha_z, alpha_perp
@@ -637,11 +676,6 @@ module Hamiltonian
                     W0_mat(nzp, nz, ii) = W_matelem(eta, ii, nzp, nz, SO_WS, alpha_z, alpha_perp)
                 end do
             end do
-        end do
-        
-        write(*,*) "create W0_mat"
-        do nz = 0,max_n
-            write(*,'(11F10.3)') W0_mat(nz,:,1)
         end do
 
 
@@ -731,7 +765,11 @@ module Hamiltonian
             I1 = I1 + term
         end do
         I1 = I1 * alpha_perp*alpha_z
-
+        ! if(isnan(I1)) then
+        !     write(*,*) "ERR: I1 is not a number"
+        !     write(*,*) "W0:", W0(s1%nz, s2%nz, 1), W0(s2%nz, s1%nz, 1)
+        !     write(*,*) "gnl: ",gnl(eta,s1%nr, s1%ml), gnl(eta, s2%nr,s2%ml)
+        ! endif
     end function
 
     real(r_kind) function I2(s1,s2, W0,alpha_z, alpha_perp)
@@ -804,12 +842,25 @@ module Hamiltonian
         real(r_kind) :: zeta, z, rho, r, theta
         Z_matelem = 0.0_r_kind
         rho = eta_to_rho(eta, alpha_perp)
+
         do ii = 1, gauss_order
             zeta = her_x(ii)
             z = zeta_to_z(zeta,alpha_z)
             theta = theta_cyl(rho, z)
             r = rad_cyl(rho ,z)
+     
+            ! if(printflag) then
+            !     write(*,'(A, 2F10.3)') 'z, rho', z, rho
+            !     write(*,'(A, 2F10.3)') 'eta, zeta', eta, zeta
+            !     write(*,'(A, 2F10.3)') 'alpha_z, alpha_perp', alpha_z, alpha_perp
+            !     write(*,'(A, 2F10.3)') 'R, theta', r, theta
+            !     write(*,'(A,F10.3,F10.3)'),"Eval vs preeval: " ,(pot%eval(r,theta)), pot%eval_pre(eta_ii, ii, r, theta)
+            ! endif
+
             Z_matelem = Z_matelem + her_w(ii) * Hmn(zeta, nz1) * Hmn(zeta, nz2)*pot%eval_pre(eta_ii,ii,r, theta) 
+            ! if(printflag) then
+            !     write(*,'(F10.3)'),(pot%eval(0.0_r_kind,0.0_r_kind))
+            ! endif
 
         end do
     end function
@@ -829,8 +880,15 @@ module Hamiltonian
             theta = theta_cyl(rho, z)
             r = rad_cyl(rho ,z)
             W_matelem = W_matelem + her_w(ii) * Hmnp(zeta, nz1) * Hmn(zeta, nz2)*pot%eval_pre(eta_ii,ii,r, theta) 
-
+            ! if(isnan(W_matelem)) then
+            !     print*, "Err Wmatelem is Nan"
+            !     print*, "hmnp:", Hmnp(zeta, nz1)
+            !     print*,  "Hmn:", Hmn(zeta, nz2)
+            !     print*, "pot:", pot%eval_pre(eta_ii,ii,r, theta) 
+            !     call exit 
+            ! endif
         end do
+
     end function
 
 
@@ -946,6 +1004,7 @@ module Hamiltonian
         end do
         print*, "Calculating proton hamiltonian..."
         H = H_protons(states, Z, A, def, hbaromegaz, hbaromegaperp)
+
         Hp = H
         call diagonalize(E_p, V, H)
 
@@ -997,9 +1056,9 @@ module Hamiltonian
         Vws = Vws_mat(states,def,radius, hbaromegaz,hbaromegaperp,mass_p,Vwsdepth)
         write(*,*) "Spin-orbit hamiltonian..."
         Vso = Vso_mat(states, def, radius_so, hbaromegaz,hbaromegaperp, mass_p, Vwsdepth, lambda_p)
-        write(*,*) "Kinetic-Energy hamiltonian..."  
+        write(*,*) "Kinetic-Energy..."  
         Tkin = kin_en(states, hbaromegaz, hbaromegaperp)
-        write(*,*) "Coulomb-potential hamiltonian..."
+        write(*,*) "Coulomb-potential..."
         Vc = coul_mat(states, def, radius, Z, mass_p, hbaromegaz, hbaromegaperp)
 
 
@@ -1027,4 +1086,67 @@ module Hamiltonian
         H = Vws + Vso + Tkin
 
     end function
+
+    subroutine write_mat_to_file(mat)
+        real(r_kind), dimension(:,:) :: mat
+        integer :: ii
+        character(len=100) :: str
+
+        write(str, '(A,I5,A)') '(', size(mat,2), 'F10.3)'
+        open(5, file='data/out/matout.dat')
+        do ii = 1, size(mat,1)
+            write(5, str) mat(ii,:)
+        end do
+
+    end subroutine
+
+    subroutine nanloc(nan, row,col,mat)
+
+        real(r_kind), dimension(:,:) :: mat
+        integer :: row, col
+        logical :: nan
+        integer :: ii, jj
+        nan = .false.
+        do ii = 1, size(mat,1)
+            do jj = 1, size(mat,2)
+                ! if (isnan(mat(ii,jj)))then
+                !     row = ii
+                !     col = jj
+                !     nan = .true.
+                !     return
+                ! endif
+            end do
+        end do
+
+    end subroutine
+
+    logical function hasnan2d(mat)
+        real(r_kind), dimension(:,:) :: mat
+
+        integer :: ii, jj
+        hasnan2d = .false.
+        do ii = 1, size(mat,1)
+            do jj = 1, size(mat,2)
+                ! if (isnan(mat(ii,jj)))then
+                !     hasnan2d = .true.
+                !     return
+                ! endif
+            end do
+        end do
+
+    end function
+
+    logical function hasnan3d(mat)
+    real(r_kind), dimension(:,:,:) :: mat
+
+    integer :: ii, jj
+    hasnan3d = .false.
+    do ii = 1, size(mat,1)
+        if(hasnan2d(mat(ii,:,:))) then
+            hasnan3d = .true.
+            return
+        endif
+    end do
+
+end function
 end module

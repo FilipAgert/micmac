@@ -50,20 +50,28 @@ program run_ho
     !Hn = H_neutrons(states, Z, A, def, hbaromegaz, hbaromegaperp)
     allocate(E_p(numstates), E_n(numstates))
     call get_levels(E_p, E_n,Z,A,def, max_n)
-    print*, "Neutrons:", E_n(1:5)
-    print*, "Protons:" ,E_p(1:5)
+    ! print*, "Neutrons:", E_n(1:5)
+    ! print*, "Protons:" ,E_p(1:5)
     !neutrons
-    Vc = kin_en(states, hbaromegaz, hbaromegaperp)!coul_mat(states, def, rad, Z,mass_p,hbaromegaz, hbaromegaperp)!coul_mat(states, def, rad, Z, mass_p, hbaromegaz, hbaromegaperp)
+    !Vc =coul_mat(states, def, rad, Z,mass_p,hbaromegaz, hbaromegaperp)!coul_mat(states, def, rad, Z, mass_p, hbaromegaz, hbaromegaperp)
     matr = Vc
 
 
     allocate(E(numstates), V(numstates, numstates))
     !call diagonalize(E,V,Hn)
-    print *, "Protons"
+    ! print *, "Protons"
     call print_levels(E_p,V)
 
     print*, "neutrons"
     call print_levels(E_n,V)
+
+    open(4, file="data/out/levels.dat")
+    write(4,'(I3,A,I3,A)') Z, ",", A, ", = Z,A"
+    do n = 1, numstates
+        write(4, '(F10.5,A,F10.5)') E_p(n), "," , E_n(n)
+    end do
+    close(4)
+
 
 
     open(3,file="data/out/mat.dat")
