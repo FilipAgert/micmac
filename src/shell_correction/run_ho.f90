@@ -19,7 +19,7 @@ program run_ho
 
     real(r_kind), dimension(:,:), allocatable :: matr
 
-    def = betadef(beta2 = 0, beta4=0)
+    def = betadef(beta2 = 0.0, beta4=0.0)
     hbaromega0 = 41.0_r_kind * A**(-1.0_r_kind/3.0_r_kind) !!MeV
     hbaromegaperp = def%omega_perp(hbaromega0) !! omega = Mev/hbar
     hbaromegaz = def%omega_z(hbaromega0)

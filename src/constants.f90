@@ -58,7 +58,6 @@ module constants
 
 
     integer, parameter :: max_n =19
-
     logical :: printflag = .false.
 
 

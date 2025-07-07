@@ -13,7 +13,6 @@ FISS_EXEN = fiss_bar.exe
 TAB_EXEN = write_tab.exe
 HO_EXEN = ho.exe
 ST_EXEN = strut.exe
-PAIR_EXEN = pair.exe
 
 # Flags
 LIBS = -llapack -lblas -fopenmp
@@ -22,7 +21,7 @@ CC = gfortran $(FLAGS) -J$(DMOD) $(LIBS) -L$(DLIB) -c
 CCL = gfortran -o
 
 # Objects
-OBJECTS = $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o $(DOBJ)/fitting.o $(DOBJ)/optimise.o $(DOBJ)/def_ho.o $(DOBJ)/quadrule.o $(DOBJ)/hamiltonian.o $(DOBJ)/strutinsky.o $(DOBJ)/brent.o
+OBJECTS = $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o $(DOBJ)/fitting.o $(DOBJ)/optimise.o $(DOBJ)/def_ho.o $(DOBJ)/quadrule.o $(DOBJ)/hamiltonian.o $(DOBJ)/strutinsky.o $(DOBJ)/brent.o $(DOBJ)/pairing.o
 TEST_OBJECTS = $(DOBJ)/test_micmac.o $(DOBJ)/test_utils.o $(DOBJ)/test_fitting.o $(DOBJ)/test_optimise.o $(DOBJ)/test_ho.o
 MAIN_OBJ = $(DOBJ)/main.o
 TEST_OBJ = $(DOBJ)/run_tests.o
@@ -30,7 +29,6 @@ FIT_OBJ = $(DOBJ)/runfit.o
 FISS_OBJ = $(DOBJ)/run_fissbarr.o
 HO_OBJ = $(DOBJ)/run_ho.o
 TAB_OBJ = $(DOBJ)/table_writer.o
-PAIR_OBJ = $(DOBJ)/pairing.o
 ST_OBJ =$(DOBJ)/run_strut.o
 VPATH = $(DSRC):$(DTEST):$(DSRC)/$(DSH)
 
@@ -53,9 +51,9 @@ $(DOBJ)/test_ho.o: $(DTEST)/test_ho.f90 $(DOBJ)/def_ho.o $(DOBJ)/constants.o
 $(DOBJ)/def_ho.o: $(DSRC)/$(DSH)/def_ho.f90 $(DOBJ)/constants.o $(DOBJ)/optimise.o $(DOBJ)/quadrule.o $(DOBJ)/micmac.o
 $(DOBJ)/run_ho.o: $(DSRC)/$(DSH)/run_ho.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/hamiltonian.o
 $(DOBJ)/run_strut.o: $(DSRC)/$(DSH)/run_strut.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/hamiltonian.o $(DOBJ)/strutinsky.o $(DOBJ)/brent.o
-$(DOBJ)/strutinsky.o: $(DSRC)/$(DSH)/strutinsky.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/hamiltonian.o $(DOBJ)/brent.o
+$(DOBJ)/strutinsky.o: $(DSRC)/$(DSH)/strutinsky.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/hamiltonian.o $(DOBJ)/brent.o $(DOBJ)/pairing.o
 $(DOBJ)/hamiltonian.o: $(DSRC)/$(DSH)/hamiltonian.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/optimise.o $(DOBJ)/quadrule.o
-$(DOBJ)/pairing.o: $(DSRC)/$(DSH)/pairing.f90 $(DOBJ)/constants.o $(DOBJ)/strutinsky.o 
+$(DOBJ)/pairing.o: $(DSRC)/$(DSH)/pairing.f90 $(DOBJ)/constants.o
 # Ensure required directories exist
 $(DOBJ) $(DEXE) $(DMOD) $(DTEST):
 	mkdir -p $@
@@ -103,7 +101,6 @@ ho: $(DEXE)/$(HO_EXEN)
 
 st: $(DEXE)/$(ST_EXEN)
 
-pair: $(DEXE)/$(PAIR_EXEN)
 
 run: $(DEXE)/$(EXEN)
 	$(DEXE)/$(EXEN)
@@ -126,8 +123,6 @@ runho: ho
 runst: st
 	$(DEXE)/$(ST_EXEN)
 
-runpair: pair
-	$(DEXE)/$(PAIR_EXEN)
 
 clean:
 	rm -rf $(DOBJ)/*.o $(DEXE)/*.exe $(DMOD)/*.mod

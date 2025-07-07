@@ -983,13 +983,14 @@ module Hamiltonian
         real(r_kind),allocatable, intent(out) :: E_P(:), E_N(:)
         integer, intent(in) :: Z, A, max_N
         type(betadef), intent(in) :: def
-        integer :: i, numstates, idx, shelldegen, n
-        real(r_kind), allocatable :: V(:,:), H(:,:), Vws(:,:), Tkin(:,:), Vso(:,:), Vc(:,:), gs(:), Hp(:,:)
+        integer :: numstates, idx, shelldegen, n,ii
+        real(r_kind), allocatable :: Vn(:,:), H(:,:), Vws(:,:), Tkin(:,:), Vso(:,:), Vc(:,:), gs(:), Hp(:,:), Hn(:,:), Vp(:,:)
         type(an_ho_state), allocatable :: states(:)
         real(r_kind) :: hbaromega0, hbaromegaz, hbaromegaperp, Egs
         numstates = getnumstatesupto(max_n)
-        allocate(E_p(numstates),E_n(numstates), V(numstates,numstates), states(numstates), H(numstates,numstates), gs(numstates), Hp(numstates,numstates))
-        V = 0
+        allocate(E_p(numstates),E_n(numstates), Vn(numstates,numstates), Vp(numstates,numstates),states(numstates), Hn(numstates,numstates), gs(numstates), Hp(numstates,numstates))
+        Vn = 0
+        Vp = 0
         E_p = 0
         E_n =0
         hbaromega0 = 41.0_r_kind * A**(-1.0_r_kind/3.0_r_kind) !!MeV
@@ -1002,43 +1003,15 @@ module Hamiltonian
             states(idx:idx+shelldegen - 1) = get_ho_states(n)
             idx = idx + shelldegen
         end do
+
+        
         print*, "Calculating proton hamiltonian..."
-        H = H_protons(states, Z, A, def, hbaromegaz, hbaromegaperp)
+        Hp = H_protons(states, Z, A, def, hbaromegaz, hbaromegaperp)
+        call diagonalize(E_p, Vp, Hp)
 
-        Hp = H
-        call diagonalize(E_p, V, H)
-
-
-        ! block
-        !     real(r_kind), dimension(:,:), allocatable :: VSO, VC, VWS, Tkin
-        !     real(r_kind) :: radius, radius_so, Vwsdepth,I
-        !     allocate(VSO(numstates,numstates), VC(numstates,numstates), VWS(numstates,numstates), Tkin(numstates,numstates))
-        !     radius = r0_p * A**(1.0_r_kind/3.0_r_kind)
-        !     radius_so = r0_so_p* A**(1.0_r_kind/3.0_r_kind)
-        !     I = (A-2.0_r_kind*Z)/A
-        !     Vwsdepth = V0_ws * (1.0_r_kind+kappa_ws*I)
-        !     gs = V(:,1)
-        !     Egs = dot_product(gs,matmul(Hp,gs))
-        !     Vws = Vws_mat(states,def,radius, hbaromegaz,hbaromegaperp,mass_p,Vwsdepth)
-        !     Vso = Vso_mat(states, def, radius_so, hbaromegaz,hbaromegaperp, mass_p, Vwsdepth, lambda_p)
-        !     Tkin = kin_en(states, hbaromegaz, hbaromegaperp)
-        !     Vc = coul_mat(states, def, radius, Z, mass_p, hbaromegaz, hbaromegaperp)
-
-        !     Egs = dot_product(gs,matmul(Vws,gs))
-        !     print*, "Ews", Egs
-        !     Egs = dot_product(gs,matmul(Vso,gs))
-        !     print*, "E VSO", Egs
-        !     Egs = dot_product(gs,matmul(Vc,gs))
-        !     print*, "E VC", Egs
-        !     Egs = dot_product(gs,matmul(Tkin,gs))
-        !     print*, "Kin E", Egs
-
-
-        ! end block
-
-        print*, "Calculating neutron hamiltonian..."
-        H = H_neutrons(states, Z, A, def, hbaromegaz, hbaromegaperp)
-        call diagonalize(E_n, V, H)
+        Hn = H_neutrons(states, Z, A, def, hbaromegaz, hbaromegaperp)
+        call diagonalize(E_n, Vn, Hn)
+            
     end subroutine
 
     function H_protons(states, Z,A,def,hbaromegaz, hbaromegaperp) result(H)

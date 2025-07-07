@@ -4,15 +4,16 @@ module strutinsky
     use def_ho, only: betadef, getnumstatesupto, lna
     use quadrule, only: laguerre_ss_compute, legendre_dr_compute
     use brent, only: zero_rc, zero_rc2
+    use pairing
 
 
     implicit none
 
     private
 
-    public :: shell_correction, fermi_level_osc, fermi_level_sh, Peven, get_shell, shell_energy
+    public :: shell_correction, fermi_level_osc, fermi_level_sh, Peven, get_shell, shell_energy, microscopic_corrections
     logical :: precomputed_quad = .false.
-    integer, parameter :: gauss_order = 90
+    integer, parameter :: gauss_order = 99, M_ord = 5
     real(r_kind), dimension(gauss_order) :: lag_x, lag_w, leg_x, leg_w
     contains
 
@@ -23,7 +24,7 @@ module strutinsky
 
         call laguerre_ss_compute(gauss_order, lag_x, lag_w)
         !!Gets weights and locations for where to evaluate 64 point integral. 
-        !!Integral must be of form 
+        !!Integral must be of form F
         !! 0 < x < infty  dx f(x) * exp(-x)
         !! where x = alpha^2 * rho^2
 
@@ -33,12 +34,43 @@ module strutinsky
         precomputed_quad = .true.
     end subroutine
 
-    real(r_kind) function shell_correction(Z, A, def, fix_gamma) result(Eshellcorr)
+    real(r_kind) function microscopic_corrections(Z, A, def, fix_gamma) result(Emic_corr)
         integer, intent(in) :: Z, A
         real(r_kind), dimension(:), allocatable :: E_n, E_p
         type(betadef), intent(in) :: def
         logical, intent(in) :: fix_gamma
         real(r_kind) :: E_sh_corr_p, E_sh_corr_n, hbaromega0
+        real(r_kind) :: gamma_p, efp, gamma_n, efn, epair_corr, dens_p, dens_n
+        
+        write(*,'(A)') "Calculating single particle energies..."
+        call get_levels(E_p, E_n, Z, A, def, max_n)
+        hbaromega0 = 41.0_r_kind * A**(-1.0_r_kind/3.0_r_kind) !!MeV
+        call purge_levels(E_p, 3.2*hbaromega0, Z)
+        call purge_levels(E_n, 3.2*hbaromega0, A-Z)
+        !write(*,*) E_p(1:10)
+        !write(*,*) E_n(1:10)
+        write(*,*)
+        write(*,'(A)') "Calculating shell correction for protons..."
+        E_sh_corr_p = get_shell(gamma_p, efp, Z, E_p, hbaromega0, fix_gamma)
+
+        write(*,*)
+        write(*,'(A)') "Calculating shell correction for neutrons..."
+        E_sh_corr_n = get_shell(gamma_n, efn,A-Z, E_n, hbaromega0, fix_gamma)
+        dens_p = level_dens(efp, E_p, gamma_p) / 2
+        dens_n = level_dens(efn, E_n, gamma_n) / 2
+        write(*,'(A,2F10.3)') "Proton/neutron level density at fermi level:", dens_p * 2, dens_n * 2
+        epair_corr = pairing_correction(E_p(1:Z), e_n(1:(A-Z)), Z, A, dens_p, dens_n)
+
+        write(*,'(A,F10.3, A)') "Pairing correction: ", epair_corr, " MeV"
+        Emic_corr = E_sh_corr_p + E_sh_corr_n + epair_corr
+    end function
+
+    real(r_kind) function shell_correction(Z, A, def, fix_gamma) result(Eshellcorr)
+        integer, intent(in) :: Z, A
+        real(r_kind), dimension(:), allocatable :: E_n, E_p
+        type(betadef), intent(in) :: def
+        logical, intent(in) :: fix_gamma
+        real(r_kind) :: E_sh_corr_p, E_sh_corr_n, hbaromega0, gamma_p, efp, gamma_n, efn
         
         write(*,'(A)') "Calculating single particle energies..."
         call get_levels(E_p, E_n, Z, A, def, max_n)
@@ -46,13 +78,13 @@ module strutinsky
         call purge_levels(E_p, 3.2*hbaromega0, Z)
         call purge_levels(E_n, 3.2*hbaromega0, A-Z)
 
-        write(*,*)
+
         write(*,'(A)') "Calculating shell correction for protons..."
-        E_sh_corr_p = get_shell(Z, E_p, hbaromega0, fix_gamma)
+        E_sh_corr_p = get_shell(gamma_p, efp, Z, E_p(1:(Z+20)), hbaromega0, fix_gamma)
 
         write(*,*)
         write(*,'(A)') "Calculating shell correction for neutrons..."
-        E_sh_corr_n = get_shell(A-Z, E_n, hbaromega0, fix_gamma)
+        E_sh_corr_n = get_shell(gamma_n, efn,A-Z, E_n(1:(A-Z)+20), hbaromega0, fix_gamma)
         Eshellcorr = E_sh_corr_p + E_sh_corr_n
     end function
 
@@ -72,46 +104,79 @@ module strutinsky
         allocate(levels(ii))
         levels(1:ii) = temp(1:ii)
     end subroutine
-    real(r_kind) function get_shell(n_parts, levels, hbaromega0, fix_gamma) result(E_shell)
+
+    function Jac_strut(gamma, efermi, levels, n_parts)
+        integer, intent(in)::n_parts
+        real(r_kind), dimension(:), intent(in) :: levels
+        real(r_kind), intent(in) :: gamma, efermi
+        real(r_kind) :: Jac_strut(2,2)
+        integer :: ll
+        real(r_kind) :: el, tl
+        Jac_strut = 0
+        do ll = 1, size(levels)
+            el = levels(ll)
+            tl = (efermi - el) / gamma
+            Jac_strut(1,1) = Jac_strut(1,1) + f_m(tl, M_ord) / gamma !dN/def
+            Jac_strut(1,2) = Jac_strut(1,2) - f_m(tl,M_ord) * tl / gamma !dn/dgamma
+
+            Jac_strut(2,1) = Jac_strut(2,1) + f_m(tl, M_ord) * tl / gamma
+            Jac_strut(2,2) = Jac_strut(2,2) - f_m(tl,M_ord) * tl**2 / gamma
+
+
+
+        end do
+
+
+
+    end function
+    real(r_kind) function get_shell(gamma, efermi, n_parts, levels, hbaromega0, fix_gamma) result(E_shell)
         integer, intent(in)::n_parts
         real(r_kind), intent(in) :: hbaromega0
         real(r_kind), dimension(:), intent(in) :: levels
-        real(r_kind) :: E_sh, gamma, fermi_sh, fermi_smooth,df, d2f, prev
-        real(r_kind), parameter :: dg =1e-5
+        real(r_kind) :: E_sh, fermi_sh,  J(2,2), func(2), x(2), invJ(2,2), px(2)
         logical, intent(in) :: fix_gamma
         logical ::converged
+        integer :: iter
+        real(r_kind), intent(out) :: gamma, efermi
         E_sh = shell_energy(n_parts, levels) !!gets full shell model shell energy
-        gamma = hbaromega0*1.2
+        gamma = hbaromega0*1.5
         fermi_sh = fermi_level_sh(n_parts, levels)
         converged = .false.
-        prev = 0.0_r_kind
-        write(*,'(A,F10.3)') "gamma = 1.2 hbaromega0:", 1.2*hbaromega0
-
+        if(fix_gamma) then
+            efermi = fermi_level_osc(n_parts, levels, gamma)
+            E_shell = E_sh - smooth_e(levels, gamma, efermi)
+            write(*,'(A,F10.3)') "Converged gamma: ", gamma
+            write(*,'(A,F10.3, A)') "Converged shell energy: ", E_shell, " MeV"
+            return
+        endif
+        x(1) = fermi_sh !!starting guess
+        x(2) = gamma !!starting guess
+        iter = 0
         do while(.not. converged)
-            fermi_smooth = fermi_level_osc(n_parts, levels, gamma)
-            if(fix_gamma) then
-                gamma = 1.2 * hbaromega0
-                converged = .true.
-                exit
-            end if
-            df = F(levels, gamma, fermi_smooth)/gamma
-            d2f = (df - F(levels, gamma-dg, fermi_smooth)/(gamma-dg))/dg
-
-            if(d2f .eq. 0.0_r_kind .or. abs(df/d2f) <1e-5 ) then
+            iter = iter + 1
+            efermi = x(1)
+            gamma = x(2)
+            !write(*,'(A,2F10.3)') "Fermi level/ gamma:", efermi, gamma
+            J = Jac_strut(gamma, efermi,levels, n_parts)
+            !write(*,'(2F10.3)') J(1,:)
+            !write(*,'(2F10.3)') J(2,:)
+            invJ = J
+            call inverse_SVD(invJ,2)
+            func = [sum(get_occ_numbers(levels, gamma, efermi),1) - n_parts, F(levels, gamma, efermi)/gamma]
+            px = x
+            x = x - matmul(invJ, func) / 2
+            if(dot_product(x-px,x-px) < 1e-6 ) then
                 converged = .true.
                 exit
             endif
-            gamma = gamma - df/d2f
-            
 
-            ! if(gamma < 0.8 * hbaromega0 .or. gamma > 3*hbaromega0) then
-            !     write(*,*) "ERR: Gamma outside bounds:", gamma/hbaromega0 , " /hbaromega" 
-            !     gamma = hbaromega0
-            ! endif
-            E_shell = E_sh - smooth_e(levels, gamma, fermi_smooth)
         end do
-        E_shell = E_sh - smooth_e(levels, gamma, fermi_smooth)
-        write(*,'(A,F10.3)') "Converged gamma: ", gamma
+        efermi = x(1)
+        gamma = x(2)
+        E_shell = E_sh - smooth_e(levels, gamma, efermi)
+        Efermi = efermi
+        write(*,'(A,I4, A)') "Gamma and fermi level converged after ", iter, " iterations"
+        write(*, '(A, 2F10.3, A)') "Gamma / fermi", gamma, Efermi, " (MeV)"
         write(*,'(A,F10.3, A)') "Converged shell energy: ", E_shell, " MeV"
 
     end function
@@ -133,7 +198,7 @@ module strutinsky
             
             do ii = 1, gauss_order
                 u = lag_x(ii)
-                occ_numbers(ll) = occ_numbers(ll) + lag_w(ii) * exp(u) * f_m((-u+t),3)
+                occ_numbers(ll) = occ_numbers(ll) + lag_w(ii) * exp(u) * f_m((-u+t),M_ord)
             end do
         end do
         occ_numbers = occ_numbers * 2
@@ -155,10 +220,10 @@ module strutinsky
             t = (fermi - E)/gamma
             do ii = 1, gauss_order
                 u = lag_x(ii)
-                F = F + lag_w(ii) * exp(u) * f_m((-u+t),3)*(-u + t)
+                F = F + lag_w(ii) * exp(u) * f_m((-u+t),M_ord)*(-u + t)
             end do
         end do
-        F = F * gamma**2 * 2
+        F = F * gamma * 2
     end function
 
     pure elemental real(r_kind) function Peven(x,M)
@@ -175,25 +240,8 @@ module strutinsky
         f_m = Peven(x,M) * exp(-x*x)/sqrt(pi)
     end function
 
-    pure real(r_kind) function shell_energy(A, levels) result(energy)
-        real(r_kind), dimension(:), intent(in) :: levels
-        integer, intent(in) :: A !!Particle number
-        integer :: ii, idx
-        real(r_kind) :: e
-        idx = 0
-        energy = 0.0_r_kind
-        do ii = 1, A
-            idx = (ii + 1) / 2 !!1, 2 => 2 / 2 = 1, 3/2 => 1
-            e = levels(idx)
-            energy = energy + e
-        end do
-    end function
 
-    pure real(r_kind) function fermi_level_sh(A, levels) result(fermi)
-        real(r_kind), dimension(:), intent(in) :: levels
-        integer, intent(in) :: A !!Particle number
-        fermi = levels((A+1)/2) 
-    end function
+
 
     real(r_kind) function smooth_e(levels, gamma, fermi) !!Energy of the smooth shell correction
         real(r_kind), dimension(:), intent(in) :: levels
@@ -202,6 +250,7 @@ module strutinsky
 
         call precompute_quad()
         occ_nbr = get_occ_numbers(levels, gamma, fermi)
+        !write(*,'(A,200F10.3)') "Occupation numbers:", (occ_nbr)
         smooth_e = dot_product(occ_nbr, levels) + F(levels, gamma, fermi)
     end function
 
@@ -253,6 +302,17 @@ module strutinsky
         ! write(*,*) "Num particles:", num_parts
     end function
     
+    pure real(r_kind) function level_dens(E, levels, gamma)
+        real(r_kind), intent(in) :: E, gamma, levels(:)
+        integer :: ii
+        real(r_kind) :: Eii
+        level_dens = 0
+        do ii = 1, size(levels)
+            Eii = levels(ii)
+            level_dens = level_dens + f_m((E - Eii)/gamma,M_ord)
 
+        end do
+        level_dens = level_dens / gamma
+    end function
 
 end module

@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
 
 # Energy levels normalized to ground state (E - Egs)
-Z = 82
-A = 208
+Z = 0
+A = 0
 N = A-Z
 
 def readlevelfile(file):
@@ -20,9 +20,9 @@ def readlevelfile(file):
             n.append(float(split[1]))
     p.sort()
     n.sort()
-    return p,n
+    return p,n, Z, N
 # Plot setup
-e_p, e_n = readlevelfile('data/out/levels.dat')
+e_p, e_n, Z, N = readlevelfile('data/out/levels.dat')
 fig, ax = plt.subplots(figsize=(6, 10))
 ax.set_title("Energy Level Scheme")
 ax.set_ylabel("Energy (MeV)")
