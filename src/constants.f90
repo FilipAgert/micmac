@@ -62,4 +62,12 @@ module constants
     logical :: printflag = .false.
 
 
+    !!pairing parameters
+    real(r_kind), parameter :: g0p = 13.40
+    real(r_kind), parameter :: g1p = 44.89
+    real(r_kind), parameter :: g0n = 17.67
+    real(r_kind), parameter :: g1n = -13.11
+
+
+
 end module constants

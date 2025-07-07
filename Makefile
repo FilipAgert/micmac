@@ -13,6 +13,7 @@ FISS_EXEN = fiss_bar.exe
 TAB_EXEN = write_tab.exe
 HO_EXEN = ho.exe
 ST_EXEN = strut.exe
+PAIR_EXEN = pair.exe
 
 # Flags
 LIBS = -llapack -lblas -fopenmp
@@ -29,6 +30,7 @@ FIT_OBJ = $(DOBJ)/runfit.o
 FISS_OBJ = $(DOBJ)/run_fissbarr.o
 HO_OBJ = $(DOBJ)/run_ho.o
 TAB_OBJ = $(DOBJ)/table_writer.o
+PAIR_OBJ = $(DOBJ)/pairing.o
 ST_OBJ =$(DOBJ)/run_strut.o
 VPATH = $(DSRC):$(DTEST):$(DSRC)/$(DSH)
 
@@ -53,6 +55,7 @@ $(DOBJ)/run_ho.o: $(DSRC)/$(DSH)/run_ho.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o
 $(DOBJ)/run_strut.o: $(DSRC)/$(DSH)/run_strut.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/hamiltonian.o $(DOBJ)/strutinsky.o $(DOBJ)/brent.o
 $(DOBJ)/strutinsky.o: $(DSRC)/$(DSH)/strutinsky.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/hamiltonian.o $(DOBJ)/brent.o
 $(DOBJ)/hamiltonian.o: $(DSRC)/$(DSH)/hamiltonian.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/optimise.o $(DOBJ)/quadrule.o
+$(DOBJ)/pairing.o: $(DSRC)/$(DSH)/pairing.f90 $(DOBJ)/constants.o $(DOBJ)/strutinsky.o 
 # Ensure required directories exist
 $(DOBJ) $(DEXE) $(DMOD) $(DTEST):
 	mkdir -p $@
@@ -85,6 +88,9 @@ $(DEXE)/$(TEST_EXE): $(TEST_OBJ) $(OBJECTS) $(TEST_OBJECTS) | $(DEXE)
 $(DEXE)/$(TAB_EXEN): $(TAB_OBJ) $(OBJECTS) | $(DEXE)
 	$(CCL) $@ $(TAB_OBJ) $(OBJECTS) $(LIBS)
 
+$(DEXE)/$(PAIR_EXEN): $(PAIR_OBJ) $(OBJECTS) | $(DEXE)
+	$(CCL) $@ $(PAIR_OBJ) $(OBJECTS) $(LIBS)
+
 main: $(DEXE)/$(EXEN)
 
 fit: $(DEXE)/$(FIT_EXEN)
@@ -96,6 +102,8 @@ buildtab: $(DEXE)/$(TAB_EXEN)
 ho: $(DEXE)/$(HO_EXEN)
 
 st: $(DEXE)/$(ST_EXEN)
+
+pair: $(DEXE)/$(PAIR_EXEN)
 
 run: $(DEXE)/$(EXEN)
 	$(DEXE)/$(EXEN)
@@ -117,6 +125,9 @@ runho: ho
 
 runst: st
 	$(DEXE)/$(ST_EXEN)
+
+runpair: pair
+	$(DEXE)/$(PAIR_EXEN)
 
 clean:
 	rm -rf $(DOBJ)/*.o $(DEXE)/*.exe $(DMOD)/*.mod

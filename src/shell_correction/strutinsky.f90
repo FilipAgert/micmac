@@ -10,7 +10,7 @@ module strutinsky
 
     private
 
-    public :: shell_correction, fermi_level_osc, fermi_level_sh, Peven, get_shell
+    public :: shell_correction, fermi_level_osc, fermi_level_sh, Peven, get_shell, shell_energy
     logical :: precomputed_quad = .false.
     integer, parameter :: gauss_order = 90
     real(r_kind), dimension(gauss_order) :: lag_x, lag_w, leg_x, leg_w
