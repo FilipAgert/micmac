@@ -3,7 +3,7 @@ module pairing
     use iso_fortran_env, only:iostat_end
     implicit none
     private 
-    public :: pairing_correction, shell_energy, fermi_level_sh, inverse_SVD
+    public :: Ebcs, pairing_correction, shell_energy, fermi_level_sh, inverse_SVD
     contains
     pure real(r_kind) function shell_energy(A, levels) result(energy)
         real(r_kind), dimension(:), intent(in) :: levels
@@ -185,7 +185,7 @@ module pairing
             call inverse_SVD(invJ,2)
 
             px = x
-            x = x - matmul(invJ,f) / 10
+            x = x - matmul(invJ,f) / 2
             write(*,'(A,2F10.3)') "Fermi, delta ", efermi, delta
             write(*,'(A, F10.3)') "Eq (1): ", f(1)
             write(*,'(A, F10.3)') "Eq (2): ", f(2)
