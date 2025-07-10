@@ -2,17 +2,28 @@ program run_strut
     use strutinsky
     use constants
     use def_ho, only: betadef
+    use Hamiltonian, only: print_shell_params
     implicit none
 
     real(r_kind) :: e_shell_corr
     integer :: A, Z
+    type(betadef) :: def
 
     A = 208
     Z = 82
-    write(*,'(A,2I4)') "Running shell correction calculation for Z,A=",Z,A
+    def = betadef(beta2 = 0.0_r_kind, beta4=0.0_r_kind)
+    call print_shell_params(Z, A, def)
+
     !e_shell_corr= get_shell(A-Z, levels, omega_0, .false.)
     e_shell_corr = microscopic_corrections(Z, A, betadef(beta2=0.0_r_kind, beta4=0.0_r_kind), .true.)
-    write(*,'(A,F10.3,A)') "Microscopic correction energy:", e_shell_corr, " MeV"
+    write(*,*)
+    write(*,*)
+    write(*,*)
+    write(*,*)
+    write(*,*)
+    write(*,'(A)') "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
+    write(*,'(a,1x,A30,F10.3,A,a44)')"+", "Microscopic correction energy:", e_shell_corr, " MeV",'+'
+    write(*,'(A)') "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
     
     contains
 

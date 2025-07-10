@@ -4,7 +4,7 @@ module def_ho
     use optimise, only:func_1d, conj_grad_method
     implicit none
     private
-    public :: an_ho_state, get_ho_states, getnumstates, betadef, getnumstatesupto, fac, Hn, lna, alpha
+    public :: an_ho_state, get_ho_states, getnumstates, betadef, getnumstatesupto, fac, Hn, lna, alpha, get_lowest_ho_states
     public :: kronecker, kin_en, gnl, gnlp, hmn, hmnp, spherical_def
 
 
@@ -29,7 +29,7 @@ module def_ho
         contains
         procedure :: text => aniho_text
         procedure :: header => aniho_header
-        procedure :: kinetic_energy => ho_kinen
+        procedure :: energy => ho_en
     end type
     !! Computes single particle energies in a shell model potential.
     contains 
@@ -66,14 +66,14 @@ pure function compute_omega_Z(self, omega0) result(omegaz)
     omegaz = self%omega_def(omega0) * sqrt( (1.0_r_kind - 4.0_r_kind/3.0_r_kind * delta))
 end function
 
-pure function ho_kinen(self, hbaromega_z, hbaromega_xy) result(en)
+pure function ho_en(self, hbaromega_z, hbaromega_perp) result(en)
     class(an_ho_state), intent(in) :: self
     real(r_kind) :: en
-    real(r_kind), intent(in) :: hbaromega_z, hbaromega_xy
+    real(r_kind), intent(in) :: hbaromega_z, hbaromega_perp
 
-    en = ani_ho_en(self, hbaromega_z, hbaromega_xy) / 2.0_r_kind !as per the virial theorem
-
+    en = hbaromega_z * (self%nz + 0.5_r_kind) + hbaromega_perp * (self%nperp + 1.0_r_kind)
 end function
+
 
 function aniho_text(self) result(text)
     class(an_ho_state) :: self
@@ -104,6 +104,43 @@ pure elemental integer function getnumstatesupto(N) result(num) !!get number of 
     integer, intent(in) :: N
     num = (N+1)*(N+2)*(N+3)/3 !!incl spin degeneracy
     if(use_ml_sym) num = num / 2
+end function
+
+function get_ho_states_upto(N) result(states)
+    integer, intent(in) :: N !!ho quantum number
+    type(an_ho_state), dimension(getnumstatesupto(N)) :: states
+    integer :: nn, idx, shelldegen
+    idx = 1
+    do nn = 0, N
+        shelldegen = getnumstates(nn)
+        states(idx:idx+shelldegen - 1) = get_ho_states(nn)
+        idx = idx + shelldegen
+    end do
+end function
+
+function get_lowest_ho_states(N_max, n_states, hbaromega_z, hbaromega_perp) result(states)
+    integer, intent(in) :: N_max, n_states !!ho quantum number
+    type(an_ho_state), dimension(n_states) :: states
+    type(an_ho_state), dimension(getnumstatesupto(N_max)) :: states_all
+    type(an_ho_state) :: state
+    real(r_kind), intent(in) :: hbaromega_z, hbaromega_perp
+    real(r_kind) :: E
+    integer :: idx, jj
+    states_all = get_ho_states_upto(N_max)
+    do idx = 2, size(states_all)
+        state = states_all(idx)
+        E = state%energy(hbaromega_z, hbaromega_perp)
+        jj = idx - 1
+
+        do while(jj .ge. 1 .and. states_all(jj)%energy(hbaromega_z, hbaromega_perp) .ge. E)
+            states_all(jj + 1) = states_all(jj)
+            jj = jj - 1
+        end do
+        states_all(jj+1) = state
+
+    end do
+    states = states_all(1:n_states)
+
 end function
 
 function get_ho_states(N) result(states)

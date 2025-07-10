@@ -8,14 +8,13 @@ module Hamiltonian
 
     private
     public :: diagonalize, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels, H_protons, H_neutrons, get_levels
-    public :: S0, Sp, Sm, T0, Tplus, gnlp, gnl, Tminus, VSO_off_diag_elem_v2, VSO_off_diag_elem, el_pot
-    integer, parameter :: gauss_order =50
+    public :: S0, Sp, Sm, T0, Tplus, gnlp, gnl, Tminus, VSO_off_diag_elem_v2, VSO_off_diag_elem, el_pot, print_shell_params
+    integer, parameter :: gauss_order =64
     real(r_kind), dimension(gauss_order) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
     logical :: precomputed_quad = .false.
 
 
 
-    real(r_kind), parameter :: aws = 0.70_r_kind !! (fm) WS potential diffusiveness
 
 
 
@@ -292,7 +291,7 @@ module Hamiltonian
         if(r < surfRadius(theta, self%def,self%radius)) then
             dist = - dist
         endif
-        eval_ws = -self%V_0/ (1 + exp(dist/aws))
+        eval_ws = -self%V_0/ (1 + exp(dist/a_ws))
     end function
 
 
@@ -318,9 +317,10 @@ module Hamiltonian
         type(VC_pot) :: cp
         real(r_kind), intent(in) :: omegaz, omegaperp !!Frequencies in units MeV/hbar
         real(r_kind), intent(in) :: mass!!Frequencies in units MeV/c^2
-        real(r_kind), dimension(0:max_n,0:max_n, gauss_order) :: Z_mat
+        real(r_kind), allocatable, dimension(:,:,:) :: Z_mat
         integer ::numstates, row, col
         type(an_ho_state) :: s1, s2
+        allocate(Z_mat(0:max_n,0:max_n, gauss_order))
         call precompute_quad()
 
         !setup potential
@@ -366,7 +366,6 @@ module Hamiltonian
         real(r_kind), intent(in) :: alpha_z, alpha_perp
         real(r_kind) :: eta
         integer :: nz, nzp, ii, diag
-        character(len=50) :: str
 
         call precompute_quad()
         Zmat = 0
@@ -490,11 +489,11 @@ module Hamiltonian
         real(r_kind), intent(in) :: omegaz, omegaperp !!Frequencies in units MeV/hbar
         real(r_kind), intent(in) :: mass!!Frequencies in units MeV/c^2
         real(r_kind) :: alpha_z, alpha_perp
-        real(r_kind), dimension(0:max_n,0:max_n, gauss_order) :: Z_mat
+        real(r_kind), allocatable, dimension(:,:,:) :: Z_mat
         type(WS_pot) :: VWS
         integer ::numstates, row, col
-        logical :: hasnan
         type(an_ho_state) :: s1, s2
+        allocate(Z_mat(0:max_n,0:max_n, gauss_order))
         call precompute_quad()
 
         !setup potential
@@ -508,7 +507,6 @@ module Hamiltonian
         VWS_mat = 0
         call omp_set_num_threads(num_threads)
         call comp_zmat(Z_mat, VWS, alpha_z, alpha_perp)
-
 
         !//$omp parallel shared(states,VWS,alpha_z,alpha_perp, VWS_mat) private(s1,s2)
         !//$omp do schedule(static)
@@ -533,10 +531,6 @@ module Hamiltonian
             end do
         end do
         call write_mat_to_file(VWS_mat)
-        call nanloc(hasnan, row, col, VWS_mat)
-        if(hasnan) then
-            write(*,*) "Error: VWS Matrix has a NaN at row, col:", row, col
-        endif
     end function
 
     function Vso_mat(states, def, R0, omegaz, omegaperp, mass, WS_depth, lambda)
@@ -550,13 +544,12 @@ module Hamiltonian
         real(r_kind), intent(in) :: mass!!Frequencies in units MeV/c^2
         real(r_kind), intent(in) ::lambda !!multiplicative factor
         real(r_kind) :: alpha_z, alpha_perp, kappa
-        real(r_kind), dimension(0:max_n, 0:max_n, gauss_order) :: T0, W0
+        real(r_kind), allocatable, dimension(:,:,:) :: T0, W0
         type(WS_pot) :: so_ws
-        logical :: hasnan
         integer ::numstates, row, col, l1, l2, ms1, ms2
         type(an_ho_state) :: s1, s2
+        allocate(T0(0:max_n, 0:max_n, gauss_order), W0(0:max_n, 0:max_n, gauss_order))
         call precompute_quad()
-
         kappa = lambda*(hbarc/(2*mass))**2
         ! print*, "kappa:", kappa
         !setup potential
@@ -608,10 +601,6 @@ module Hamiltonian
         end do
         Vso_mat = Vso_mat*kappa
         !call write_mat_to_file(Vso_mat)
-        call nanloc(hasnan, row, col, Vso_mat)
-        if(hasnan) then
-            write(*,*) "Error: VSO Matrix has a NaN at row, col:", row, col
-        endif
     end function
 
 
@@ -748,8 +737,8 @@ module Hamiltonian
         type(an_ho_state), intent(in) :: s1, s2
         real(r_kind), intent(in) ::  alpha_z, alpha_perp
         real(r_kind), dimension(0:max_n, 0:max_n, gauss_order), intent(in) :: W0
-        integer :: nn, zz
-        real(r_kind) :: zeta, z, rho,r ,theta, eta, weta, wzeta, term
+        integer :: nn
+        real(r_kind) ::rho, eta, weta, term
 
 
         call precompute_quad()
@@ -775,9 +764,9 @@ module Hamiltonian
     real(r_kind) function I2(s1,s2, W0,alpha_z, alpha_perp)
         type(an_ho_state), intent(in) :: s1, s2
         real(r_kind), intent(in) ::  alpha_z, alpha_perp
-        integer :: nn, zz
+        integer :: nn
         real(r_kind), dimension(0:max_n, 0:max_n, gauss_order), intent(in) :: W0
-        real(r_kind) :: zeta, z, rho,r ,theta, eta, weta, wzeta, term1, term2, pot, etafac
+        real(r_kind) :: rho, eta, weta, term1, term2,etafac
 
 
         call precompute_quad()
@@ -940,8 +929,6 @@ module Hamiltonian
     real(r_kind)  function VSO_off_diag_elem_v2(s1,s2,W0,alpha_z,alpha_perp) result(matelem)
         type(an_ho_state), intent(in) :: s1, s2
         real(r_kind), intent(in) :: alpha_z, alpha_perp
-        integer :: ii
-        real(r_kind) :: eta
         real(r_kind), intent(in) :: W0(0:max_n, 0:max_n, gauss_order)
         matelem = 0
 
@@ -983,12 +970,10 @@ module Hamiltonian
         real(r_kind),allocatable, intent(out) :: E_P(:), E_N(:)
         integer, intent(in) :: Z, A, max_N
         type(betadef), intent(in) :: def
-        integer :: numstates, idx, shelldegen, n,ii
-        real(r_kind), allocatable :: Vn(:,:), H(:,:), Vws(:,:), Tkin(:,:), Vso(:,:), Vc(:,:), gs(:), Hp(:,:), Hn(:,:), Vp(:,:)
-        type(an_ho_state), allocatable :: states(:)
-        real(r_kind) :: hbaromega0, hbaromegaz, hbaromegaperp, Egs
-        numstates = getnumstatesupto(max_n)
-        allocate(E_p(numstates),E_n(numstates), Vn(numstates,numstates), Vp(numstates,numstates),states(numstates), Hn(numstates,numstates), gs(numstates), Hp(numstates,numstates))
+        real(r_kind) :: Vn(num_n_states,num_n_states) ,Hp(num_p_states,num_p_states), Hn(num_n_states,num_n_states), Vp(num_p_states,num_p_states)
+        type(an_ho_state) :: states_p(num_p_states), states_n(num_n_states)
+        real(r_kind) :: hbaromega0, hbaromegaz, hbaromegaperp
+        allocate(E_p(num_p_states),E_n(num_n_states))
         Vn = 0
         Vp = 0
         E_p = 0
@@ -996,20 +981,17 @@ module Hamiltonian
         hbaromega0 = 41.0_r_kind * A**(-1.0_r_kind/3.0_r_kind) !!MeV
         hbaromegaperp = def%omega_perp(hbaromega0) !! omega = Mev/hbar
         hbaromegaz = def%omega_z(hbaromega0)
-        numstates = getnumstatesupto(max_n)
-        idx = 1
-        do n = 0, max_n
-            shelldegen = getnumstates(n)
-            states(idx:idx+shelldegen - 1) = get_ho_states(n)
-            idx = idx + shelldegen
-        end do
-
-        
-        print*, "Calculating proton hamiltonian..."
-        Hp = H_protons(states, Z, A, def, hbaromegaz, hbaromegaperp)
+        states_p = get_lowest_ho_states(max_n, num_p_states, hbaromegaz, hbaromegaperp)
+        states_n = get_lowest_ho_states(max_n, num_n_states, hbaromegaz, hbaromegaperp)
+        write(*,'(A)') 
+        write(*,'(A)') "Calculating proton hamiltonian..."
+        Hp = H_protons(states_p, Z, A, def, hbaromegaz, hbaromegaperp)
+        write(*,'(A)') "Diagonalizing..."
         call diagonalize(E_p, Vp, Hp)
-
-        Hn = H_neutrons(states, Z, A, def, hbaromegaz, hbaromegaperp)
+        write(*,'(A)') 
+        write(*,'(A)') "Calculating neutron hamiltonian..."
+        Hn = H_neutrons(states_n, Z, A, def, hbaromegaz, hbaromegaperp)
+        write(*,'(A)') "Diagonalizing..."
         call diagonalize(E_n, Vn, Hn)
             
     end subroutine
@@ -1025,13 +1007,13 @@ module Hamiltonian
         radius_so = r0_so_p* A**(1.0_r_kind/3.0_r_kind)
         I = (A-2.0_r_kind*Z)/A
         Vwsdepth = V0_ws * (1.0_r_kind+kappa_ws*I)
-        write(*,'(A,F10.3,A)') "Wood-Saxon hamiltonian. V0 = ", Vwsdepth, " MeV"
+        write(*,'(A)') "Wood-Saxon term..."
         Vws = Vws_mat(states,def,radius, hbaromegaz,hbaromegaperp,mass_p,Vwsdepth)
-        write(*,*) "Spin-orbit hamiltonian..."
+        write(*,'(A)') "Spin-orbit term..."
         Vso = Vso_mat(states, def, radius_so, hbaromegaz,hbaromegaperp, mass_p, Vwsdepth, lambda_p)
-        write(*,*) "Kinetic-Energy..."  
+        write(*,'(A)') "Kinetic-Energy term..."  
         Tkin = kin_en(states, hbaromegaz, hbaromegaperp)
-        write(*,*) "Coulomb-potential..."
+        write(*,'(A)') "Coulomb term..."
         Vc = coul_mat(states, def, radius, Z, mass_p, hbaromegaz, hbaromegaperp)
 
 
@@ -1050,11 +1032,11 @@ module Hamiltonian
         radius_so = r0_so_n* A**(1.0_r_kind/3.0_r_kind)
         I = (A-2.0_r_kind*Z)/A
         Vwsdepth = V0_ws * (1.0_r_kind-kappa_ws*I)
-        write(*,'(A,F10.3,A)') "Wood-Saxon hamiltonian. V0 = ", Vwsdepth, " MeV"
+        write(*,'(A)') "Wood-Saxon term..."
         Vws = Vws_mat(states,def,radius, hbaromegaz,hbaromegaperp,mass_n,Vwsdepth)
-        write(*,*) "Spin-orbit hamiltonian..."
+        write(*,'(A)') "Spin-orbit term..."
         Vso = Vso_mat(states, def, radius_so, hbaromegaz,hbaromegaperp, mass_n, Vwsdepth, lambda_n)
-        write(*,*) "Kinetic-Energy hamiltonian..."  
+        write(*,'(A)') "Kinetic-Energy term..."  
         Tkin = kin_en(states, hbaromegaz, hbaromegaperp)
         H = Vws + Vso + Tkin
 
@@ -1073,25 +1055,6 @@ module Hamiltonian
 
     end subroutine
 
-    subroutine nanloc(nan, row,col,mat)
-
-        real(r_kind), dimension(:,:) :: mat
-        integer :: row, col
-        logical :: nan
-        integer :: ii, jj
-        nan = .false.
-        do ii = 1, size(mat,1)
-            do jj = 1, size(mat,2)
-                ! if (isnan(mat(ii,jj)))then
-                !     row = ii
-                !     col = jj
-                !     nan = .true.
-                !     return
-                ! endif
-            end do
-        end do
-
-    end subroutine
 
     logical function hasnan2d(mat)
         real(r_kind), dimension(:,:) :: mat
@@ -1122,4 +1085,124 @@ module Hamiltonian
     end do
 
 end function
+
+
+subroutine print_shell_params(Z, A, def)
+    integer :: Z, A
+    type(betadef) :: def
+    character(len=90) :: comm
+    character :: symb
+    character(len=87) :: line
+    character(len=67) :: text
+    integer :: ii
+    symb = '+'
+    do ii = 1, 90
+        comm(ii:ii) = symb
+    end do
+
+    write(*,*) comm
+    write(line,'(A)') "Shell model version 0.1"
+    call print_line(symb, line)
+    write(line,'(A)') "F. Agert"
+    call print_line(symb, line)
+    write(line,'(A)') "2025"
+    call print_line(symb, line)
+    write(line,'(A)') "Axially deformed harmonic oscillator basis"
+    call print_line(symb, line)
+    write(line,'(A)') "Wood-Saxon term, Coulomb term and spin-orbit term included"
+    call print_line(symb, line)
+
+    write(line,'(A,2I4)') "Running shell model calculation for Z, A=",Z,A
+    call print_line(symb, line)
+    write(*,*) comm
+    write(line,'(A)') "Input parameters for this calculation:"
+    call print_line(symb, line)
+
+        
+    text = ": beta_2 deformation value"
+    write(line,'(A10,F10.3, A67)') "beta_2 = ", def%beta2, adjustl(text)
+    call print_one_line(symb, line)
+
+    text = ": beta_4 deformation value"
+    write(line,'(A10,F10.3, A67)') "beta_4 = ", def%beta4, adjustl(text)
+    call print_one_line(symb, line)
+
+    line = ""
+    call print_one_line(symb, line)
+
+    text = ": Wood saxon potential depth [MeV]"
+    write(line,'(A10,F10.1, A67)') "Vws = ", V0_ws, adjustl(text)
+    call print_one_line(symb, line)
+    text = ": Wood saxon isospin strength factor"
+    write(line,'(A10,F10.2, A67)') "K = ", kappa_ws, adjustl(text)
+    call print_one_line(symb, line)
+    text = ": Wood saxon surface diffuseness [fm]"
+    write(line,'(A10,F10.2, A67)') "a_ws = ", a_ws, adjustl(text)
+    call print_one_line(symb, line)
+    line = ""
+    call print_one_line(symb, line)
+
+    
+    text = ": Wood saxon proton radius parameter [fm]"
+    write(line,'(A10,F10.2, A67)') "r0_p = ", r0_p, adjustl(text)
+    call print_one_line(symb, line)
+    text = ": Wood saxon neutron radius parameter [fm]"
+    write(line,'(A10,F10.2, A67)') "r0_n = ", r0_n, adjustl(text)
+    call print_one_line(symb, line)
+    text = ": Wood saxon spin orbit proton radius parameter [fm]"
+    write(line,'(A10,F10.2, A67)') "r0_so_p = ", r0_so_p, adjustl(text)
+    call print_one_line(symb, line)
+    text = ": Wood saxon spin orbit neutron radius parameter [fm]"
+    write(line,'(A10,F10.2, A67)') "r0_so_n = ", r0_so_n, adjustl(text)
+    call print_one_line(symb, line)
+    line = ""
+    call print_one_line(symb, line)
+    text = ": Spin orbit strength for protons"
+    write(line,'(A10,F10.1, A67)') "lambda_p= ", lambda_p, adjustl(text)
+    call print_one_line(symb, line)
+    text = ": Spin orbit strength for neutrons"
+    write(line,'(A10,F10.1, A67)') "lambda_n= ", lambda_n, adjustl(text)
+    call print_one_line(symb, line)
+    line = ""
+    call print_one_line(symb, line)
+    line = ""
+    call print_one_line(symb, line)
+    text = ": Maximum harmonic oscillator shell"
+    write(line,'(A10,I10, A67)') "N_max = ", max_n, adjustl(text)
+    call print_one_line(symb, line)
+    text = ": Number of proton levels in diagonalisation"
+    write(line,'(A10,I10, A67)') "N_p = ", num_p_states, adjustl(text)
+    call print_one_line(symb, line)
+    text = ": Number of proton levels in diagonalisation"
+    write(line,'(A10,I10, A67)') "N_n = ", num_n_states, adjustl(text)
+    call print_one_line(symb, line)
+    line = ""
+    call print_one_line(symb, line)
+    line = ""
+    call print_one_line(symb, line)
+    text = ": Number of integration points used in the Gaussian quadrature"
+    write(line,'(A10,I10, A67)') "N_GQ = ", gauss_order, adjustl(text)
+    call print_one_line(symb, line)
+
+
+    write(*,*) comm
+
+    write(*,*)
+
+
+end subroutine
+
+subroutine print_line(symb, line)
+    character :: symb
+    character(len=87) :: line
+    write(*,'(1x,a,88x,a)') symb,symb
+    write(*,'(1x,a,1x,A87,a)') symb,line,symb
+    write(*,'(1x,a,88x,a)') symb,symb
+end subroutine
+
+subroutine print_one_line(symb, line)
+    character :: symb
+    character(len=87) :: line
+    write(*,'(1x,a,1x,A87,a)') symb,line,symb
+end subroutine
 end module

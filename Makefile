@@ -9,6 +9,7 @@ DSH = shell_correction
 EXEN = main.exe
 TEST_EXE = test.exe
 FIT_EXEN = runfit.exe
+PAIR_EXEN = run_pair.exe
 FISS_EXEN = fiss_bar.exe
 TAB_EXEN = write_tab.exe
 HO_EXEN = ho.exe
@@ -16,7 +17,7 @@ ST_EXEN = strut.exe
 
 # Flags
 LIBS = -llapack -lblas -fopenmp
-FLAGS = -Wall -O3 -I$(DOBJ) -ffree-line-length-none -fcheck=all -fbacktrace -g -fimplicit-none -fno-omit-frame-pointer
+FLAGS = -O3 -I$(DOBJ) -ffree-line-length-none -fcheck=all -fbacktrace -g -fimplicit-none -fno-omit-frame-pointer
 CC = gfortran $(FLAGS) -J$(DMOD) $(LIBS) -L$(DLIB) -c
 CCL = gfortran -o
 
@@ -29,6 +30,7 @@ FIT_OBJ = $(DOBJ)/runfit.o
 FISS_OBJ = $(DOBJ)/run_fissbarr.o
 HO_OBJ = $(DOBJ)/run_ho.o
 TAB_OBJ = $(DOBJ)/table_writer.o
+PAIR_OBJ = $(DOBJ)/run_pair.o
 ST_OBJ =$(DOBJ)/run_strut.o
 VPATH = $(DSRC):$(DTEST):$(DSRC)/$(DSH)
 
@@ -54,6 +56,7 @@ $(DOBJ)/run_strut.o: $(DSRC)/$(DSH)/run_strut.f90 $(DOBJ)/constants.o $(DOBJ)/de
 $(DOBJ)/strutinsky.o: $(DSRC)/$(DSH)/strutinsky.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/hamiltonian.o $(DOBJ)/brent.o $(DOBJ)/pairing.o
 $(DOBJ)/hamiltonian.o: $(DSRC)/$(DSH)/hamiltonian.f90 $(DOBJ)/constants.o $(DOBJ)/def_ho.o $(DOBJ)/optimise.o $(DOBJ)/quadrule.o
 $(DOBJ)/pairing.o: $(DSRC)/$(DSH)/pairing.f90 $(DOBJ)/constants.o
+$(DOBJ)/run_pair.o: $(DSRC)/$(DSH)/run_pair.f90 $(DOBJ)/pairing.o $(DOBJ)/constants.o
 # Ensure required directories exist
 $(DOBJ) $(DEXE) $(DMOD) $(DTEST):
 	mkdir -p $@
@@ -101,6 +104,8 @@ ho: $(DEXE)/$(HO_EXEN)
 
 st: $(DEXE)/$(ST_EXEN)
 
+pair: $(DEXE)/$(PAIR_EXEN)
+
 
 run: $(DEXE)/$(EXEN)
 	$(DEXE)/$(EXEN)
@@ -123,6 +128,8 @@ runho: ho
 runst: st
 	$(DEXE)/$(ST_EXEN)
 
+runpair: pair
+	$(DEXE)/$(PAIR_EXEN)
 
 clean:
 	rm -rf $(DOBJ)/*.o $(DEXE)/*.exe $(DMOD)/*.mod

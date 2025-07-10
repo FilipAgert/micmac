@@ -13,7 +13,7 @@ module strutinsky
 
     public :: shell_correction, fermi_level_osc, fermi_level_sh, Peven, get_shell, shell_energy, microscopic_corrections
     logical :: precomputed_quad = .false.
-    integer, parameter :: gauss_order = 99, M_ord = 5
+    integer, parameter :: gauss_order = 64, M_ord = 6
     real(r_kind), dimension(gauss_order) :: lag_x, lag_w, leg_x, leg_w
     contains
 
@@ -47,8 +47,6 @@ module strutinsky
         hbaromega0 = 41.0_r_kind * A**(-1.0_r_kind/3.0_r_kind) !!MeV
         call purge_levels(E_p, 3.2*hbaromega0, Z)
         call purge_levels(E_n, 3.2*hbaromega0, A-Z)
-        !write(*,*) E_p(1:10)
-        !write(*,*) E_n(1:10)
         write(*,*)
         write(*,'(A)') "Calculating shell correction for protons..."
         E_sh_corr_p = get_shell(gamma_p, efp, Z, E_p, hbaromega0, fix_gamma)
@@ -58,7 +56,12 @@ module strutinsky
         E_sh_corr_n = get_shell(gamma_n, efn,A-Z, E_n, hbaromega0, fix_gamma)
         dens_p = level_dens(efp, E_p, gamma_p) / 2
         dens_n = level_dens(efn, E_n, gamma_n) / 2
-        write(*,'(A,2F10.3)') "Proton/neutron level density at fermi level:", dens_p * 2, dens_n * 2
+        write(*,'(A,F10.3,A)') "Shell correction energy: ", E_sh_corr_n + E_sh_corr_p, " MeV" 
+
+        write(*,'(A)') "" 
+        write(*,'(A)') "" 
+        write(*,'(A)') "Calculating pairing correction with BCS method" 
+        !write(*,'(A,2F10.3)') "Proton/neutron level density at fermi level:", dens_p * 2, dens_n * 2
         epair_corr = pairing_correction(E_p(1:Z), e_n(1:(A-Z)), Z, A, dens_p, dens_n)
 
         write(*,'(A,F10.3, A)') "Pairing correction: ", epair_corr, " MeV"
@@ -75,16 +78,16 @@ module strutinsky
         write(*,'(A)') "Calculating single particle energies..."
         call get_levels(E_p, E_n, Z, A, def, max_n)
         hbaromega0 = 41.0_r_kind * A**(-1.0_r_kind/3.0_r_kind) !!MeV
-        call purge_levels(E_p, 3.2*hbaromega0, Z)
+        call purge_levels(E_p, 3.2*hbaromega0, Z) !cutoff of levels g.r.t. 3.2 hbaromega above fermi level
         call purge_levels(E_n, 3.2*hbaromega0, A-Z)
 
 
         write(*,'(A)') "Calculating shell correction for protons..."
-        E_sh_corr_p = get_shell(gamma_p, efp, Z, E_p(1:(Z+20)), hbaromega0, fix_gamma)
+        E_sh_corr_p = get_shell(gamma_p, efp, Z, E_p, hbaromega0, fix_gamma)
 
         write(*,*)
         write(*,'(A)') "Calculating shell correction for neutrons..."
-        E_sh_corr_n = get_shell(gamma_n, efn,A-Z, E_n(1:(A-Z)+20), hbaromega0, fix_gamma)
+        E_sh_corr_n = get_shell(gamma_n, efn,A-Z, E_n, hbaromega0, fix_gamma)
         Eshellcorr = E_sh_corr_p + E_sh_corr_n
     end function
 
@@ -129,7 +132,7 @@ module strutinsky
 
 
     end function
-    real(r_kind) function get_shell(gamma, efermi, n_parts, levels, hbaromega0, fix_gamma) result(E_shell)
+    real(r_kind) function get_shell(gamma, efermi, n_parts, levels, hbaromega0, fix_gamma) result(E_shell) !gets shell correction energy
         integer, intent(in)::n_parts
         real(r_kind), intent(in) :: hbaromega0
         real(r_kind), dimension(:), intent(in) :: levels
@@ -139,14 +142,15 @@ module strutinsky
         integer :: iter
         real(r_kind), intent(out) :: gamma, efermi
         E_sh = shell_energy(n_parts, levels) !!gets full shell model shell energy
-        gamma = hbaromega0*1.5
+        gamma = hbaromega0*1.2
         fermi_sh = fermi_level_sh(n_parts, levels)
         converged = .false.
-        if(fix_gamma) then
+        if(fix_gamma) then !!fix gamma to 1.2 hbaromega0
             efermi = fermi_level_osc(n_parts, levels, gamma)
             E_shell = E_sh - smooth_e(levels, gamma, efermi)
-            write(*,'(A,F10.3)') "Converged gamma: ", gamma
-            write(*,'(A,F10.3, A)') "Converged shell energy: ", E_shell, " MeV"
+            write(*,'(A,F10.3, A)') "Converged gamma: ", gamma, " MeV"
+            write(*,'(A,F10.3, A)') "Fermi level: ", efermi, " MeV"
+            write(*,'(A,F10.3, A)') "Converged shell correction energy: ", E_shell, " MeV"
             return
         endif
         x(1) = fermi_sh !!starting guess
@@ -170,14 +174,25 @@ module strutinsky
                 exit
             endif
 
+            if(iter > 20) then
+                gamma = 1.2 * hbaromega0
+                efermi = fermi_level_osc(n_parts, levels, gamma)
+                E_shell = E_sh - smooth_e(levels, gamma, efermi)
+                write(*,'(A)') "Did not converge. Set gamma = 1.2 hbaromega"
+                write(*,'(A,F10.3, A)') "Shell energy: ", E_shell, " MeV"
+                return
+            endif
+
         end do
         efermi = x(1)
         gamma = x(2)
         E_shell = E_sh - smooth_e(levels, gamma, efermi)
         Efermi = efermi
         write(*,'(A,I4, A)') "Gamma and fermi level converged after ", iter, " iterations"
-        write(*, '(A, 2F10.3, A)') "Gamma / fermi", gamma, Efermi, " (MeV)"
-        write(*,'(A,F10.3, A)') "Converged shell energy: ", E_shell, " MeV"
+        write(*,'(A,F10.3, A)') "Converged gamma: ", gamma, " MeV"
+        write(*,'(A,F10.3, A)') "Fermi level: ", efermi, " MeV"
+        write(*,'(A,F10.3, A)') "Converged shell correction energy: ", E_shell, " MeV"
+
 
     end function
 
@@ -296,7 +311,7 @@ module strutinsky
             ! print*, "val: ", val, "fermi: ", arg
         end do
         fermi_osc = arg
-        write(*,*) "Fermi level smooth: ", fermi_osc
+        !write(*,*) "Fermi level smooth: ", fermi_osc
         ! write(*,*) "Fermi level shell: ", Ef_sh
         ! write(*,*) "Occupation number:", sum(get_occ_numbers(levels, gamma, fermi_osc),1)
         ! write(*,*) "Num particles:", num_parts
@@ -309,7 +324,7 @@ module strutinsky
         level_dens = 0
         do ii = 1, size(levels)
             Eii = levels(ii)
-            level_dens = level_dens + f_m((E - Eii)/gamma,M_ord)
+            level_dens = level_dens + f_m((Eii - E)/gamma,M_ord)
 
         end do
         level_dens = level_dens / gamma

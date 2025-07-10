@@ -3,7 +3,7 @@ module pairing
     use iso_fortran_env, only:iostat_end
     implicit none
     private 
-    public :: Ebcs, pairing_correction, shell_energy, fermi_level_sh, inverse_SVD
+    public :: Ebcs, pairing_correction, shell_energy, fermi_level_sh, inverse_SVD, solve_BCS_eq, smoothEpair, EbcsD0, pairing_corr_x
     contains
     pure real(r_kind) function shell_energy(A, levels) result(energy)
         real(r_kind), dimension(:), intent(in) :: levels
@@ -36,9 +36,14 @@ module pairing
         Gn = (g0n + g1n * I) / A
         deltaN = 5.72/(A-Z)**(1.0_r_kind/3.0_r_kind) * exp(-0.119*I -7.89*I**2)
         deltaP = 5.72/Z**(1.0_r_kind/3.0_r_kind) * exp(0.119*I -7.89*I**2)
-
+        write(*,*)
+        write(*,'(A)')"Proton pairing:"
         pc_p = pairing_corr_x(levels_p, Z, leveldens_efp, Gp, deltaP)
+        write(*,'(A,F7.3,A)')"Proton pairing correction:", pc_p, " MeV"
+        write(*,*)
+        write(*,'(A)')"Neutron pairing:"
         pc_n = pairing_corr_x(levels_n, A-Z, leveldens_efn, Gn, deltaN)
+        write(*,'(A,F7.3,A)')"Neutron pairing correction:", pc_n, " MeV"
         pairing_correction = pc_p + pc_n
     end function
 
@@ -49,13 +54,29 @@ module pairing
         integer, intent(in) :: numparts
         real(r_kind), intent(in) :: G, deltaavg
         real(r_kind) :: smoothe, E0, epair, efermi, delta
-        smoothe = smoothEpair(leveldens, deltaavg, numparts)
-        E0 = EbcsD0(levels, G, numparts)
-        call solve_BCS_eq(efermi, delta, levels, numparts, G)
-        epair = Ebcs(levels, efermi, delta, G)
+        real(r_kind), allocatable :: levs(:)
+        integer :: blocked_level, effective_part_nbr
 
-        write(*,'(A,F10.3)') "Pairing energy: ", epair - E0
-        write(*,'(A,F10.3)') "Smooth pairing energy: ", smoothe
+
+         
+        if(mod(numparts, 2) == 1) then !!If odd particle nbr, then one level is blocked from pairing due to the extra particle
+            blocked_level = (numparts-1)/2 + 1
+            allocate(levs(size(levels)-1))
+            levs(1:blocked_level-1) = levels(1:blocked_level-1)
+            levs(blocked_level:size(levels)-1) = levels(blocked_level+1:size(levels))
+            effective_part_nbr = numparts - 1
+        else
+            allocate(levs(size(levels)))
+            levs = levels
+            effective_part_nbr = numparts
+        endif
+        smoothe = smoothEpair(leveldens, deltaavg, effective_part_nbr)
+        E0 = EbcsD0(levs, G, effective_part_nbr)
+        call solve_BCS_eq(efermi, delta, levs, effective_part_nbr, G)
+        epair = Ebcs(levs, efermi, delta, G)
+
+        ! write(*,'(A,F10.3, A)') "Pairing energy: ", epair - E0, " MeV"
+        ! write(*,'(A,F10.3, A)') "Smooth pairing energy: ", smoothe, " MeV"
         pairing_corr_x = epair - E0 - smoothe
 
     end function
@@ -78,10 +99,16 @@ module pairing
         real(r_kind), dimension(:), intent(in) :: levels
         real(r_kind), intent(in) ::  G
         integer, intent(in) :: numparts
-        EbcsD0 = shell_energy(numparts, levels) + G*numparts*1.0_r_kind/2.0_r_kind
+        if(mod(numparts,2) .eq. 1) then
+            !Then one of the occ numbers = 1/2 => - G sum occ^2 => need to adjust by adding
+            EbcsD0 = shell_energy(numparts, levels) - G*(numparts-1)*1.0_r_kind/2.0_r_kind
+            EbcsD0 = EbcsD0 - G*0.25_r_kind
+        else
+            EbcsD0 = shell_energy(numparts, levels) - G*numparts*1.0_r_kind/2.0_r_kind
+        endif
     end function
 
-    pure real(r_kind) function Ebcs(levels, efermi, delta, G)
+    real(r_kind) function Ebcs(levels, efermi, delta, G)
         real(r_kind), dimension(:), intent(in) :: levels
         real(r_kind), intent(in) :: efermi, delta, G
         real(r_kind) :: ev, occ
@@ -91,7 +118,7 @@ module pairing
             ev = levels(vv)
 
             occ = occ_nbr(levels, vv, efermi, delta)
-            Ebcs = Ebcs + 2 * ev * occ + G * occ**2
+            Ebcs = Ebcs + 2.0_r_kind * ev * occ - G * occ**2
 
         end do
 
@@ -103,7 +130,7 @@ module pairing
         integer :: vv
         part_num = 0
         do vv = 1,size(levels)
-            part_num = part_num + 2*occ_nbr(levels, vv, fermi, delta)
+            part_num = part_num + 2.0_r_kind*occ_nbr(levels, vv, fermi, delta)
         end do
     end function
 
@@ -159,18 +186,16 @@ module pairing
         real(r_kind), intent(out) :: delta 
         real(r_kind), dimension(2,2) :: J, invJ !!jacobian
         real(r_kind), dimension(2) :: x, f, px
-        real(r_kind), parameter :: tol = 1e-6
+        real(r_kind), parameter :: tol = 1e-9
         logical :: converged
         integer :: iter
         !!use multivariate newtons method
         
-        delta = 1.0_r_kind !!initial guess for Delta
+        delta = 1.2_r_kind !!initial guess for Delta
         efermi = fermi_level_sh(num_part, levels) !!initial guess for fermi level
-        write(*,*)"Fermi level shell:", efermi
         x = [efermi, delta]
         converged = .false.
         iter = 1
-        write(*,*) "G: ", G
         ! write(*,*) "particle number: ", num_part
         ! write(*,*) "numlevels: ", size(levels)
         ! write(*,'(A,10F10.3)') "levels", levels(1:10)
@@ -185,10 +210,10 @@ module pairing
             call inverse_SVD(invJ,2)
 
             px = x
-            x = x - matmul(invJ,f) / 2
-            write(*,'(A,2F10.3)') "Fermi, delta ", efermi, delta
-            write(*,'(A, F10.3)') "Eq (1): ", f(1)
-            write(*,'(A, F10.3)') "Eq (2): ", f(2)
+            x = x - matmul(invJ,f)
+            ! write(*,'(A,2F10.3)') "Fermi, delta ", efermi, delta
+            ! write(*,'(A, F10.3)') "Eq (1): ", f(1)
+            ! write(*,'(A, F10.3)') "Eq (2): ", f(2)
            ! pause
             if(dot_product(x-px,x-px) < tol) then
                 converged = .true.
@@ -198,7 +223,7 @@ module pairing
         end do
         efermi = x(1)
         delta = x(2)
-        write(*,'(A,F8.3, A, F8.3,A,I3,A)') "Converged with values e_fermi = ", efermi, " MeV, Delta = ", delta, " MeV, after ", iter, " iterations"
+        write(*,'(A,F8.3, A, F8.3,A,I3,A)') "Gap equations solved with values: Fermi level = ", efermi, " MeV, Delta = ", delta, " MeV, after ", iter, " iterations"
 
     end subroutine
 
