@@ -70,12 +70,13 @@ module pairing
             levs = levels
             effective_part_nbr = numparts
         endif
+        write(*,'(a,f10.3)')"Level density at fermi:", leveldens
         smoothe = smoothEpair(leveldens, deltaavg, effective_part_nbr)
         E0 = EbcsD0(levs, G, effective_part_nbr)
         call solve_BCS_eq(efermi, delta, levs, effective_part_nbr, G)
         epair = Ebcs(levs, efermi, delta, G)
 
-        ! write(*,'(A,F10.3, A)') "Pairing energy: ", epair - E0, " MeV"
+        write(*,'(A,F10.3, A)') "Pairing energy: ", epair - E0, " MeV"
         ! write(*,'(A,F10.3, A)') "Smooth pairing energy: ", smoothe, " MeV"
         pairing_corr_x = epair - E0 - smoothe
 

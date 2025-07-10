@@ -15,7 +15,7 @@ program run_strut
     call print_shell_params(Z, A, def)
 
     !e_shell_corr= get_shell(A-Z, levels, omega_0, .false.)
-    e_shell_corr = microscopic_corrections(Z, A, betadef(beta2=0.0_r_kind, beta4=0.0_r_kind), .true.)
+    e_shell_corr = microscopic_corrections(Z, A, def, .true.)
     write(*,*)
     write(*,*)
     write(*,*)

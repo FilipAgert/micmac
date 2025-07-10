@@ -8,7 +8,7 @@ module Hamiltonian
 
     private
     public :: diagonalize, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels, H_protons, H_neutrons, get_levels
-    public :: S0, Sp, Sm, T0, Tplus, gnlp, gnl, Tminus, VSO_off_diag_elem_v2, VSO_off_diag_elem, el_pot, print_shell_params
+    public :: S0, Sp, Sm, T0, Tplus, gnlp, gnl, Tminus, VSO_off_diag_elem_v2, VSO_off_diag_elem, el_pot, print_shell_params, write_result
     integer, parameter :: gauss_order =64
     real(r_kind), dimension(gauss_order) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
     logical :: precomputed_quad = .false.
@@ -993,7 +993,7 @@ module Hamiltonian
         Hn = H_neutrons(states_n, Z, A, def, hbaromegaz, hbaromegaperp)
         write(*,'(A)') "Diagonalizing..."
         call diagonalize(E_n, Vn, Hn)
-            
+        call write_result(Z, A, E_n, E_p, states_n, states_p, Vn, Vp)
     end subroutine
 
     function H_protons(states, Z,A,def,hbaromegaz, hbaromegaperp) result(H)
@@ -1112,13 +1112,22 @@ subroutine print_shell_params(Z, A, def)
     write(line,'(A)') "Wood-Saxon term, Coulomb term and spin-orbit term included"
     call print_line(symb, line)
 
-    write(line,'(A,2I4)') "Running shell model calculation for Z, A=",Z,A
-    call print_line(symb, line)
+
     write(*,*) comm
     write(line,'(A)') "Input parameters for this calculation:"
     call print_line(symb, line)
-
-        
+!!!!!!!!!!!!
+    text = ": proton number"
+    write(line,'(A10,I10, A67)') "Z = ", Z, adjustl(text)
+    call print_one_line(symb, line)
+    text = ": neutron number"
+    write(line,'(A10,I10, A67)') "N = ", A-Z, adjustl(text)
+    call print_one_line(symb, line)
+    text = ": mass number"
+    write(line,'(A10,I10, A67)') "A = ", A, adjustl(text)
+    call print_one_line(symb, line)
+    line = ""
+    call print_one_line(symb, line)
     text = ": beta_2 deformation value"
     write(line,'(A10,F10.3, A67)') "beta_2 = ", def%beta2, adjustl(text)
     call print_one_line(symb, line)
@@ -1190,8 +1199,7 @@ subroutine print_shell_params(Z, A, def)
     write(*,*)
 
 
-end subroutine
-
+end subroutine      
 subroutine print_line(symb, line)
     character :: symb
     character(len=87) :: line
@@ -1204,5 +1212,82 @@ subroutine print_one_line(symb, line)
     character :: symb
     character(len=87) :: line
     write(*,'(1x,a,1x,A87,a)') symb,line,symb
+end subroutine
+
+subroutine write_result(Z,A,E_n,E_p, states_n, states_p, V_n, V_p)
+    real(r_kind) :: E_n(:), E_p(:)
+    integer :: Z, A, ii, idx_p, idx_n, fermi_i_p, fermi_i_n
+    type(betadef) :: def
+    type(an_ho_state), dimension(:) :: states_n, states_p
+    type(an_ho_state) :: state_p, state_n
+    real(r_kind), dimension(:,:) :: V_n, V_p
+    character(len=90) :: comm
+    character :: symb
+    character(len=87) :: line
+    character(len=67) :: text
+    character :: pp, pn
+    character(len=8) :: fermi_p, fermi_n
+    
+    symb = '+'
+    do ii = 1, 90
+        comm(ii:ii) = symb
+    end do
+
+    write(*,*) comm
+
+    write(line,'(A)') "Shell model calculation completed"
+    call print_line(symb, line)
+
+
+    line = " N   |m_j| p      E (MeV)         |m_j|  p    E (MeV)"
+    call print_one_line(symb, line)
+    if(mod(Z,2) == 0) then
+        fermi_i_p = Z/2
+    else
+        fermi_i_p = Z/2 + 1
+    endif
+
+    if(mod(A-Z,2) == 0) then
+        fermi_i_n = (A-Z)/2
+    else
+        fermi_i_n = (A-Z)/2 + 1
+    endif
+    do ii = 1, (A-Z)/2+2
+        idx_p = maxloc(abs(V_p(ii,:)),1)
+        state_p = states_p(idx_p)
+        idx_n = maxloc(abs(V_n(ii,:)),1)
+        state_n = states_p(idx_n)
+        if(state_p%pi < 0) then
+            pp = '-'
+        else
+            pp = '+'
+        endif
+
+        if(state_n%pi < 0) then
+            pn = '-'
+        else
+            pn = '+'
+        endif
+
+        if(ii == fermi_i_p) then
+            fermi_p = " <- e_f "
+        else
+            fermi_p = ""
+        endif
+
+
+        if(ii == fermi_i_n) then
+            fermi_n = " <- e_f "
+        else
+            fermi_n = ""
+        endif
+
+
+        write(line,'(I3,1x, I3,A3,A1, 2x,F10.3, a8,1x, I3,A3,A1,2x, F10.3,a8)')ii, state_p%mj, "/2 ", pp, E_p(ii), fermi_p,state_n%mj, "/2 ", pn, E_n(ii), fermi_n
+        call print_one_line(symb, line)
+    end do
+
+
+    write(*,*) comm
 end subroutine
 end module

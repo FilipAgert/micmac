@@ -11,7 +11,7 @@ module strutinsky
 
     private
 
-    public :: shell_correction, fermi_level_osc, fermi_level_sh, Peven, get_shell, shell_energy, microscopic_corrections
+    public :: shell_correction, fermi_level_osc, fermi_level_sh, Peven, get_shell, shell_energy, microscopic_corrections, level_dens
     logical :: precomputed_quad = .false.
     integer, parameter :: gauss_order = 64, M_ord = 6
     real(r_kind), dimension(gauss_order) :: lag_x, lag_w, leg_x, leg_w

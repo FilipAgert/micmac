@@ -4,7 +4,7 @@ module def_ho
     use optimise, only:func_1d, conj_grad_method
     implicit none
     private
-    public :: an_ho_state, get_ho_states, getnumstates, betadef, getnumstatesupto, fac, Hn, lna, alpha, get_lowest_ho_states
+    public :: an_ho_state, get_ho_states, getnumstates, betadef, getnumstatesupto, fac, Hn, lna, alpha, get_lowest_ho_states, get_ho_states_upto
     public :: kronecker, kin_en, gnl, gnlp, hmn, hmnp, spherical_def
 
 
@@ -177,7 +177,7 @@ function get_ho_states(N) result(states)
                     print*, "ERROR! R+S is not nperp"
                 endif
 
-                p = (-1)**N
+                p = (-1)**(2*nr+ml+nz)
                 state = an_ho_state(nz = nz, nr = nr, ml=ml, mj=omega, r= r, s=s, N=N, pi=p, nperp = nperp, ms=ms)
                 states(idx) = state
             end do

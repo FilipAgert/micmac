@@ -1,11 +1,11 @@
 program run_ho
     use constants
-    use def_ho, only: an_ho_state, betadef, getnumstates, getnumstatesupto, kin_en, get_ho_states
+    use def_ho, only: an_ho_state, betadef, getnumstates, getnumstatesupto, kin_en, get_ho_states, get_ho_states_upto
     use hamiltonian
     implicit none
 
 
-    integer, parameter :: A = 238, Z=92
+    integer, parameter :: A = 208, Z=82
     type(an_ho_state), dimension(:), allocatable :: states
     type(betadef) :: def 
     type(VC_pot) :: pot
@@ -16,10 +16,10 @@ program run_ho
     real(r_kind), parameter ::r0 = r0_p
     real(r_kind), parameter :: kappa=kappa_ws
     real(r_kind) :: hbaromega0, hbaromegaperp, hbaromegaz, rad,Vwsdepth,matelem
-
+    character :: p
     real(r_kind), dimension(:,:), allocatable :: matr
 
-    def = betadef(beta2 = 0.6, beta4=0.1)
+    def = betadef(beta2 = 0.0, beta4=0.0)
     hbaromega0 = 41.0_r_kind * A**(-1.0_r_kind/3.0_r_kind) !!MeV
     hbaromegaperp = def%omega_perp(hbaromega0) !! omega = Mev/hbar
     hbaromegaz = def%omega_z(hbaromega0)
@@ -45,7 +45,6 @@ program run_ho
     ! print*, "Neutrons:", E_n(1:5)
     ! print*, "Protons:" ,E_p(1:5)
     !neutrons
-    !Vc =coul_mat(states, def, rad, Z,mass_p,hbaromegaz, hbaromegaperp)!coul_mat(states, def, rad, Z, mass_p, hbaromegaz, hbaromegaperp)
 
     open(4, file="data/out/levels.dat")
     write(4,'(I3,A,I3,A)') Z, ",", A, ", = Z,A"
@@ -57,37 +56,52 @@ program run_ho
     end do
     close(4)
 
-
+    allocate(states(getnumstatesupto(max_n)))
+    states = get_ho_states_upto(max_n)
+    ! Vc = H_neutrons(states, Z, A, def, hbaromegaz, hbaromegaperp)!coul_mat(states, def, rad, Z,mass_p,hbaromegaz, hbaromegaperp)!coul_mat(states, def, rad, Z, mass_p, hbaromegaz, hbaromegaperp)
+    allocate(matr(size(Vc,1),size(vc,2)))
+    matr = Vc
+    numstates = size(states)
 
     open(3,file="data/out/mat.dat")
     write(3,*)
-    write(3,'(14x, A5)',advance='no') "l"
+    write(3,'(14x, A5)',advance='no') "parity"
     do n = 1, numstates
-        write(3,'(I6)',advance='no') states(n)%ml
+        if(states(n)%pi < 0) then
+            p = '-'
+        else
+            p = '+'
+        endif
+        write(3,'(a7)',advance='no') p
     end do
     write(3,*)
 
-    write(3,'(14x, A5)',advance='no')"nz   "
+    write(3,'(14x, A5)',advance='no')"ml   "
     do n = 1, numstates
-        write(3,'(I6)',advance='no') states(n)%nz
+        write(3,'(I7)',advance='no') states(n)%ml
         !write(,*) states(n)%nr
     end do
     write(3,*)
-    write(3,'(14x, A5)',advance='no')"ms   "
+    write(3,'(14x, A5)',advance='no')"mj   "
     do n = 1, numstates
-        write(3,'(I6)',advance='no') states(n)%ms
+        write(3,'(I7)',advance='no') states(n)%mj
     end do
 
     write(3,*)
     write(3,*)
 
     do n = 1, numstates
-        write(3,'(3I5, 5x)', advance='no') states(n)%ml, states(n)%nz,states(n)%ms
+        if(states(n)%pi < 0) then
+            p = '-'
+        else
+            p = '+'
+        endif
+        write(3,'(a5,2I5, 5x)', advance='no') p, states(n)%ml,states(n)%mj
         do j = 1, numstates
             if (abs(matr(n,j)) < 1e-8) then
-                write(3,'(6x)', advance='no')
+                write(3,'(7x)', advance='no')
             else
-                write(3,'(F6.3)', advance='no') matr(n,j)
+                write(3,'(F7.3)', advance='no') matr(n,j)
             endif
             
         end do
