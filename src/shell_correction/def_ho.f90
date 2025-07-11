@@ -240,7 +240,7 @@ pure real(r_kind) elemental function alpha(mass, omega)
     alpha = sqrt(mass*omega/(hbarc*hbarc))
 end function
 
-pure real(r_kind) elemental function phin(x,n, omega, mass) !!Eigenfunctions of 1d harmonic oscillator
+real(r_kind) function phin(x,n, omega, mass) !!Eigenfunctions of 1d harmonic oscillator
     real(r_kind), intent(in) :: x !! [fm]
     real(r_kind), intent(in) :: omega !!In units MeV/hbar
     real(r_kind), intent(in) :: mass  !!In units MeV/c^2
@@ -253,14 +253,14 @@ pure real(r_kind) elemental function phin(x,n, omega, mass) !!Eigenfunctions of 
 
 end function
 
-pure real(r_kind) elemental function hofact(n,alpha)
+real(r_kind) function hofact(n,alpha)
     integer, intent(in) :: n
     real(r_kind), intent(in) :: alpha
     hofact = sqrt(alpha)*pi**(-1.0_r_kind/4.0_r_kind) / sqrt(real(2**n * fac(n),r_kind))
 
 end function
 
-pure real(r_kind) elemental function phi2drad(r,nr,ml, mass, omega) result(val) !!Eigenfunction radial part of 2d harmonic oscllator
+real(r_kind) function phi2drad(r,nr,ml, mass, omega) result(val) !!Eigenfunction radial part of 2d harmonic oscllator
     real(r_kind), intent(in) :: r !!In units fm
     real(r_kind), intent(in) :: omega !!In units MeV/hbar
     real(r_kind), intent(in) :: mass  !!In units MeV/c^2
@@ -273,7 +273,7 @@ pure real(r_kind) elemental function phi2drad(r,nr,ml, mass, omega) result(val) 
     val = val * ho_fact2d(alph,ml,nr)!!normalization constant
 end function
 
-pure real(r_kind) elemental function ho_fact2d(alpha,ml,nr)
+real(r_kind) function ho_fact2d(alpha,ml,nr)
     real(r_kind), intent(in) :: alpha
     integer, intent(in) :: ml, nr
     ho_fact2d =  alpha**(ml+1) * sqrt(real(2*fac(nr),r_kind) / real(pi * fac(nr+ml),r_kind))
@@ -300,14 +300,25 @@ pure real(r_kind) elemental function lna(x,n,a) result(res) !gen laguerre polyno
 end function
 
 
-pure elemental recursive function fac(n) result(res)
-    integer(kind=i_kind) :: res
+real(r_kind) function fac(n) result(f)
     integer, intent(in) :: n
-    if(n == 0 .or. n == 1) then
-        res = 1
-    else
-        res = n* fac(n-1)
+    real(r_kind), save :: fc(0:169)
+    logical, save :: first = .true.
+    integer :: ii
+    if(n < 0) THEN
+        write(*,*) "error: negative argument for factorial"
+        stop
     endif
+    IF (first) THEN
+        fc(0) = 1.0
+        fc(1) = 1.0
+        DO ii = 2, 169
+        fc(ii) = fc(ii-1)*ii
+        END DO
+        first = .FALSE.
+    END IF
+
+    f = fc(n)
 end function
 
 pure integer function kronecker(a,b)
@@ -379,7 +390,7 @@ end function
 
 
 
-pure real(r_kind) elemental function gnl(x,n,l) !!modified laguerre polynomial
+real(r_kind) function gnl(x,n,l) !!modified laguerre polynomial
     integer, intent(in) :: n, l
     real(r_kind), intent(in) :: x
     if(n < 0)then
@@ -389,7 +400,7 @@ pure real(r_kind) elemental function gnl(x,n,l) !!modified laguerre polynomial
     endif
 end function
 
-pure real(r_kind) elemental function gnlp(x,n,l) !!modified laguerre polynomial derivative
+real(r_kind) function gnlp(x,n,l) !!modified laguerre polynomial derivative
     integer, intent(in) :: n, l
     real(r_kind), intent(in) :: x
 
@@ -399,7 +410,7 @@ pure real(r_kind) elemental function gnlp(x,n,l) !!modified laguerre polynomial 
 end function
 
 
-pure real(r_kind) elemental function Hmn(x,n) !!modified hermite polynomial
+real(r_kind) function Hmn(x,n) !!modified hermite polynomial
     integer, intent(in) :: n
     real(r_kind), intent(in) :: x
     if(n < 0) then
@@ -409,7 +420,7 @@ pure real(r_kind) elemental function Hmn(x,n) !!modified hermite polynomial
     endif
 end function
 
-pure real(r_kind) elemental function Hmnp(x,n) !!mod hermite polynomial derivative
+real(r_kind) function Hmnp(x,n) !!mod hermite polynomial derivative
     integer, intent(in) :: n
     real(r_kind), intent(in) :: x
 
