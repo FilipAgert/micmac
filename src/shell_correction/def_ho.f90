@@ -300,7 +300,7 @@ pure real(r_kind) elemental function lna(x,n,a) result(res) !gen laguerre polyno
 end function
 
 
-real(r_kind) function fac(n) result(f)
+real(r_kind) function fac(n) result(f) !!factorial function which saves result. Real as integer*8 overflows at 21!
     integer, intent(in) :: n
     real(r_kind), save :: fc(0:169)
     logical, save :: first = .true.
