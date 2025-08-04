@@ -2,7 +2,8 @@ module strutinsky
     use constants, only: r_kind, max_n, pi
     use Hamiltonian, only: get_levels
     use def_ho, only: betadef, getnumstatesupto, lna
-    use quadrule, only: laguerre_ss_compute, legendre_dr_compute
+    use quad, only: lagquad, legquad
+    !!use quadrule, only: laguerre_ss_compute, legendre_dr_compute
     use brent, only: zero_rc, zero_rc2
     use pairing
 
@@ -21,15 +22,15 @@ module strutinsky
         if(precomputed_quad) then
             return
         endif
-
-        call laguerre_ss_compute(gauss_order, lag_x, lag_w)
+        call lagquad(lag_x, lag_w)
+        !!call laguerre_ss_compute(gauss_order, lag_x, lag_w)
         !!Gets weights and locations for where to evaluate 64 point integral. 
         !!Integral must be of form F
         !! 0 < x < infty  dx f(x) * exp(-x)
         !! where x = alpha^2 * rho^2
 
-        
-        call legendre_dr_compute(gauss_order, leg_x, leg_w)
+        call legquad(leg_x, leg_w)
+        !!call legendre_dr_compute(gauss_order, leg_x, leg_w)
 
         precomputed_quad = .true.
     end subroutine

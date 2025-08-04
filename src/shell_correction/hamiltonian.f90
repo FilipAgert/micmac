@@ -1,7 +1,8 @@
 module Hamiltonian
     use constants
     use def_ho
-    use quadrule, only:legendre_dr_compute, hermite_ek_compute, laguerre_ss_compute
+    use quad
+    !!use quadrule, only:legendre_dr_compute, hermite_ek_compute, laguerre_ss_compute
     use optimise, only:func_1d, conj_grad_method
     implicit none
 
@@ -100,21 +101,22 @@ module Hamiltonian
 
 
         !!64 point gaussian quadrature.
-        call hermite_ek_compute(gauss_order,her_x,her_w)
+        call herquad(her_x, her_w)
+        !call hermite_ek_compute(gauss_order,her_x,her_w)
         !!Gets weights and locations for where to evaluate 64 point integral. 
         !!Integral must be of form 
         !! -infty < x < infty  dx f(x) * exp(-x^2)
         !! where x = alpha_z*z => z = x/alpha_z
 
-
-        call laguerre_ss_compute(gauss_order, lag_x, lag_w)
+        call LAGQUAD(lag_x, lag_w)
+        !!call laguerre_ss_compute(gauss_order, lag_x, lag_w)
         !!Gets weights and locations for where to evaluate 64 point integral. 
         !!Integral must be of form 
         !! 0 < x < infty  dx f(x) * exp(-x)
         !! where x = alpha^2 * rho^2
 
-        
-        call legendre_dr_compute(gauss_order, leg_x, leg_w)
+        call LEGQUAD(leg_x, leg_w)
+        !!call legendre_dr_compute(gauss_order, leg_x, leg_w)
 
         precomputed_quad = .true.
 
