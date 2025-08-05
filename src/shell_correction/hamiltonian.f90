@@ -237,6 +237,7 @@ module Hamiltonian
         real(kind) :: phi, thetap, sinp, cosp, sint, cost, radp
         logical, save :: first_time = .true.
         real(kind), save, dimension(nquad) :: sinthetas, costhetas, sinphis, cosphis
+        real(kind), save, dimension(3,nquad,nquad) :: normJac
 
         if(self%def%eq(spherical_def) )then !!if spherical, use analytical formula
             eval_vc = el_pot(r, self%radius, self%charge_dens)
@@ -253,6 +254,11 @@ module Hamiltonian
                 phi = (u+1)*pi
                 sinphis(iu) = sin(phi)
                 cosphis(iu) = cos(phi)
+                do it = 1,nquad
+                    t = leg_x(it)
+                    phi = (t+1)*pi
+                    normJac(:,it,iu) = surface_elem(self%def, thetap, phi, self%radius)
+                end do
             end do
 
             first_time = .false.
@@ -282,7 +288,7 @@ module Hamiltonian
                 vint = radp*[sint*cosp,sint*sinp,cost] 
                 diff = vinc - vint
                 dist = sqrt(dot_product(diff,diff))
-                nj = surface_elem(self%def, thetap, phi, self%radius) !!normal of surface at integration point
+                nj = normJac(:,it,iu)!surface_elem(self%def, thetap, phi, self%radius) !!normal of surface at integration point
                 rolling = rolling - dot_product(diff, nj)/dist * leg_w(iu)*leg_w(it)
             end do
         end do
