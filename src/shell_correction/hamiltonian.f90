@@ -9,7 +9,7 @@ module Hamiltonian
 
     private
     public :: diagonalize, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels, H_protons, H_neutrons, get_levels
-    public :: S0, T0, Tplus, Tminus, VSO_off_diag_elem_v2, el_pot, print_shell_params, write_result, time_diag, time_ws, time_Vc, time_Vso
+    public :: S0, T0, Tplus, Tminus, VSO_off_diag_elem_v2, el_pot, print_shell_params, write_result, time_diag, time_ws, time_Vc, time_Vso, normal_sph
     integer, parameter :: nquad =64
     real(kind), dimension(nquad) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
     logical :: precomputed_quad = .false.
@@ -196,6 +196,39 @@ module Hamiltonian
         el_pot = el_pot * charge_dens
     end function
 
+    function normal_cart(def, theta, phi) result(normal)
+        !!Normal vector of surface of nucleus at theta,phi in cartesian coordinates
+        type(betadef), intent(in) :: def
+        real(kind), intent(in) :: phi, theta
+        real(kind), dimension(3) :: normal
+        real(kind), dimension(3) :: r, rt, rp
+        real(kind) :: st, ct, sp, cp
+        real(kind) :: rad, draddt
+        st = sin(theta)
+        ct = cos(theta)
+        sp = sin(phi)
+        cp = cos(phi)
+        r = [st*cp, st*sp, ct]
+        rp = [-st*sp, st*ct,0.0_kind]
+        rt = [ct*cp, ct*sp, -st]
+        rad = surfRadius(theta, def, 1.0_kind)
+        draddt = dsurfRadiusdtheta(theta, def, 1.0_kind)
+
+        normal = rad*draddt * cross(r,rp) + rad*rad * cross(rt,rp)
+        normal = normal/sqrt(dot_product(normal,normal))
+        print*, "len normal ^ 2", dot_product(normal,normal)
+
+    end function
+
+    function cross(v1,v2)
+        !!computes cross product in cartesian coordinates
+        real(kind), dimension(3), intent(in) :: v1,v2
+        real(kind), dimension(3):: cross
+        cross(1) = v1(2)*v2(3) - v1(3)*v2(2)
+        cross(2) = v1(3)*v2(1) - v1(1)*v2(3)
+        cross(3) = v1(1)*v2(2) - v1(2)*v2(1)
+    end function
+
     real(kind) function eval_vc(self,r, theta) !!axially symmetric. function of z and rho
         class(VC_pot), intent(in) :: self
         real(kind), intent(in) :: r, theta
@@ -203,10 +236,10 @@ module Hamiltonian
         integer :: iu, it, ix
         real(kind) :: u, t, x, int_theta, int_radius_ub, rolling, sintheta, sinacosu, cospipit, costheta
 
-        if(self%def%eq(spherical_def) )then !!if spherical, use analytical formula
-            eval_vc = el_pot(r, self%radius, self%charge_dens)
-            return
-        endif
+        ! if(self%def%eq(spherical_def) )then !!if spherical, use analytical formula
+        !     eval_vc = el_pot(r, self%radius, self%charge_dens)
+        !     return
+        ! endif
 
 
         call precompute_quad()
@@ -218,6 +251,7 @@ module Hamiltonian
         call omp_set_num_threads(num_threads)
         !//$omp parallel do private (iu, it, ix, u, int_theta, int_radius_ub, t, x) &
         !//$omp& reduction(+:rolling)
+        !https://en.wikipedia.org/wiki/Green%27s_identities
 
         do iu = 1, nquad
             u = leg_x(iu)
@@ -258,7 +292,16 @@ module Hamiltonian
     pure elemental real(kind) function Y40(theta)
         real(kind) ,intent(in) :: theta
         Y40 = sqrt(9.0_kind / (256 * pi)) * (35.0_kind * cos(theta)**4 - 30.0_kind * cos(theta)**2 + 3)
+    end function
 
+    pure elemental real(kind) function dY20dtheta(theta) result(dydt)
+        real(kind), intent(in) :: theta
+        dydt = -1.5_kind * sqrt(5.0_kind/pi) * sin(theta)*cos(theta)
+    end function
+
+    pure elemental real(kind) function dY40dtheta(theta) result(dydt)
+        real(kind), intent(in) :: theta
+        dydt = 15*sin(theta)*cos(theta)*(3-7*cos(theta)**2)/(4.0_kind*sqrt(pi))
     end function
 
     pure elemental real(kind) function surfdisteval(self, x) !!Gets distance to surface at angle x.
@@ -276,6 +319,12 @@ module Hamiltonian
         real(kind), intent(in) :: theta, R0
         type(betadef), intent(in) :: def
         surfRadius = R0 * (1.0_kind + def%beta2 * Y20(theta) + def%beta4*Y40(theta))
+    end function
+
+    pure elemental real(kind) function dsurfRadiusdtheta(theta, def, R0)result(dRdt) !!partial derivative of radius wrt theta.
+        real(kind), intent(in) :: theta, R0
+        type(betadef), intent(in) :: def
+        drdt = R0 * (def%beta2 * dY20dtheta(theta) + def%beta4*dY40dtheta(theta))
     end function
 
 
