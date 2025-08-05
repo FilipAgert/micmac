@@ -567,7 +567,7 @@ module Hamiltonian
         real(kind) :: time0, time1
         integer ::numstates, row, col, l1, l2, ms1, ms2
         type(an_ho_state) :: s1, s2
-        allocate(T0(0:max_n, 0:max_n, nquad), W0(0:max_n, 0:max_n, nquad))
+        allocate(T0(0:max_n, 0:max_n, nquad), W0(nquad,0:max_n, 0:max_n))
         call precompute_quad()
         call cpu_time(time0)
         kappa = lambda*(hbarc/(2*mass))**2
@@ -662,7 +662,7 @@ module Hamiltonian
 
     function W0_mat(SO_WS, alpha_z, alpha_perp) !!int tilde(h) h S
         !!TOdo: use recurence relation to not have to compute entire matrix
-        real(kind), dimension(0:max_n, 0:max_n, nquad) :: W0_mat
+        real(kind), dimension(nquad,0:max_n, 0:max_n) :: W0_mat
         type(WS_pot), intent(in) :: SO_WS
         real(kind), intent(in) :: alpha_z, alpha_perp
         real(kind) :: eta
@@ -673,7 +673,7 @@ module Hamiltonian
             do nzp = 0, max_n
                 do ii = 1, nquad
                     eta = lag_x(ii)
-                    W0_mat(nzp, nz, ii) = W_matelem(eta, ii, nzp, nz, SO_WS, alpha_z, alpha_perp)
+                    W0_mat(ii,nzp, nz) = W_matelem(eta, ii, nzp, nz, SO_WS, alpha_z, alpha_perp)
                 end do
             end do
         end do
@@ -747,7 +747,7 @@ module Hamiltonian
     real(kind) function I1(s1,s2, W0,alpha_z, alpha_perp)
         type(an_ho_state), intent(in) :: s1, s2
         real(kind), intent(in) ::  alpha_z, alpha_perp
-        real(kind), dimension(0:max_n, 0:max_n, nquad), intent(in) :: W0
+        real(kind), dimension(nquad,0:max_n, 0:max_n), intent(in) :: W0
         integer :: nn
         real(kind) ::rho, eta, weta, term
         real(kind), save :: sqrteta(1:nquad)
@@ -770,7 +770,7 @@ module Hamiltonian
             term = 0
             rho = eta_to_rho(eta, alpha_perp)
 
-            term = W0(s1%nz, s2%nz, nn) * s2%ml + W0(s2%nz, s1%nz, nn) * s1%ml
+            term = W0(nn,s1%nz, s2%nz) * s2%ml + W0(nn,s2%nz, s1%nz) * s1%ml
             term = term * weta * get_quad_gnl(nn,s1%nr, s1%ml) * get_quad_gnl(nn, s2%nr,s2%ml) / sqrteta(nn)
             I1 = I1 + term
         end do
@@ -786,7 +786,7 @@ module Hamiltonian
         type(an_ho_state), intent(in) :: s1, s2
         real(kind), intent(in) ::  alpha_z, alpha_perp
         integer :: nn
-        real(kind), dimension(0:max_n, 0:max_n, nquad), intent(in) :: W0
+        real(kind), dimension(nquad,0:max_n, 0:max_n), intent(in) :: W0
         real(kind) :: rho, eta, weta, term1, term2,etafac
         real(kind), save :: invsqrteta(1:nquad)
         logical, save :: first_time = .true.
@@ -807,8 +807,8 @@ module Hamiltonian
             term2 = 0
             rho = eta_to_rho(eta, alpha_perp)
 
-            term1 = W0(s1%nz, s2%nz, nn)
-            term2 = W0(s2%nz, s1%nz, nn)
+            term1 = W0(nn,s1%nz, s2%nz)
+            term2 = W0(nn,s2%nz, s1%nz)
 
             etafac = weta *invsqrteta(nn)
             term1 = term1 * etafac * get_quad_gnl(nn, s1%nr, s1%ml) * get_quad_gnlp(nn, s2%nr, s2%ml)
@@ -934,7 +934,7 @@ module Hamiltonian
     real(kind)  function VSO_off_diag_elem_v2(s1,s2,W0,alpha_z,alpha_perp) result(matelem)
         type(an_ho_state), intent(in) :: s1, s2
         real(kind), intent(in) :: alpha_z, alpha_perp
-        real(kind), intent(in) :: W0(0:max_n, 0:max_n, nquad)
+        real(kind), intent(in) :: W0(nquad,0:max_n, 0:max_n)
         matelem = 0
 
         if(s1%ml == s2%ml + 1 .and. s1%ms == s2%ms - 2) then
