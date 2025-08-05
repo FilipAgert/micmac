@@ -331,7 +331,7 @@ module Hamiltonian
         integer ::numstates, row, col
         type(an_ho_state) :: s1, s2
         real(kind) :: time0, time1
-        allocate(Z_mat(0:max_n,0:max_n, nquad))
+        allocate(Z_mat(nquad,0:max_n,0:max_n))
         call precompute_quad()
         call cpu_time(time0)
 
@@ -373,7 +373,7 @@ module Hamiltonian
     end function
 
     subroutine comp_zmat(Zmat, pot,alpha_z, alpha_perp) !!use the reccurence relations to compute the Zmat completely from the main diagonals
-        real(kind), dimension(0:max_n,0:max_n, nquad), intent(out) :: Zmat
+        real(kind), dimension(nquad,0:max_n,0:max_n), intent(out) :: Zmat
         logical, dimension(0:max_n, 0:max_n) :: computed
         class(potential) :: pot
         real(kind), intent(in) :: alpha_z, alpha_perp
@@ -388,7 +388,7 @@ module Hamiltonian
             do nzp = nz, min(max_n, nz+1)
                 do ii = 1, nquad
                     eta = lag_x(ii)
-                    Zmat(nzp, nz, ii) = Z_matelem(eta, ii,nzp,nz,pot,alpha_z,alpha_perp)
+                    Zmat(ii,nzp, nz) = Z_matelem(eta, ii,nzp,nz,pot,alpha_z,alpha_perp)
 
                 end do
                 computed(nzp, nz) = .true.
@@ -397,7 +397,7 @@ module Hamiltonian
 
         do nzp = 1,max_n !reflect off diagonal.
             nz = nzp -1
-            Zmat(nzp, nz, :) = Zmat(nz, nzp, :)
+            Zmat(:,nzp, nz) = Zmat(:,nz, nzp)
             computed(nzp, nz) = .true.
         end do
         ! write(str, '(A,I2,A)')'(',max_n+1,'F10.3)'
@@ -418,14 +418,14 @@ module Hamiltonian
                     if(.not. computed(nzp + 1, nz - 1)) then
                         do ii = 1, nquad
                             eta = lag_x(ii)
-                            Zmat(nzp + 1, nz - 1, ii) = Z_matelem(eta, ii,nzp + 1,nz - 1,pot,alpha_z,alpha_perp)
+                            Zmat(ii,nzp + 1, nz - 1) = Z_matelem(eta, ii,nzp + 1,nz - 1,pot,alpha_z,alpha_perp)
                             
                         end do
                         computed(nzp + 1, nz - 1) = .true.
                     endif
 
 
-                    Zmat(nzp, nz, :) = Zmat(nzp, nz, :) + Zmat(nzp+1, nz-1,:) * sqrt((nzp+1.0_kind)/nz)
+                    Zmat(:,nzp, nz) = Zmat(:,nzp, nz) + Zmat(:,nzp+1, nz-1) * sqrt((nzp+1.0_kind)/nz)
                     if(nz==0) then
                         write(*,*) "ERR: divide by zero nz, nzp: ", nz, nzp
                     endif
@@ -435,14 +435,14 @@ module Hamiltonian
                     if(.not. computed(nzp - 1, nz - 1)) then
                         do ii = 1, nquad
                             eta = lag_x(ii)
-                            Zmat(nzp - 1, nz - 1, ii) = Z_matelem(eta, ii,nzp - 1,nz - 1,pot,alpha_z,alpha_perp)
+                            Zmat(ii,nzp - 1, nz - 1) = Z_matelem(eta, ii,nzp - 1,nz - 1,pot,alpha_z,alpha_perp)
         
                         end do
                         computed(nzp - 1, nz - 1) = .true.
                     endif
 
 
-                    Zmat(nzp, nz, :) = Zmat(nzp, nz, :) + Zmat(nzp-1, nz-1,:) * sqrt(real(nzp,kind)/nz)
+                    Zmat(:,nzp, nz) = Zmat(:,nzp, nz) + Zmat(:,nzp-1, nz-1) * sqrt(real(nzp,kind)/nz)
                     if(nz==0) then
                         write(*,*) "ERR: divide by zero nz, nzp: ", nz, nzp
                     endif
@@ -452,14 +452,14 @@ module Hamiltonian
                     if(.not. computed(nzp, nz - 2)) then
                         do ii = 1, nquad
                             eta = lag_x(ii)
-                            Zmat(nzp, nz - 2, ii) = Z_matelem(eta, ii,nzp,nz - 2,pot,alpha_z,alpha_perp)
+                            Zmat(ii,nzp, nz - 2) = Z_matelem(eta, ii,nzp,nz - 2,pot,alpha_z,alpha_perp)
         
                         end do
                         computed(nzp, nz - 2) = .true.
                     endif
 
 
-                    Zmat(nzp, nz, :) = Zmat(nzp, nz, :) - Zmat(nzp, nz-2,:) * sqrt((nz-1.0_kind)/nz)
+                    Zmat(:,nzp, nz) = Zmat(:,nzp, nz) - Zmat(:,nzp, nz-2) * sqrt((nz-1.0_kind)/nz)
                     if(nz==0) then
                         write(*,*) "ERR: divide by zero: nz, nzp: ", nz, nzp
                     endif
@@ -474,7 +474,7 @@ module Hamiltonian
         ! end do
         do nz = 0, max_n !reflect to lower triangular matrix.
             do nzp = nz, max_n
-                Zmat(nzp, nz,:) = Zmat(nz, nzp,:)
+                Zmat(:,nzp, nz)= Zmat(:,nz, nzp)
             end do
         end do
         ! write(*,*) "after reflection:"
@@ -511,7 +511,7 @@ module Hamiltonian
 
         call precompute_quad()
         call cpu_time(time0)
-        allocate(Z_MAT(0:max_n,0:max_n,nquad))
+        allocate(Z_MAT(nquad,0:max_n,0:max_n))
         !setup potential
         VWS%def = def
         VWS%radius = R0
@@ -653,7 +653,7 @@ module Hamiltonian
     end function
 
     function T0_mat(SO_WS, alpha_z, alpha_perp)
-        real(kind), dimension(0:max_n, 0:max_n, nquad) :: T0_mat
+        real(kind), dimension(nquad,0:max_n, 0:max_n) :: T0_mat
         type(WS_pot), intent(in) :: SO_WS
         real(kind), intent(in) :: alpha_z, alpha_perp
 
@@ -835,7 +835,7 @@ module Hamiltonian
 
     real(kind) function pot_elem_zmatpre(s1,s2,Zmat) result(matelem)
         type(an_ho_state), intent(in) :: s1, s2
-        real(kind), intent(in), dimension(0:max_N, 0:max_N, nquad) :: Zmat
+        real(kind), intent(in), dimension(nquad,0:max_N, 0:max_N) :: Zmat
         integer :: ii
         real(kind) :: eta
         call precompute_quad()
@@ -846,7 +846,7 @@ module Hamiltonian
 
         do ii = 1, nquad
             eta = lag_x(ii)
-            matelem = matelem + lag_w(ii) * Zmat(s1%nz, s2%nz, ii) * get_quad_gnl(ii, s1%nr,s1%ml) * get_quad_gnl(ii, s2%nr, s2%ml) 
+            matelem = matelem + lag_w(ii) * Zmat(ii,s1%nz, s2%nz) * get_quad_gnl(ii, s1%nr,s1%ml) * get_quad_gnl(ii, s2%nr, s2%ml) 
         end do
 
     end function
@@ -913,7 +913,7 @@ module Hamiltonian
     real(kind)  function VSO_diag_elem(s1,s2,T0_mat,alpha_perp) result(matelem)
         type(an_ho_state), intent(in) :: s1, s2
         real(kind), intent(in) :: alpha_perp
-        real(kind), dimension(0:max_n, 0:max_n, nquad) :: T0_mat
+        real(kind), dimension(nquad,0:max_n, 0:max_n) :: T0_mat
         integer :: ii
         real(kind) :: eta
         matelem = 0.0_kind
@@ -924,7 +924,7 @@ module Hamiltonian
 
         do ii = 1, nquad
             eta = lag_x(ii)
-            matelem = matelem + S0(ii, s1, s2) * T0_mat(s1%nz, s2%nz, ii)* lag_w(ii) !== 2*lambda*sigma where sigma = +- 1/2
+            matelem = matelem + S0(ii, s1, s2) * T0_mat(ii,s1%nz, s2%nz)* lag_w(ii) !== 2*lambda*sigma where sigma = +- 1/2
             
         end do
         matelem = matelem * alpha_perp**2 * s1%ml * s1%ms
