@@ -741,9 +741,19 @@ module Hamiltonian
         real(kind), dimension(0:max_n, 0:max_n, nquad), intent(in) :: W0
         integer :: nn
         real(kind) ::rho, eta, weta, term
-
-
+        real(kind), save :: sqrteta(1:nquad)
+        logical, save :: first_time = .true.
         call precompute_quad()
+        if(first_time) then
+            do nn = 1, nquad
+                eta = lag_x(nn)
+                sqrteta(nn) = sqrt(eta)
+            end do
+            first_time = .false.
+        endif
+
+
+
         I1 = 0
         do nn = 1, nquad
             eta = lag_x(nn)
@@ -752,7 +762,7 @@ module Hamiltonian
             rho = eta_to_rho(eta, alpha_perp)
 
             term = W0(s1%nz, s2%nz, nn) * s2%ml + W0(s2%nz, s1%nz, nn) * s1%ml
-            term = term * weta * gnl(eta,s1%nr, s1%ml) * gnl(eta, s2%nr,s2%ml) / sqrt(eta)
+            term = term * weta * get_quad_gnl(nn,s1%nr, s1%ml) * get_quad_gnl(nn, s2%nr,s2%ml) / sqrteta(nn)
             I1 = I1 + term
         end do
         I1 = I1 * alpha_perp*alpha_z
@@ -784,8 +794,8 @@ module Hamiltonian
             term2 = W0(s2%nz, s1%nz, nn)
 
             etafac = weta / sqrt(eta)
-            term1 = term1 * etafac * gnl(eta, s1%nr, s1%ml) * gnlp(eta, s2%nr, s2%ml)
-            term2 = term2 * etafac * gnlp(eta, s1%nr, s1%ml) * gnl(eta, s2%nr, s2%ml)
+            term1 = term1 * etafac * get_quad_gnl(nn, s1%nr, s1%ml) * gnlp(eta, s2%nr, s2%ml)
+            term2 = term2 * etafac * gnlp(eta, s1%nr, s1%ml) * get_quad_gnl(nn, s2%nr, s2%ml)
 
             I2 = I2 + term1 - term2
         end do
@@ -819,7 +829,7 @@ module Hamiltonian
 
         do ii = 1, nquad
             eta = lag_x(ii)
-            matelem = matelem + lag_w(ii) * Zmat(s1%nz, s2%nz, ii) * gnl(eta, s1%nr,s1%ml) * gnl(eta, s2%nr, s2%ml) 
+            matelem = matelem + lag_w(ii) * Zmat(s1%nz, s2%nz, ii) * get_quad_gnl(ii, s1%nr,s1%ml) * get_quad_gnl(ii, s2%nr, s2%ml) 
         end do
 
     end function
@@ -1346,15 +1356,15 @@ real(kind) function get_quad_gnl(ii,n,l)
     integer, intent(in) :: ii !!index of quadrature root
     integer :: ll
     integer :: nn, jj
-    real(kind), save :: g(1:nquad, 1:(max_n+2)**2)
+    real(kind), save :: g(1:nquad, 0:(max_n+1), 0:(max_n+1))
     logical, save :: first_time = .true.
-
+    if(l < 0) print*, "ERR: l < 0"
     if(first_time) then
         call precompute_quad()
         do nn = 0,max_n+1
-            do ll = -nn, nn
+            do ll = 0, max_n+1
                 do jj = 1,nquad
-                    g(jj,idx(nn,ll)) = gnl(lag_x(jj),nn,ll)
+                    g(jj,nn,ll) = gnl(lag_x(jj),nn,ll)
                 end do
             end do
         end do
@@ -1363,17 +1373,8 @@ real(kind) function get_quad_gnl(ii,n,l)
     if(n < 0) then
         get_quad_gnl = 0
     else
-        get_quad_gnl = g(ii,idx(n,l))
+        get_quad_gnl = g(ii,n,l)
     endif
-
-    contains
-    pure integer function idx(n,l)
-        integer, intent(in) :: n,l
-        integer :: i
-        integer, parameter :: s(0:max_n+1) = [(i*i+1,i=0,max_n+1)]
-        idx = s(n)+n+l
-    end function
-
 end function
 
 real(kind) function get_quad_gnlp(ii,n,l)
@@ -1383,15 +1384,15 @@ real(kind) function get_quad_gnlp(ii,n,l)
     integer, intent(in) :: ii !!index of quadrature root
     integer :: ll
     integer :: nn, jj
-    real(kind), save :: gp(1:nquad, 1:(max_n+2)**2)
+    real(kind), save ::  gp(1:nquad, 0:(max_n), 0:(max_n))
     logical, save :: first_time = .true.
 
     if(first_time) then
         call precompute_quad()
-        do nn = 0,max_n+1
-            do ll = -nn, nn
+        do nn = 0,max_n
+            do ll = 0,max_n
                 do jj = 1,nquad
-                    gp(jj,idx(nn,ll)) = (get_quad_gnl(jj,nn,ll) * (2*nn+ll-lag_x(jj)) &
+                    gp(jj,nn,ll) = (get_quad_gnl(jj,nn,ll) * (2*nn+ll-lag_x(jj)) &
                     - get_quad_gnl(jj,nn-1,ll) * 2.0* sqrt(real(nn*(nn+ll),kind)))/sqrt(lag_x(jj))
         
                 end do
@@ -1402,16 +1403,8 @@ real(kind) function get_quad_gnlp(ii,n,l)
     if(n < 0) then
         get_quad_gnlp = 0
     else
-        get_quad_gnlp = gp(ii,idx(n,l))
+        get_quad_gnlp = gp(ii,n,l)
     endif
-
-    contains
-    pure integer function idx(n,l)
-        integer, intent(in) :: n,l
-        integer :: i
-        integer, parameter :: s(0:max_n+1) = [(i*i+1,i=0,max_n+1)]
-        idx = s(n)+n+l
-    end function
 
 end function
 end module
