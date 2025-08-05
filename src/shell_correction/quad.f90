@@ -1,6 +1,6 @@
 module quad
     !!Source https://github.com/FilipAgert/fquad
-    use constants, only: kind => r_kind
+    use constants, only: kind
     implicit none
     private
     public :: legquad, lagquad, herquad
