@@ -10,7 +10,7 @@ module Hamiltonian
     private
     public :: diagonalize, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels, H_protons, H_neutrons, get_levels, surfRadius
     public :: S0, T0, Tplus, Tminus, VSO_off_diag_elem_v2, el_pot, print_shell_params, write_result, time_diag, time_ws, time_Vc, time_Vso, surface_elem
-    integer, parameter :: nquad =64
+    integer, parameter :: nquad =8
     real(kind), dimension(nquad) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
     logical :: precomputed_quad = .false.
 
@@ -948,17 +948,32 @@ module Hamiltonian
 
     end function
 
+    logical function is_reflection_sym(def) result(sym)
+        type(betadef), intent(in) :: def
+        sym = .true.
+
+    end function
+
     real(kind) function Z_matelem(eta, eta_ii,nz1,nz2,pot,alpha_z, alpha_perp)
         integer, intent(in) :: nz1, nz2
         real(kind), intent(in) :: alpha_z, alpha_perp, eta
         class(potential), intent(in) :: pot
-        integer :: ii
+        integer :: ii, UB
         integer, intent(in) ::eta_ii
         real(kind) :: zeta, z, rho, r, theta
         Z_matelem = 0.0_kind
         rho = eta_to_rho(eta, alpha_perp)
+        if(is_reflection_sym(pot%def)) then
+            UB = nquad/2
+            if(mod(nz1+nz2,2)==1)then
+                 Z_matelem = 0
+                return
+            endif
+        else
+            UB = nquad
+        endif
 
-        do ii = 1, nquad
+        do ii = 1, UB
             zeta = her_x(ii)
             z = zeta_to_z(zeta,alpha_z)
             theta = theta_cyl(rho, z)
@@ -977,7 +992,48 @@ module Hamiltonian
             !     write(*,'(F10.3)'),(pot%eval(0.0_kind,0.0_kind))
             ! endif
 
+            
         end do
+        write(*,*) "HALFWAY:" , Z_matelem, " dub:",  Z_matelem*2
+        do ii = UB+1,nquad
+            zeta = her_x(ii)
+            z = zeta_to_z(zeta,alpha_z)
+            theta = theta_cyl(rho, z)
+            r = rad_cyl(rho ,z)
+     
+            ! if(printflag) then
+            !     write(*,'(A, 2F10.3)') 'z, rho', z, rho
+            !     write(*,'(A, 2F10.3)') 'eta, zeta', eta, zeta
+            !     write(*,'(A, 2F10.3)') 'alpha_z, alpha_perp', alpha_z, alpha_perp
+            !     write(*,'(A, 2F10.3)') 'R, theta', r, theta
+            !     write(*,'(A,F10.3,F10.3)'),"Eval vs preeval: " ,(pot%eval(r,theta)), pot%eval_pre(eta_ii, ii, r, theta)
+            ! endif
+
+            Z_matelem = Z_matelem + her_w(ii) * get_quad_Hmn(ii, nz1) * get_quad_Hmn(ii, nz2)*pot%eval_pre(eta_ii,ii,r, theta) 
+            ! if(printflag) then
+            !     write(*,'(F10.3)'),(pot%eval(0.0_kind,0.0_kind))
+            ! endif
+
+            
+        end do
+        write(*,*) "FIN:" , Z_matelem
+
+        pause
+        if(is_reflection_sym(pot%def)) then
+            Z_matelem = Z_matelem*2
+            return
+            ! print*, "here"
+            if(mod(nquad,2) == 1) then
+                ii = UB + 1
+                zeta = her_x(ii) !!should be zero
+                if(zeta /= 0.0_kind) error stop "not zero"
+                z = zeta_to_z(zeta,alpha_z)
+                theta = theta_cyl(rho, z)
+                r = rad_cyl(rho ,z)
+                Z_matelem = Z_matelem + her_w(ii) * get_quad_Hmn(ii, nz1) * get_quad_Hmn(ii, nz2)*pot%eval_pre(eta_ii,ii,r, theta) 
+            endif
+
+        endif
     end function
 
     real(kind) function W_matelem(eta, eta_ii,nz1,nz2,pot,alpha_z, alpha_perp) !! W(eta) = int zeta    h(zeta) h'(zeta) S(eta, zeta)
