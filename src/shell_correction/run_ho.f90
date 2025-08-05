@@ -21,7 +21,7 @@ program run_ho
     real(kind) :: r, theta, vcpot, phi
     real(kind) :: normal_vec(3)
 
-    def = betadef(beta2 = 0.0, beta4=0.0)
+    def = betadef(beta2 = 0.0001, beta4=0.0)
     hbaromega0 = 41.0_kind * A**(-1.0_kind/3.0_kind) !!MeV
     hbaromegaperp = def%omega_perp(hbaromega0) !! omega = Mev/hbar
     hbaromegaz = def%omega_z(hbaromega0)
@@ -43,18 +43,21 @@ program run_ho
     call VC%set_charge_dens(Z)
     VC%def = def
 
-    r = 10.0
-    theta = pi/4
-    phi = 1
-    normal_vec = normal_cart(def, theta, phi)
-    write(*,'(a,f7.2)') "r = ", r
-    write(*,'(a,f7.2)') "Theta = ", theta
-    write(*,'(a,f7.2)') "phi = ", phi
-    vcpot = VC%eval(r, theta)
-    write(*,'(a,f7.2)') "Pot = ", vcpot
-    write(*,'(a,3f7.2)')"normal: ", normal_vec
 
-    call exit
+    theta = 0.3
+    phi = 1
+    r = surfRadius(theta,def,rad)*0.5
+    normal_vec = surface_elem(def, theta, phi, rad)
+    ! write(*,'(a,f7.2)') "r = ", r
+    ! write(*,'(a,f7.2)') "Theta = ", theta
+    ! write(*,'(a,f7.2)') "phi = ", phi
+    vcpot = VC%eval(r, theta)
+    ! write(*,'(a,f7.2)') "Pot = ", vcpot
+    ! write(*,'(a,3f7.2)')"normal: ", normal_vec/sqrt(dot_product(normal_vec,normal_vec))
+    ! write(*,'(a,3f7.2)')"JAC: ", sqrt(dot_product(normal_vec,normal_vec))
+    ! write(*,'(a,3f7.2)')"JAC actual ", r*r*sin(theta)
+
+
     allocate(E_p(num_p_states), E_n(num_n_states))
     call print_shell_params(Z,A,def)
     write(*,'(A,F10.3, A)')"omega:", hbaromega0, " MeV/hbar"

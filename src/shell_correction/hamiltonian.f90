@@ -8,8 +8,8 @@ module Hamiltonian
 
 
     private
-    public :: diagonalize, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels, H_protons, H_neutrons, get_levels
-    public :: S0, T0, Tplus, Tminus, VSO_off_diag_elem_v2, el_pot, print_shell_params, write_result, time_diag, time_ws, time_Vc, time_Vso, normal_cart
+    public :: diagonalize, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels, H_protons, H_neutrons, get_levels, surfRadius
+    public :: S0, T0, Tplus, Tminus, VSO_off_diag_elem_v2, el_pot, print_shell_params, write_result, time_diag, time_ws, time_Vc, time_Vso, surface_elem
     integer, parameter :: nquad =64
     real(kind), dimension(nquad) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
     logical :: precomputed_quad = .false.
@@ -196,12 +196,14 @@ module Hamiltonian
         el_pot = el_pot * charge_dens
     end function
 
-    function normal_cart(def, theta, phi) result(normal)
-        !!Normal vector of surface of nucleus at theta,phi in cartesian coordinates
+    function surface_elem(def, theta, phi, r0) result(out)
+        !!Non-normalized Normal vector of surface of nucleus at theta,phi in cartesian coordinates
+        !!is Jacobian as well. so if v is this vector, dS = n dA = v dtheta dphi
         type(betadef), intent(in) :: def
         real(kind), intent(in) :: phi, theta
-        real(kind), dimension(3) :: normal
+        real(kind), dimension(3) :: out
         real(kind), dimension(3) :: r, rt, rp
+        real(kind), intent(in) :: r0
         real(kind) :: st, ct, sp, cp
         real(kind) :: rad, draddt
         st = sin(theta)
@@ -211,14 +213,13 @@ module Hamiltonian
         r = [st*cp, st*sp, ct]
         rp = [-st*sp, st*cp,0.0_kind]
         rt = [ct*cp, ct*sp, -st]
-        rad = surfRadius(theta, def, 1.0_kind)
-        draddt = dsurfRadiusdtheta(theta, def, 1.0_kind)
+        rad = surfRadius(theta, def, r0)
+        draddt = dsurfRadiusdtheta(theta, def, r0)
 
-        normal = rad*draddt * cross(r,rp) + rad*rad * cross(rt,rp)
-        normal = normal/sqrt(dot_product(normal,normal))
+        out = rad*draddt * cross(r,rp) + rad*rad * cross(rt,rp)
     end function
 
-    function cross(v1,v2)
+    pure function cross(v1,v2)
         !!computes cross product in cartesian coordinates
         real(kind), dimension(3), intent(in) :: v1,v2
         real(kind), dimension(3):: cross
@@ -232,19 +233,20 @@ module Hamiltonian
         real(kind), intent(in) :: r, theta
         !Do the integral int_V     dr^3/|r-r'| at the point r.
         integer :: iu, it, ix
-        real(kind) :: u, t, x, int_theta, int_radius_ub, rolling, sintheta, sinacosu, cospipit, costheta
+        real(kind) :: u, t, x, int_theta, int_radius_ub, rolling, sintheta, sinacosu, cospipit, costheta, vinc(3), vint(3), diff(3), dist, nj(3)
+        real(kind) :: phi, thetap, sinp, cosp, sint, cost, radp
 
-        ! if(self%def%eq(spherical_def) )then !!if spherical, use analytical formula
-        !     eval_vc = el_pot(r, self%radius, self%charge_dens)
-        !     return
-        ! endif
+        if(self%def%eq(spherical_def) )then !!if spherical, use analytical formula
+            eval_vc = el_pot(r, self%radius, self%charge_dens)
+           return
+        endif
 
 
         call precompute_quad()
 
         sintheta = sin(theta)
         costheta = cos(theta)
-
+        vinc = r*[sin(theta), 0.0_kind, cos(theta)] ! input vector in cartesian coordinates
         rolling = 0.0_kind
         call omp_set_num_threads(num_threads)
         !//$omp parallel do private (iu, it, ix, u, int_theta, int_radius_ub, t, x) &
@@ -253,29 +255,53 @@ module Hamiltonian
 
         do iu = 1, nquad
             u = leg_x(iu)
-            int_theta = acos(u)
-            int_radius_ub = surfRadius(int_theta, self%def, self%radius)
-            sinacosu = sin(acos(u))
-            do it = 1, nquad
+            thetap = (u + 1)*pi/2.0_kind
+            sint = sin(thetap)
+            cost = cos(thetap)
+            radp = surfRadius(thetap, self%def, self%radius)!!r for r'
+            do it = 1,nquad
                 t = leg_x(it)
-                cospipit = cos(pi + pi*t)
-
-                do ix = 1,nquad
-                    x = leg_x(ix)
-
-                    rolling = rolling + leg_w(iu)*leg_w(it)*leg_w(ix)*pi*int_radius_ub**3*(x+1.0_kind)**2 / (8.0_kind) &
-                            / sqrt(r**2 + int_radius_ub**2 * (x+1.0_kind)**2 / 4.0_kind &
-                                    + r*int_radius_ub*(x+1.0_kind)* (sintheta*sinacosu*cospipit + u*costheta))
-                    
-                    ! if(isnan(rolling)) then
-                    !     print*, "isnan in coul: iu, it, ix:"
-                    !     print*, iu, it, ix
-                    ! endif
-                end do
+                phi = (t+1)*pi
+                sinp = sin(phi)
+                cosp = cos(phi)
+                vint = radp*[sint*cosp,sint*sinp,cost] 
+                diff = vinc - vint
+                dist = sqrt(dot_product(diff,diff))
+                nj = surface_elem(self%def, thetap, phi, self%radius) !!normal of surface at integration point
+                rolling = rolling - dot_product(diff, nj)/dist * leg_w(iu)*leg_w(it)
             end do
         end do
-        !//$omp end parallel do
-        eval_vc = rolling * self%charge_dens
+        eval_vc = rolling * self%charge_dens*(pi/2.0_kind * pi)/2 !from variable transform. last /2 unknown origin but makes result good.
+        ! write(*,*) eval_vc
+        ! pause
+        ! write(*,'(a15,f12.6)') "new method:", eval_vc
+        ! rolling = 0
+        ! do iu = 1, nquad
+        !     u = leg_x(iu)
+        !     int_theta = acos(u)
+        !     int_radius_ub = surfRadius(int_theta, self%def, self%radius)
+        !     sinacosu = sin(acos(u))
+        !     do it = 1, nquad
+        !         t = leg_x(it)
+        !         cospipit = cos(pi + pi*t)
+
+        !         do ix = 1,nquad
+        !             x = leg_x(ix)
+
+        !             rolling = rolling + leg_w(iu)*leg_w(it)*leg_w(ix)*pi*int_radius_ub**3*(x+1.0_kind)**2 / (8.0_kind) &
+        !                     / sqrt(r**2 + int_radius_ub**2 * (x+1.0_kind)**2 / 4.0_kind &
+        !                             + r*int_radius_ub*(x+1.0_kind)* (sintheta*sinacosu*cospipit + u*costheta))
+                    
+        !             ! if(isnan(rolling)) then
+        !             !     print*, "isnan in coul: iu, it, ix:"
+        !             !     print*, iu, it, ix
+        !             ! endif
+        !         end do
+        !     end do
+        ! end do
+        ! !//$omp end parallel do
+        ! eval_vc = rolling * self%charge_dens
+        ! write(*,'(a15,f12.6)') "old method:", eval_vc
     end function
 
 
@@ -299,7 +325,7 @@ module Hamiltonian
 
     pure elemental real(kind) function dY40dtheta(theta) result(dydt)
         real(kind), intent(in) :: theta
-        dydt = 15*sin(theta)*cos(theta)*(3-7*cos(theta)**2)/(4.0_kind*sqrt(pi))
+        dydt = 15*sin(theta)*cos(theta)*(3.0_kind-7.0_kind*cos(theta)*cos(theta))/(4.0_kind*sqrt(pi))
     end function
 
     pure elemental real(kind) function surfdisteval(self, x) !!Gets distance to surface at angle x.
