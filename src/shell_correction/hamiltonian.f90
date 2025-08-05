@@ -236,7 +236,7 @@ module Hamiltonian
         real(kind) :: u, t, x, int_theta, int_radius_ub, rolling, sintheta, sinacosu, cospipit, costheta, vinc(3), vint(3), diff(3), dist, nj(3)
         real(kind) :: phi, thetap, sinp, cosp, sint, cost, radp
         logical, save :: first_time = .true.
-        real(kind), save, dimension(nquad) :: sinthetas, costhetas, sinphis, cosphis
+        real(kind), save, dimension(nquad) :: sinthetas, costhetas, sinphis, cosphis, surfrads
         real(kind), save, dimension(3,nquad,nquad) :: normJac
 
         if(self%def%eq(spherical_def) )then !!if spherical, use analytical formula
@@ -251,9 +251,12 @@ module Hamiltonian
                 thetap = (u + 1)*pi/2.0_kind
                 sinthetas(iu) = sin(thetap)
                 costhetas(iu) = cos(thetap)
+                surfrads(iu) = surfRadius(thetap, self%def, self%radius)
+
                 phi = (u+1)*pi
                 sinphis(iu) = sin(phi)
                 cosphis(iu) = cos(phi)
+
                 do it = 1,nquad
                     t = leg_x(it)
                     phi = (t+1)*pi
@@ -279,7 +282,7 @@ module Hamiltonian
             thetap = (u + 1)*pi/2.0_kind
             sint = sinthetas(iu)
             cost = costhetas(iu)
-            radp = surfRadius(thetap, self%def, self%radius)!!r for r'
+            radp = surfrads(iu)!surfRadius(thetap, self%def, self%radius)!!r for r'
             do it = 1,nquad
                 t = leg_x(it)
                 phi = (t+1)*pi
