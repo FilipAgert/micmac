@@ -101,7 +101,9 @@ module Hamiltonian
             return
         endif
 
-
+        if(mod(nquad,2) /= 0) then
+            error stop "does not work with odd nquad. bug in W_matelem or Z_matelem using reflection symmetry"
+        endif
         !!64 point gaussian quadrature.
         call herquad(her_x, her_w)
         !call hermite_ek_compute(gauss_order,her_x,her_w)
