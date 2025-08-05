@@ -9,10 +9,12 @@ module Hamiltonian
 
     private
     public :: diagonalize, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels, H_protons, H_neutrons, get_levels
-    public :: S0, T0, Tplus, Tminus, VSO_off_diag_elem_v2, el_pot, print_shell_params, write_result
+    public :: S0, T0, Tplus, Tminus, VSO_off_diag_elem_v2, el_pot, print_shell_params, write_result, time_diag, time_ws, time_Vc, time_Vso
     integer, parameter :: nquad =64
     real(kind), dimension(nquad) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
     logical :: precomputed_quad = .false.
+
+    real(kind) :: time_diag=0, time_ws=0, time_Vc=0, time_Vso=0
 
 
 
@@ -153,15 +155,20 @@ module Hamiltonian
         integer :: lda
         real(kind) :: w(size(H,1))
         real(kind), allocatable :: work(:)
+        integer, allocatable :: iwork(:)
+        integer :: liwork
         integer :: lwork
         integer :: info
-
+        real(kind) :: time0, time1
+        call cpu_time(time0)
         N = size(H,1)
         ! write(*,*) N
         lda = N
-        lwork = 20*N
-        allocate(work(lwork))
-        call dsyev(jobz, uplo, N, H, lda, w, work, lwork, info)
+        lwork = (1+6*N+2*N*N)*2
+        liwork = 3+5*N
+        allocate(work(lwork), iwork(liwork))
+        !call dsyev(jobz, uplo, N, H, lda, w, work, lwork, info)
+        call dsyevd(jobz,uplo, N, H, lda, w, work, lwork, iwork, liwork,info)
 
         if (info /= 0) then
             write(*,'(A,I10)') "Error using dsyev in diagonalisation, info:", info
@@ -174,8 +181,9 @@ module Hamiltonian
             E = w
             V = H
         endif
-        deallocate(work)
-
+        deallocate(work, iwork)
+        call cpu_time(time1)
+        time_diag = time_diag + time1-time0
     end subroutine
 
     pure real(kind) function el_pot(r,rad,charge_dens) !!electric potential of a uniformly charged sphere
@@ -322,8 +330,10 @@ module Hamiltonian
         real(kind), allocatable, dimension(:,:,:) :: Z_mat
         integer ::numstates, row, col
         type(an_ho_state) :: s1, s2
+        real(kind) :: time0, time1
         allocate(Z_mat(0:max_n,0:max_n, nquad))
         call precompute_quad()
+        call cpu_time(time0)
 
         !setup potential
 
@@ -358,7 +368,8 @@ module Hamiltonian
         if(hasnan2d(coul_mat)) then
             write(*,*) "Error: Coul Matrix has a NaN"
         endif
-
+        call cpu_time(time1)
+        time_Vc = time_Vc + time1-time0
     end function
 
     subroutine comp_zmat(Zmat, pot,alpha_z, alpha_perp) !!use the reccurence relations to compute the Zmat completely from the main diagonals
@@ -495,9 +506,12 @@ module Hamiltonian
         type(WS_pot) :: VWS
         integer ::numstates, row, col
         type(an_ho_state) :: s1, s2
-        allocate(Z_mat(0:max_n,0:max_n, nquad))
-        call precompute_quad()
+        real(kind) :: time0, time1
 
+
+        call precompute_quad()
+        call cpu_time(time0)
+        allocate(Z_MAT(0:max_n,0:max_n,nquad))
         !setup potential
         VWS%def = def
         VWS%radius = R0
@@ -532,6 +546,8 @@ module Hamiltonian
                 ! endif
             end do
         end do
+        call cpu_time(time1)
+        time_ws = time_ws + time1-time0
         !call write_mat_to_file(VWS_mat)
     end function
 
@@ -548,10 +564,12 @@ module Hamiltonian
         real(kind) :: alpha_z, alpha_perp, kappa
         real(kind), allocatable, dimension(:,:,:) :: T0, W0
         type(WS_pot) :: so_ws
+        real(kind) :: time0, time1
         integer ::numstates, row, col, l1, l2, ms1, ms2
         type(an_ho_state) :: s1, s2
         allocate(T0(0:max_n, 0:max_n, nquad), W0(0:max_n, 0:max_n, nquad))
         call precompute_quad()
+        call cpu_time(time0)
         kappa = lambda*(hbarc/(2*mass))**2
         ! print*, "kappa:", kappa
         !setup potential
@@ -602,6 +620,8 @@ module Hamiltonian
             end do
         end do
         Vso_mat = Vso_mat*kappa
+        call cpu_time(time1)
+        time_Vso = time_Vso + time1-time0
         !call write_mat_to_file(Vso_mat)
     end function
 
@@ -978,6 +998,12 @@ module Hamiltonian
         Hn = H_neutrons(states_n, Z, A, def, hbaromegaz, hbaromegaperp)
         write(*,'(A)') "Diagonalizing..."
         call diagonalize(E_n, Vn, Hn)
+        write(*,*)
+        write(*,'(A26,f5.2,a10)') "Time spent in V_ws:", time_ws, " seconds"
+        write(*,'(A26,f5.2,a10)') "Time spent in V_so:", time_Vso, " seconds"
+        write(*,'(A26,f5.2,a10)') "Time spent in V_C:", time_Vc, " seconds"
+        write(*,'(A26,f5.2,a10)') "Time spent in diagonalise:", time_diag, " seconds"
+        write(*,*)
         call write_result(Z, A, E_n, E_p, states_n, states_p, Vn, Vp)
     end subroutine
 

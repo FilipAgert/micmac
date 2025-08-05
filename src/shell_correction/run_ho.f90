@@ -42,7 +42,7 @@ program run_ho
     write(*,'(A,F10.3, A)')"omegaz:", hbaromegaz, " MeV/hbar"
     write(*,'(A,F10.3, A)')"omegaperp", hbaromegaperp, " MeV/hbar"
     call get_levels(E_p, E_n,Z,A,def, max_n)
-    call exit
+
     ! print*, "Neutrons:", E_n(1:5)
     ! print*, "Protons:" ,E_p(1:5)
     !neutrons
@@ -56,59 +56,6 @@ program run_ho
         write(4, '(F10.5,A,F10.5)') 0.0_kind, "," , E_n(n)
     end do
     close(4)
-
-    allocate(states(getnumstatesupto(max_n)))
-    states = get_ho_states_upto(max_n)
-    ! Vc = H_neutrons(states, Z, A, def, hbaromegaz, hbaromegaperp)!coul_mat(states, def, rad, Z,mass_p,hbaromegaz, hbaromegaperp)!coul_mat(states, def, rad, Z, mass_p, hbaromegaz, hbaromegaperp)
-    allocate(matr(size(Vc,1),size(vc,2)))
-    matr = Vc
-    numstates = size(states)
-
-    open(3,file="data/out/mat.dat")
-    write(3,*)
-    write(3,'(14x, A5)',advance='no') "parity"
-    do n = 1, numstates
-        if(states(n)%pi < 0) then
-            p = '-'
-        else
-            p = '+'
-        endif
-        write(3,'(a7)',advance='no') p
-    end do
-    write(3,*)
-
-    write(3,'(14x, A5)',advance='no')"ml   "
-    do n = 1, numstates
-        write(3,'(I7)',advance='no') states(n)%ml
-        !write(,*) states(n)%nr
-    end do
-    write(3,*)
-    write(3,'(14x, A5)',advance='no')"mj   "
-    do n = 1, numstates
-        write(3,'(I7)',advance='no') states(n)%mj
-    end do
-
-    write(3,*)
-    write(3,*)
-
-    do n = 1, numstates
-        if(states(n)%pi < 0) then
-            p = '-'
-        else
-            p = '+'
-        endif
-        write(3,'(a5,2I5, 5x)', advance='no') p, states(n)%ml,states(n)%mj
-        do j = 1, numstates
-            if (abs(matr(n,j)) < 1e-8) then
-                write(3,'(7x)', advance='no')
-            else
-                write(3,'(F7.3)', advance='no') matr(n,j)
-            endif
-            
-        end do
-        write(3,'(A)')""
-    end do
-    close(3)
-
+    
     
 end program
