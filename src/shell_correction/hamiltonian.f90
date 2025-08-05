@@ -235,13 +235,28 @@ module Hamiltonian
         integer :: iu, it, ix
         real(kind) :: u, t, x, int_theta, int_radius_ub, rolling, sintheta, sinacosu, cospipit, costheta, vinc(3), vint(3), diff(3), dist, nj(3)
         real(kind) :: phi, thetap, sinp, cosp, sint, cost, radp
+        logical, save :: first_time = .true.
+        real(kind), save, dimension(nquad) :: sinthetas, costhetas, sinphis, cosphis
 
         if(self%def%eq(spherical_def) )then !!if spherical, use analytical formula
             eval_vc = el_pot(r, self%radius, self%charge_dens)
            return
         endif
+        call precompute_quad()
+        if(first_time) then
 
+            do iu = 1, nquad
+                u = leg_x(iu)
+                thetap = (u + 1)*pi/2.0_kind
+                sinthetas(iu) = sin(thetap)
+                costhetas(iu) = cos(thetap)
+                phi = (u+1)*pi
+                sinphis(iu) = sin(phi)
+                cosphis(iu) = cos(phi)
+            end do
 
+            first_time = .false.
+        endif
         call precompute_quad()
 
         sintheta = sin(theta)
@@ -256,14 +271,14 @@ module Hamiltonian
         do iu = 1, nquad
             u = leg_x(iu)
             thetap = (u + 1)*pi/2.0_kind
-            sint = sin(thetap)
-            cost = cos(thetap)
+            sint = sinthetas(iu)
+            cost = costhetas(iu)
             radp = surfRadius(thetap, self%def, self%radius)!!r for r'
             do it = 1,nquad
                 t = leg_x(it)
                 phi = (t+1)*pi
-                sinp = sin(phi)
-                cosp = cos(phi)
+                sinp = sinphis(it)
+                cosp = cosphis(it)
                 vint = radp*[sint*cosp,sint*sinp,cost] 
                 diff = vinc - vint
                 dist = sqrt(dot_product(diff,diff))
