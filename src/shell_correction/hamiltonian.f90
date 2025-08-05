@@ -9,7 +9,7 @@ module Hamiltonian
 
     private
     public :: diagonalize, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels, H_protons, H_neutrons, get_levels
-    public :: S0, Sp, Sm, T0, Tplus, gnlp, gnl, Tminus, VSO_off_diag_elem_v2, VSO_off_diag_elem, el_pot, print_shell_params, write_result
+    public :: S0, T0, Tplus, gnlp, gnl, Tminus, VSO_off_diag_elem_v2, el_pot, print_shell_params, write_result
     integer, parameter :: nquad =64
     real(kind), dimension(nquad) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
     logical :: precomputed_quad = .false.
@@ -612,35 +612,24 @@ module Hamiltonian
         commutator = matmul(A1,A2)-matmul(A2,A1)
     end function
 
-    real(kind) function S0(eta,s1,s2)
-        type(an_ho_state), intent(in) :: s1, s2
-        real(kind), intent(in) :: eta
-        S0 = (gnl(eta, s1%nr, s1%ml) * gnlp(eta, s2%nr, s2%ml) +gnl(eta, s2%nr, s2%ml) * gnlp(eta, s1%nr, s1%ml) ) / sqrt(eta)
-    end function
 
-     real(kind)  function Sp(eta,s1,s2)
+    real(kind) function S0(ii,s1,s2)
         type(an_ho_state), intent(in) :: s1, s2
-        real(kind), intent(in) :: eta
-        real(kind) :: K
-        
-        K = s2%ml + s2%ms*0.5_kind
-        print*, "K+0.5: ", K+0.5, " l1, l2:", s1%ml , s2%ml
-        print*, "first term: ",- gnl(eta,s1%nr,s1%ml)*gnl(eta,s2%nr,s2%ml) *(-K+0.5_kind) /sqrt(eta)
-        print*, "second term:", - gnlp(eta,s1%nr, s1%ml) * gnl(eta,s2%nr,s2%ml)
-        Sp = - gnl(eta,s1%nr,s1%ml)*gnl(eta,s2%nr,s2%ml) *(K+0.5_kind)/sqrt(eta) - gnlp(eta,s1%nr, s1%ml) * gnl(eta,s2%nr,s2%ml)
-        
-    end function
+        integer, intent(in) :: ii
+        real(kind), save :: invsqrteta(1:nquad)
+        logical, save :: first_time = .true.
+        integer :: nn
+        real(kind) :: eta
 
-     real(kind)  function Sm(eta,s1,s2)
-        type(an_ho_state), intent(in) :: s1, s2
-        real(kind), intent(in) :: eta
-        real(kind) :: K
-        K = s2%ml + s2%ms*0.5_kind
-        print*, "K-0.5 ", K-0.5, " l1, l2:", s1%ml , s2%ml
-        print*, "first term: ",-gnl(eta,s1%nr, s1%ml)*gnl(eta,s2%nr,s2%ml)*(K-0.5_kind)/sqrt(eta)
-        print*, "second term:", +gnl(eta,s1%nr,s1%ml)*gnlp(eta,s2%nr,s2%ml)
-        Sm = Sp(eta,s2,s1)!-gnl(eta,s1%nr, s1%ml)*gnl(eta,s2%nr,s2%ml)*(K-0.5_kind)/sqrt(eta)+gnl(eta,s1%nr,s1%ml)*gnlp(eta,s2%nr,s2%ml)
-
+        if(first_time) then
+            call precompute_quad()
+            do nn = 1, nquad
+                eta = lag_x(nn)
+                invsqrteta(nn) = 1.0_kind/sqrt(eta)
+            end do
+            first_time = .false.
+        endif
+        S0 = (get_quad_gnl(ii, s1%nr, s1%ml) * get_quad_gnlp(ii, s2%nr, s2%ml) +get_quad_gnl(ii, s2%nr, s2%ml) * get_quad_gnlp(ii, s1%nr, s1%ml) ) *invsqrteta(ii)
     end function
 
     function T0_mat(SO_WS, alpha_z, alpha_perp)
@@ -779,9 +768,17 @@ module Hamiltonian
         integer :: nn
         real(kind), dimension(0:max_n, 0:max_n, nquad), intent(in) :: W0
         real(kind) :: rho, eta, weta, term1, term2,etafac
-
-
+        real(kind), save :: invsqrteta(1:nquad)
+        logical, save :: first_time = .true.
         call precompute_quad()
+        if(first_time)then
+            do nn = 1, nquad
+                eta = lag_x(nn)
+                invsqrteta(nn) = 1.0_kind/sqrt(eta)
+            end do
+            first_time = .false.
+        endif
+
         I2 = 0
         do nn = 1, nquad
             eta = lag_x(nn)
@@ -793,9 +790,9 @@ module Hamiltonian
             term1 = W0(s1%nz, s2%nz, nn)
             term2 = W0(s2%nz, s1%nz, nn)
 
-            etafac = weta / sqrt(eta)
-            term1 = term1 * etafac * get_quad_gnl(nn, s1%nr, s1%ml) * gnlp(eta, s2%nr, s2%ml)
-            term2 = term2 * etafac * gnlp(eta, s1%nr, s1%ml) * get_quad_gnl(nn, s2%nr, s2%ml)
+            etafac = weta *invsqrteta(nn)
+            term1 = term1 * etafac * get_quad_gnl(nn, s1%nr, s1%ml) * get_quad_gnlp(nn, s2%nr, s2%ml)
+            term2 = term2 * etafac * get_quad_gnlp(nn, s1%nr, s1%ml) * get_quad_gnl(nn, s2%nr, s2%ml)
 
             I2 = I2 + term1 - term2
         end do
@@ -907,36 +904,12 @@ module Hamiltonian
 
         do ii = 1, nquad
             eta = lag_x(ii)
-            matelem = matelem + S0(eta, s1, s2) * T0_mat(s1%nz, s2%nz, ii)* lag_w(ii) !== 2*lambda*sigma where sigma = +- 1/2
+            matelem = matelem + S0(ii, s1, s2) * T0_mat(s1%nz, s2%nz, ii)* lag_w(ii) !== 2*lambda*sigma where sigma = +- 1/2
             
         end do
         matelem = matelem * alpha_perp**2 * s1%ml * s1%ms
     end function
 
-    real(kind)  function VSO_off_diag_elem(s1,s2,SO_WS,alpha_z,alpha_perp) result(matelem)
-        type(an_ho_state), intent(in) :: s1, s2
-        real(kind), intent(in) :: alpha_z, alpha_perp
-        type(WS_pot), intent(in) :: SO_WS
-        integer :: ii
-        real(kind) :: eta
-        matelem = 0
-
-        if(s1%ml == s2%ml + 1 .and. s1%ms == s2%ms - 2) then
-
-        elseif( s1%ml == s2%ml - 1 .and. s1%ms == s2%ms + 2)then
-
-        else
-            write(*,*) "Error: states dont have the correct quantum numbers in ms and ml"
-            call exit
-        endif
-
-        do ii = 1, nquad
-            eta = lag_x(ii)
-            matelem = matelem + lag_w(ii) * (Sm(eta, s1, s2) * Tplus(eta, ii,s1, s2, SO_WS, alpha_z, alpha_perp) + &
-                                            Sp(eta, s1, s2) * Tminus(eta, ii,s1, s2, SO_WS, alpha_z, alpha_perp))
-        end do
-        matelem = matelem * alpha_perp*alpha_z
-    end function
 
     real(kind)  function VSO_off_diag_elem_v2(s1,s2,W0,alpha_z,alpha_perp) result(matelem)
         type(an_ho_state), intent(in) :: s1, s2
