@@ -1016,25 +1016,47 @@ module Hamiltonian
         integer, intent(in) :: nz1, nz2
         real(kind), intent(in) :: alpha_z, alpha_perp, eta
         class(potential), intent(in) :: pot
-        integer :: ii
+        integer :: ii, ub
         integer, intent(in) ::eta_ii
         real(kind) :: zeta, z, rho, r, theta
         W_matelem = 0.0_kind
         rho = eta_to_rho(eta, alpha_perp)
-        do ii = 1, nquad
+        !ODD N: Hmn ODD, HMNP EVEN
+        !EVEN N: Hmn EVEN, HMNP ODD
+        ! ODD*ODD = EVEN
+        ! EVEN * ODD = ODD
+        ! EVEN * EVEN = EVEN
+        
+        if(is_reflection_sym(pot%def)) then
+            ub = nquad/2
+            if(mod(nz1+nz2,2) == 0) then
+                W_matelem = 0
+                return
+            endif
+        else
+            ub = nquad
+        endif
+        do ii = 1, ub
             zeta = her_x(ii)
             z = zeta_to_z(zeta,alpha_z)
             theta = theta_cyl(rho, z)
             r = rad_cyl(rho ,z)
             W_matelem = W_matelem + her_w(ii) * get_quad_Hmnp(ii, nz1) *get_quad_Hmn(ii,nz2)*pot%eval_pre(eta_ii,ii,r, theta) 
-            ! if(isnan(W_matelem)) then
-            !     print*, "Err Wmatelem is Nan"
-            !     print*, "hmnp:", Hmnp(zeta, nz1)
-            !     print*,  "Hmn:", Hmn(zeta, nz2)
-            !     print*, "pot:", pot%eval_pre(eta_ii,ii,r, theta) 
-            !     call exit 
-            ! endif
         end do
+
+
+        if(is_reflection_sym(pot%def)) then
+            W_matelem = W_matelem*2 !!z = 0
+            if(mod(nquad,2)==1) then
+                    
+                ii = ub + 1
+                zeta = her_x(ii)
+                z = zeta_to_z(zeta,alpha_z)
+                theta = theta_cyl(rho, z)
+                r = rad_cyl(rho ,z)
+                W_matelem = W_matelem + her_w(ii) * get_quad_Hmnp(ii, nz1) *get_quad_Hmn(ii,nz2)*pot%eval_pre(eta_ii,ii,r, theta) 
+            endif
+        endif
 
     end function
 
