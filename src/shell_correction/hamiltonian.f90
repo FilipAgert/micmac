@@ -567,7 +567,7 @@ module Hamiltonian
         real(kind) :: time0, time1
         integer ::numstates, row, col, l1, l2, ms1, ms2
         type(an_ho_state) :: s1, s2
-        allocate(T0(0:max_n, 0:max_n, nquad), W0(nquad,0:max_n, 0:max_n))
+        allocate(T0(nquad,0:max_n, 0:max_n), W0(nquad,0:max_n, 0:max_n))
         call precompute_quad()
         call cpu_time(time0)
         kappa = lambda*(hbarc/(2*mass))**2
