@@ -4,7 +4,7 @@ module test_utils
     private
     public :: eq, eq_r, eq_mat, print_matrix, eq_mat_comm
 
-    real(r_kind), parameter :: epsilon = 1e-6
+    real(kind), parameter :: epsilon = 1e-6
 
 
 
@@ -17,9 +17,9 @@ module test_utils
     end function
 
     logical function eq_r(r1,r2, tol)
-        real(r_kind), intent(in) :: r1, r2
-        real(r_kind), optional :: tol
-        real(r_kind) :: tolerance
+        real(kind), intent(in) :: r1, r2
+        real(kind), optional :: tol
+        real(kind) :: tolerance
         if(.not. present(tol)) then
             tolerance = epsilon
         else
@@ -34,7 +34,7 @@ module test_utils
     end function
 
     logical function eq_mat(mat1,mat2)
-        real(r_kind), intent(in), dimension(:,:) :: mat1, mat2
+        real(kind), intent(in), dimension(:,:) :: mat1, mat2
         integer :: row, col
         do row = 1, size(mat1,1)
             do col = 1,size(mat2,2)
@@ -50,7 +50,7 @@ module test_utils
 
 
     logical function eq_mat_comm(mat1,mat2,discardN) !!In truncated basis, last rows and cols wont commute. dont compare with them
-        real(r_kind), intent(in), dimension(:,:) :: mat1, mat2
+        real(kind), intent(in), dimension(:,:) :: mat1, mat2
         integer :: row, col, discardN
         do row = 1, size(mat1,1) - discardN
             do col = 1,size(mat2,2) - discardN
@@ -65,7 +65,7 @@ module test_utils
     end function
     subroutine print_matrix(A)
         implicit none
-        real(r_kind), dimension(:,:), intent(in) :: A
+        real(kind), dimension(:,:), intent(in) :: A
         integer :: i, j, n, m
     
         n = size(A, 1)

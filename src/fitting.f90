@@ -6,7 +6,7 @@ module fitting
     
     private
     public :: read_fit_exp_data, fit_param_cov, fit_iterative, fit_rms, write_table
-    real(r_kind), dimension(:),public,allocatable  :: exp_be, exp_be_unc, exp_me, exp_me_unc
+    real(kind), dimension(:),public,allocatable  :: exp_be, exp_be_unc, exp_me, exp_me_unc
     integer, dimension(:),allocatable, public :: exp_Z, exp_A
     character(len=3), dimension(:), allocatable, public :: exp_elname
     integer, public :: num_fit_vals
@@ -15,7 +15,7 @@ module fitting
     !!Reads relevant exp data to fit against
     subroutine read_fit_exp_data()
         integer :: idx, Z, A, idx2,N
-        real(r_kind) :: unc
+        real(kind) :: unc
         num_fit_vals = 0
 
         do idx = 1, num_vals
@@ -56,14 +56,14 @@ module fitting
 
     !!Subroutien uses singular value decomposition to invert a square matrix
     subroutine inverse_SVD(A,N)
-        real(r_kind), intent(inout) :: A(N,N) !!Matrix to invert A(N,N)
+        real(kind), intent(inout) :: A(N,N) !!Matrix to invert A(N,N)
         integer, intent(in) :: N !!Size of matrix to invert
 
         character(len=1) :: JOBU, JOBVT
         integer :: LDA, LDU, LDVT, INFO, LWORK
         integer :: i
-        real(r_kind) :: S(N)
-        real(r_kind) :: WORK(5*N), U(N,N), VT(N,N), SIGMAINV(N,N), V(N,N)
+        real(kind) :: S(N)
+        real(kind) :: WORK(5*N), U(N,N), VT(N,N), SIGMAINV(N,N), V(N,N)
         external :: dgesvd
         JOBU = 'A'  ! Compute all left singular vectors
         JOBVT = 'A' ! Compute all right singular vectors
@@ -76,9 +76,9 @@ module fitting
             WRITE(*,*) "Error in SVD computation. INFO: ", INFO
             stop
         end if
-        SIGMAINV = 0.0_r_kind
+        SIGMAINV = 0.0_kind
         do i = 1,N
-            SIGMAINV(i,i) = 1.0_r_kind/S(i)
+            SIGMAINV(i,i) = 1.0_kind/S(i)
         end do
         V = transpose(VT)
 
@@ -86,10 +86,10 @@ module fitting
     end subroutine inverse_SVD
 
     subroutine solve_linsys(A,b,dim) !Solve Ax=b for x
-        real(r_kind), dimension(dim,dim), intent(in) :: A
-        real(r_kind), dimension(dim), intent(inout) :: b !!In: b. Out: Solution
+        real(kind), dimension(dim,dim), intent(in) :: A
+        real(kind), dimension(dim), intent(inout) :: b !!In: b. Out: Solution
         integer,intent(in) :: dim
-        real(r_kind), dimension(dim,1) :: Bmat
+        real(kind), dimension(dim,1) :: Bmat
         integer, dimension(dim) :: ipiv
         integer ::info
         external :: dgesv
@@ -107,12 +107,12 @@ module fitting
 
     !!Covariances of fit parameters
     function fit_param_cov(params, num_nuclei, Zs, As, defs) result(cov)
-        real(kind=r_kind), intent(in) :: params(num_params)
+        real(kind=kind), intent(in) :: params(num_params)
         type(deformation), intent(in) :: defs(num_nuclei) 
-        real(kind=r_kind) :: cov(num_params,num_params)
+        real(kind=kind) :: cov(num_params,num_params)
         integer, dimension(num_nuclei), intent(in) :: Zs, As
         integer, intent(in) :: num_nuclei
-        real(kind=r_kind) ::  J(num_nuclei,num_params), JT(num_params,num_nuclei), JTJ(num_params,num_params), rms, res(num_nuclei), sqsum
+        real(kind=kind) ::  J(num_nuclei,num_params), JT(num_params,num_nuclei), JTJ(num_params,num_params), rms, res(num_nuclei), sqsum
         J = J_mat(Zs,As,defs, num_nuclei,params)
         JT = transpose(J)
         JTJ = matmul(JT,J)
@@ -126,12 +126,12 @@ module fitting
 
     !!Returns covariances of BE predictions
     function be_cov(params, num_nuclei, Zs, As, defs) 
-        real(kind=r_kind), intent(in) :: params(num_params)
+        real(kind=kind), intent(in) :: params(num_params)
         type(deformation), intent(in) :: defs(num_nuclei) 
-        real(kind=r_kind) :: cov(num_params,num_params), be_cov(num_nuclei,num_nuclei)
+        real(kind=kind) :: cov(num_params,num_params), be_cov(num_nuclei,num_nuclei)
         integer, dimension(num_nuclei), intent(in) :: Zs, As
         integer, intent(in) :: num_nuclei
-        real(kind=r_kind) ::  J(num_nuclei,num_params), JT(num_params,num_nuclei), JTJ(num_params,num_params), rms, res(num_nuclei), sqsum
+        real(kind=kind) ::  J(num_nuclei,num_params), JT(num_params,num_nuclei), JTJ(num_params,num_params), rms, res(num_nuclei), sqsum
         J = J_mat(Zs,As,defs, num_nuclei,params)
         JT = transpose(J)
         cov = fit_param_cov(params, num_nuclei, zs, as, defs)
@@ -140,8 +140,8 @@ module fitting
     end function
 
     function fit_rms(params)
-        real(r_kind), intent(in) :: params(num_params)
-        real(r_kind) :: resid(num_fit_vals), sum_sq_err, fit_rms, BEs(num_fit_vals)
+        real(kind), intent(in) :: params(num_params)
+        real(kind) :: resid(num_fit_vals), sum_sq_err, fit_rms, BEs(num_fit_vals)
         type(deformation) :: defs(num_fit_vals) 
         call find_gs_multiple(BEs,defs, params, exp_Z, exp_A, num_fit_vals)
         resid = exp_be - BEs
@@ -150,11 +150,11 @@ module fitting
     end function
 
     subroutine fit_iterative(params, converged)
-        real(kind=r_kind), intent(inout) :: params(num_params) !!In: Starting guess of parameters. Out: Converged solution
+        real(kind=kind), intent(inout) :: params(num_params) !!In: Starting guess of parameters. Out: Converged solution
         !!Assume that we have already read exp data.
-        real(kind=r_kind) :: Jmat(num_fit_vals,num_params), resid(num_fit_vals), BEs(num_fit_vals)
+        real(kind=kind) :: Jmat(num_fit_vals,num_params), resid(num_fit_vals), BEs(num_fit_vals)
         type(deformation) :: defs(num_fit_vals) 
-        real(kind=r_kind) :: sum_sq_err, JT(num_params, num_fit_vals), JTJ(num_params, num_params), RHS(num_params), rms, oldrms, bestrms, bestparams(num_params)
+        real(kind=kind) :: sum_sq_err, JT(num_params, num_fit_vals), JTJ(num_params, num_params), RHS(num_params), rms, oldrms, bestrms, bestparams(num_params)
         integer :: num_nuclei, maxitr, ii, numitr
         logical, intent(out) :: converged
         converged = .false.
@@ -214,10 +214,10 @@ module fitting
     end subroutine
 
     subroutine write_table(params)
-        real(r_kind), intent(in) :: params(num_params)
+        real(kind), intent(in) :: params(num_params)
         integer :: idx
-        real(r_kind) :: BE, BE_exp, BEA, BEA_exp, UNC, unc_per_a
-        real(r_kind) :: BEs(num_fit_vals), BEcov(num_fit_vals,num_fit_vals)
+        real(kind) :: BE, BE_exp, BEA, BEA_exp, UNC, unc_per_a
+        real(kind) :: BEs(num_fit_vals), BEcov(num_fit_vals,num_fit_vals)
         type(deformation) :: defs(num_fit_vals), def
         WRITE(*,*)
         WRITE(*,*)

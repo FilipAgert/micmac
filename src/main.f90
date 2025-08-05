@@ -5,7 +5,7 @@ program main
     implicit none
 
 
-    real(r_kind) :: BE, ME, ME_exp, BE_exp, BE_exp_unc, ME_exp_unc, params(num_params)
+    real(kind) :: BE, ME, ME_exp, BE_exp, BE_exp_unc, ME_exp_unc, params(num_params)
     type(deformation) :: def
     character(len=3) :: El
     integer :: idx

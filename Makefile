@@ -17,7 +17,7 @@ ST_EXEN = strut.exe
 
 # Flags
 LIBS = -llapack -lblas -fopenmp
-FLAGS = -O3 -I$(DOBJ) -ffree-line-length-none -fcheck=all -fbacktrace -g -fimplicit-none -fno-omit-frame-pointer
+FLAGS = -O2 -I$(DOBJ) -ffree-line-length-none -fcheck=all -fbacktrace -g -fimplicit-none -fno-omit-frame-pointer
 CC = gfortran $(FLAGS) -J$(DMOD) $(LIBS) -L$(DLIB) -c
 CCL = gfortran -o
 
@@ -130,6 +130,18 @@ runst: st
 
 runpair: pair
 	$(DEXE)/$(PAIR_EXEN)
+
+runcallgrind:
+	@name="callgrind.out.$(HO_EXEN)"; \
+	n=0; \
+	filename="$$name"; \
+	while [ -e "$$filename" ]; do \
+		n=$$((n+1)); \
+		filename="$$name\_$$n"; \
+	done; \
+	echo "Saving callgrind output to $$filename"; \
+	valgrind --tool=callgrind --callgrind-out-file=$$filename $(DEXE)/$(HO_EXEN); \
+	kcachegrind $$filename
 
 clean:
 	rm -rf $(DOBJ)/*.o $(DEXE)/*.exe $(DMOD)/*.mod

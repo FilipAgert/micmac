@@ -4,8 +4,8 @@ program runfit
     use mass_table
     use fitting
     implicit none
-    real(kind=r_kind) :: params(num_params), param_cov(num_params,num_params)
-    real(r_kind), allocatable, dimension(:) :: BEs
+    real(kind=kind) :: params(num_params), param_cov(num_params,num_params)
+    real(kind), allocatable, dimension(:) :: BEs
     type(deformation), allocatable, dimension(:):: defs 
     integer :: i
     logical :: converged

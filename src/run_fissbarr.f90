@@ -1,5 +1,5 @@
 program run_fissbarr
-    use  constants, only: fitted_params, r_kind, num_params, cauchois_params
+    use  constants, only: fitted_params, kind, num_params, cauchois_params
     !use fiss_barr
     use micmac, only: find_gs_multiple, def_func_ho
     use fitting, only: read_fit_exp_data, fit_param_cov, num_fit_vals, exp_A, exp_Z
@@ -9,13 +9,13 @@ program run_fissbarr
 
     integer, parameter :: Z = 92, A = 238
     integer, parameter :: nn = 6
-    real(r_kind) :: params(num_params), param_cov(num_params,num_params), temp(num_params)
-    real(r_kind) :: defBf, Bf, betaBf
-    real(r_kind), dimension(:), allocatable :: BE_fits, def_fits
+    real(kind) :: params(num_params), param_cov(num_params,num_params), temp(num_params)
+    real(kind) :: defBf, Bf, betaBf
+    real(kind), dimension(:), allocatable :: BE_fits, def_fits
     integer, dimension(0:nn) :: ZCns, ACNs
-    real(r_kind), dimension(nn+1) :: BEs, BFs, defGss, defBfs
-    real(r_kind), dimension(nn+1, nn+1) :: covBE, covBF
-    real(r_kind), dimension(2*(nn+1), 2*(nn+1)) :: covAll
+    real(kind), dimension(nn+1) :: BEs, BFs, defGss, defBfs
+    real(kind), dimension(nn+1, nn+1) :: covBE, covBF
+    real(kind), dimension(2*(nn+1), 2*(nn+1)) :: covAll
     integer :: n, i
     character(len=100) :: fmt
     type(def_func_ho) :: func

@@ -10,7 +10,7 @@ program table_writer
     integer :: num_nuclei
     integer, dimension(2000) :: Zs, As
     integer :: Z, A, idx, Alow, Ahigh
-    real(r_kind) :: params(num_params)
+    real(kind) :: params(num_params)
     logical :: found
 
     idx = 0
@@ -34,11 +34,11 @@ program table_writer
     
     subroutine write_mass_table(params, Zs, As, write_to_file)
         ! Write the table to a file
-        real(r_kind), intent(in) :: params(num_params)
+        real(kind), intent(in) :: params(num_params)
         logical, intent(in) :: write_to_file
         integer, intent(in), dimension(:) :: Zs, As 
         integer :: iunit, i
-        real(r_kind) :: BE, ME, Esh
+        real(kind) :: BE, ME, Esh
         type(deformation) :: def
         iunit = 20  ! Output unit number
         if(write_to_file) then 

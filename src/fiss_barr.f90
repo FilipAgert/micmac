@@ -13,19 +13,19 @@ module fiss_barr
     contains
 
     subroutine find_fiss_barr(Bf, defbf, gs, defgs, params, Z, A)
-        real(r_kind), intent(out) :: Bf, gs
-        real(r_kind), intent(in) :: params(num_params)
+        real(kind), intent(out) :: Bf, gs
+        real(kind), intent(in) :: params(num_params)
         integer, intent(in) :: Z, A
         type(def_func_ho) :: func !!Binding energy as a function of deformation
         type(deformation), intent(out) :: defgs, defbf
-        real(r_kind), parameter :: search_lim = 15.0
-        real(r_kind), parameter :: coarse_step = 0.02
-        real(r_kind) :: x, pot, max
+        real(kind), parameter :: search_lim = 15.0
+        real(kind), parameter :: coarse_step = 0.02
+        real(kind) :: x, pot, max
         logical :: conv
 
         call func%setup(params, Z, A)
         call find_gs(gs, defgs, params, Z, A)
-        x = 0.0_r_kind
+        x = 0.0_kind
  
         x = defgs
         max = -huge(max)
@@ -39,7 +39,7 @@ module fiss_barr
             x = x + coarse_step
         end do
         write(*,'(A,F10.3,A,F10.3)')"find optimal point. Def: ", defbf, ", with pot: ", max 
-        call find_optimal_point(defbf, pot, conv, func, defbf -coarse_step*5, defbf+coarse_step*5, defbf - coarse_step/2.0_r_kind) !!Finer search for fission barrier.
+        call find_optimal_point(defbf, pot, conv, func, defbf -coarse_step*5, defbf+coarse_step*5, defbf - coarse_step/2.0_kind) !!Finer search for fission barrier.
         write(*,'(A,F10.3,A,F10.3)')"find optimal point. Def: ", defbf, ", with pot: ", pot 
         call find_gs(gs, defgs, params, Z, A)
         write(*,'(A,F10.3,A,F10.3)')"find gs point. Def: ", defgs, ", with pot: ", gs 
@@ -47,16 +47,16 @@ module fiss_barr
     end subroutine
 
     subroutine fill_tub(Bf, bfidx, potsurf, gsidx, fissidx)
-        real(r_kind), intent(out) :: Bf
-        real(r_kind), dimension(:,:,:) :: potsurf
+        real(kind), intent(out) :: Bf
+        real(kind), dimension(:,:,:) :: potsurf
         integer, dimension(num_def_params), intent(in) :: gsidx, fissidx
         integer, dimension(num_def_params), intent(out) :: bfidx
         integer, dimension(num_def_params) :: c
         integer, dimension(max_num_neighbours, num_def_params) :: neigh
         integer :: num, dimsize(num_def_params), n(num_def_params), ii
         logical, dimension(size(potsurf,1), size(potsurf,2), size(potsurf,3)) :: filled, visited
-        real(r_kind), parameter :: delta_e = 0.1, maxe = 50
-        real(r_kind) :: Egs, E, sp
+        real(kind), parameter :: delta_e = 0.1, maxe = 50
+        real(kind) :: Egs, E, sp
         type(Stack) :: idx_stack, next_iter
         dimsize = shape(potsurf)
         idx_stack%top_index = 0
@@ -145,18 +145,18 @@ module fiss_barr
         integer, intent(inout), dimension(max_num_neighbours, num_def_params) :: coords !!Coordinates to sort.
         integer,intent(in) :: N_elems !!Number of elements in list to sort.
         integer, intent(in), dimension(num_def_params) :: end_coord !!Coordinate to sort against.
-        real(kind=r_kind), dimension(max_num_neighbours) :: dist
+        real(kind=kind), dimension(max_num_neighbours) :: dist
         integer :: i
 
         do i = 1,N_elems !Finds distance to end to sort against.
-            dist(i) = norm2(real(coords(:,i),r_kind)-real(end_coord,r_kind))
+            dist(i) = norm2(real(coords(:,i),kind)-real(end_coord,kind))
         end do
         call quicksort(coords, dist, 1, N_elems) !Sorts coords according to distances in dist
     end subroutine quicksort_coords
 
     recursive subroutine quicksort(coord, a, first, last) !Sorts coord and a according to a.
         implicit none
-        real(kind=r_kind)  a(max_num_neighbours), x, t
+        real(kind=kind)  a(max_num_neighbours), x, t
         integer, dimension(max_num_neighbours,num_def_params), intent(inout) :: coord
         integer, dimension(num_def_params) :: temp_coord
         integer first, last
@@ -255,7 +255,7 @@ module fiss_barr
 end module
 
 module stack_module
-    use constants, only: r_kind, num_def_params
+    use constants, only: kind, num_def_params
     implicit none
 
     private

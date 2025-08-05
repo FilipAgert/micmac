@@ -22,12 +22,12 @@ contains
 
     subroutine test_staircase_low(n_passed, n_failed)
         integer, intent(inout) :: n_passed, n_failed
-        real(r_kind) :: expected, actual
+        real(kind) :: expected, actual
         logical :: pass
 
         ! Dummy test: expected == actual
-        expected = 3.0_r_kind/5.0_r_kind * (2.0_r_kind**(5.0_r_kind/3.0_r_kind)) / (2.0_r_kind)
-        actual = staircase(2.0_r_kind, magic_num_N)   ! Replace with actual call: e.g. call micmac_result(actual)
+        expected = 3.0_kind/5.0_kind * (2.0_kind**(5.0_kind/3.0_kind)) / (2.0_kind)
+        actual = staircase(2.0_kind, magic_num_N)   ! Replace with actual call: e.g. call micmac_result(actual)
         pass = eq_r(expected,actual)
 
         pass = pass .and. eq_r(expected, actual)  ! Replace with actual call: e.g. call micmac_result(actual)
@@ -41,12 +41,12 @@ contains
 
     subroutine test_staircase_mid(n_passed, n_failed)
         integer, intent(inout) :: n_passed, n_failed
-        real(r_kind) :: expected, actual
+        real(kind) :: expected, actual
         logical :: pass
 
         ! Dummy test: expected == actual
-        expected = 3.0_r_kind/5.0_r_kind * (2.0_r_kind**(5.0_r_kind/3.0_r_kind)) / (2.0_r_kind)
-        actual = staircase(1.0_r_kind, magic_num_N)   ! Replace with actual call: e.g. call micmac_result(actual)
+        expected = 3.0_kind/5.0_kind * (2.0_kind**(5.0_kind/3.0_kind)) / (2.0_kind)
+        actual = staircase(1.0_kind, magic_num_N)   ! Replace with actual call: e.g. call micmac_result(actual)
         pass = eq_r(expected,actual)
 
         pass = pass .and. eq_r(expected, actual)  ! Replace with actual call: e.g. call micmac_result(actual)
@@ -60,19 +60,19 @@ contains
 
     subroutine test_find_gs(n_passed, n_failed)
         integer, intent(inout) :: n_passed, n_failed
-        real(r_kind) :: expected, actual
+        real(kind) :: expected, actual
         logical :: pass, found
         integer :: Z, A
-        real(r_kind) :: BE, BE2, BE3, BE4
+        real(kind) :: BE, BE2, BE3, BE4
         
         type(deformation):: def 
-        real(r_kind), dimension(num_params) :: params
+        real(kind), dimension(num_params) :: params
         params = starting_params
         Z = 92
         A = 238
         call find_gs(BE, def, found,params, Z, A)   
         ! BE2 = binding_energy(params, Z, A)
-        ! BE3 = binding_energy_def(params, Z, A, 0.0_r_kind)
+        ! BE3 = binding_energy_def(params, Z, A, 0.0_kind)
         ! BE4 = binding_energy_def(params, Z, A, def)
         ! write(*,*) "BE fit with def: ", BE
         ! WRITE(*,*) "BE def func with def = 0: ", BE3
@@ -82,13 +82,13 @@ contains
 
     subroutine test_F(n_passed,n_failed)
         integer, intent(inout) :: n_passed, n_failed
-        real(r_kind) :: expected, actual
+        real(kind) :: expected, actual
         logical :: pass
         integer :: Z, A
-        real(r_kind) :: BE,  BE2, BE3, BE4
+        real(kind) :: BE,  BE2, BE3, BE4
         type(deformation):: def 
-        real(r_kind), dimension(num_params) :: params
-        expected = 0.0_r_kind
+        real(kind), dimension(num_params) :: params
+        expected = 0.0_kind
         actual = F(82,.true.)
         pass = eq_r(expected, actual)  ! Replace with actual call: e.g. call micmac_result(actual)
         if (pass) then

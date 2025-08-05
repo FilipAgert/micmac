@@ -4,7 +4,7 @@ module mass_table
     public :: read_ame, read_elem
 
     character(len=100), parameter :: ame_file = "data/in/ame2020.dat"  ! Path to the AME data file
-    real(r_kind), dimension(4000)  :: AME_BE, AME_BE_unc, AME_ME, AME_ME_unc
+    real(kind), dimension(4000)  :: AME_BE, AME_BE_unc, AME_ME, AME_ME_unc
     integer, dimension(4000)  :: AME_Z, AME_A
     character(len=3), dimension(4000) :: AME_EL
     integer :: num_vals
@@ -14,7 +14,7 @@ module mass_table
     subroutine read_elem(BE, BE_unc, ME, ME_unc, El, Z, A)
         ! This subroutine reads the AME data file and extracts the binding energy and mass excess
         implicit none
-        real(r_kind), intent(out) :: BE, BE_unc, ME, ME_unc
+        real(kind), intent(out) :: BE, BE_unc, ME, ME_unc
         character(len=3), intent(out) :: El
         integer, intent(in) :: Z, A
         integer :: idx
@@ -38,7 +38,7 @@ module mass_table
     subroutine read_ame()
         ! This subroutine reads the AME data file and extracts the binding energy and mass excess
         implicit none
-        real(r_kind) :: BE, BE_unc, ME, ME_unc
+        real(kind) :: BE, BE_unc, ME, ME_unc
         character(len=3) :: El
         integer :: N, Z, A
         integer :: iunit, ios
@@ -96,7 +96,7 @@ module mass_table
         integer, intent(out) :: Z, A
         integer :: N, ios
         logical :: success
-        real(r_kind), intent(out) :: ME, ME_unc, BE, BE_unc
+        real(kind), intent(out) :: ME, ME_unc, BE, BE_unc
 
         ! slice substrings according to column positions
         str_N          = line(5:9)

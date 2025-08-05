@@ -10,17 +10,17 @@ program run_ho
     type(betadef) :: def 
     type(VC_pot) :: pot
     integer :: n, shelldegen, idx, numstates, j
-    real(r_kind), dimension(:,:), allocatable :: Vws, Tkin, V, VC,Vso,Hn,Hp
-    real(r_kind), dimension(:), allocatable :: E, E_n, E_p
-    real(r_kind), parameter :: V0 = V0_ws
-    real(r_kind), parameter ::r0 = r0_p
-    real(r_kind), parameter :: kappa=kappa_ws
-    real(r_kind) :: hbaromega0, hbaromegaperp, hbaromegaz, rad,Vwsdepth,matelem
+    real(kind), dimension(:,:), allocatable :: Vws, Tkin, V, VC,Vso,Hn,Hp
+    real(kind), dimension(:), allocatable :: E, E_n, E_p
+    real(kind), parameter :: V0 = V0_ws
+    real(kind), parameter ::r0 = r0_p
+    real(kind), parameter :: kappa=kappa_ws
+    real(kind) :: hbaromega0, hbaromegaperp, hbaromegaz, rad,Vwsdepth,matelem
     character :: p
-    real(r_kind), dimension(:,:), allocatable :: matr
+    real(kind), dimension(:,:), allocatable :: matr
 
     def = betadef(beta2 = 0.0, beta4=0.0)
-    hbaromega0 = 41.0_r_kind * A**(-1.0_r_kind/3.0_r_kind) !!MeV
+    hbaromega0 = 41.0_kind * A**(-1.0_kind/3.0_kind) !!MeV
     hbaromegaperp = def%omega_perp(hbaromega0) !! omega = Mev/hbar
     hbaromegaz = def%omega_z(hbaromega0)
     rad = r0_p*A**(1.0/3.0)
@@ -52,7 +52,7 @@ program run_ho
         write(4, '(F10.5,A,F10.5)') E_p(n), "," , E_n(n)
     end do
     do n = num_p_states + 1, num_n_states
-        write(4, '(F10.5,A,F10.5)') 0.0_r_kind, "," , E_n(n)
+        write(4, '(F10.5,A,F10.5)') 0.0_kind, "," , E_n(n)
     end do
     close(4)
 

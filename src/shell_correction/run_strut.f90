@@ -5,13 +5,13 @@ program run_strut
     use Hamiltonian, only: print_shell_params
     implicit none
 
-    real(r_kind) :: e_shell_corr
+    real(kind) :: e_shell_corr
     integer :: A, Z
     type(betadef) :: def
 
     A = 208
     Z = 82
-    def = betadef(beta2 = 0.0_r_kind, beta4=0.0_r_kind)
+    def = betadef(beta2 = 0.0_kind, beta4=0.0_kind)
     call print_shell_params(Z, A, def)
 
     !e_shell_corr= get_shell(A-Z, levels, omega_0, .false.)
@@ -29,8 +29,8 @@ program run_strut
 
     function getHOlevels(N, omega_0)
         integer :: N
-        real(r_kind), allocatable :: getHOlevels(:)
-        real(r_kind) :: omega_0
+        real(kind), allocatable :: getHOlevels(:)
+        real(kind) :: omega_0
 
         integer :: ii, jj
         integer :: particles
@@ -42,7 +42,7 @@ program run_strut
         do ii =0, N
             do jj = 1, (ii+1)*(ii+2)/2
                 particles = particles + 1
-                getHOlevels(particles) = omega_0 * (ii + 1.5_r_kind)
+                getHOlevels(particles) = omega_0 * (ii + 1.5_kind)
             end do
         end do
     end function
