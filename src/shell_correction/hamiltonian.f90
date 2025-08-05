@@ -612,7 +612,7 @@ module Hamiltonian
         commutator = matmul(A1,A2)-matmul(A2,A1)
     end function
 
-    pure real(r_kind) elemental function S0(eta,s1,s2)
+    real(r_kind) function S0(eta,s1,s2)
         type(an_ho_state), intent(in) :: s1, s2
         real(r_kind), intent(in) :: eta
         S0 = (gnl(eta, s1%nr, s1%ml) * gnlp(eta, s2%nr, s2%ml) +gnl(eta, s2%nr, s2%ml) * gnlp(eta, s1%nr, s1%ml) ) / sqrt(eta)

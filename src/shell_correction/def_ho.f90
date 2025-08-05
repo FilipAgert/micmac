@@ -187,30 +187,6 @@ function get_ho_states(N) result(states)
     end do
 end function
 
-
-
-pure function pl(x,l)
-    real(r_kind), intent(in) :: x
-    integer, intent(in) :: l
-    real(r_kind) :: pl
-
-    if (l == 0) then
-        pl = 1.0_r_kind
-    else if (l == 1) then
-        pl = x
-    else if (l == 2) then
-        pl = 0.5_r_kind * (3.0_r_kind * x**2 - 1.0_r_kind)
-    else if (l == 3) then
-        pl = 0.5_r_kind * (5.0_r_kind * x**3 - 3.0_r_kind * x)
-    else if(l == 4) then
-        pl = 0.125_r_kind * (35.0_r_kind * x**4 - 30.0_r_kind * x**2 + 3.0_r_kind)
-    else
-        error stop "Higher order Legendre polynomials not implemented"
-    end if
-
-end function
-
-
 pure real(r_kind) elemental function Hn(x,n) result(res)
     real(r_kind), intent(in) :: x
     integer, intent(in) :: n
@@ -227,57 +203,12 @@ pure real(r_kind) elemental function Hn(x,n) result(res)
 
 end function
 
-
-pure real(r_kind) elemental function ani_ho_en(state,hbaromega_z,hbaromega_xy) result(energy)
-    real(r_kind), intent(in) :: hbaromega_z, hbaromega_xy
-    class(an_ho_state), intent(in) :: state
-    energy = hbaromega_xy*(2*state%nr+state%ml + 1) + hbaromega_z*(state%nz + 1.0_r_kind/2.0_r_kind)
-end function
-
 pure real(r_kind) elemental function alpha(mass, omega)
     real(r_kind), intent(in) :: omega !!In units MeV/hbar
     real(r_kind), intent(in) :: mass  !!In units MeV/c^2
     alpha = sqrt(mass*omega/(hbarc*hbarc))
 end function
 
-real(r_kind) function phin(x,n, omega, mass) !!Eigenfunctions of 1d harmonic oscillator
-    real(r_kind), intent(in) :: x !! [fm]
-    real(r_kind), intent(in) :: omega !!In units MeV/hbar
-    real(r_kind), intent(in) :: mass  !!In units MeV/c^2
-    integer, intent(in) :: n
-    real(r_kind) :: alph, xi !!coordinate transform
-    alph =  alpha(mass, omega) !!Alpha is sqrt(mass*omega/hbar). We can use better units to get sqrt(mass/c^2 * omega/hbar / hbar)
-    xi = alph * x
-
-    phin = exp(-xi**2 / 2.0_r_kind) * Hn(xi,n) *hofact(n,alph)
-
-end function
-
-real(r_kind) function hofact(n,alpha)
-    integer, intent(in) :: n
-    real(r_kind), intent(in) :: alpha
-    hofact = sqrt(alpha)*pi**(-1.0_r_kind/4.0_r_kind) / sqrt(real(2**n * fac(n),r_kind))
-
-end function
-
-real(r_kind) function phi2drad(r,nr,ml, mass, omega) result(val) !!Eigenfunction radial part of 2d harmonic oscllator
-    real(r_kind), intent(in) :: r !!In units fm
-    real(r_kind), intent(in) :: omega !!In units MeV/hbar
-    real(r_kind), intent(in) :: mass  !!In units MeV/c^2
-    integer, intent(in) :: nr, ml 
-    real(r_kind) :: alph, ar2
-
-    alph =  alpha(mass, omega)
-    ar2 = (alph*r)**2
-    val = r ** ml * exp(-ar2/2) * lna(ar2,nr,real(ml,r_kind))
-    val = val * ho_fact2d(alph,ml,nr)!!normalization constant
-end function
-
-real(r_kind) function ho_fact2d(alpha,ml,nr)
-    real(r_kind), intent(in) :: alpha
-    integer, intent(in) :: ml, nr
-    ho_fact2d =  alpha**(ml+1) * sqrt(real(2*fac(nr),r_kind) / real(pi * fac(nr+ml),r_kind))
-end function
 
 pure real(r_kind) elemental function lna(x,n,a) result(res) !gen laguerre polynomial iterative version
     real(r_kind), intent(in) :: x
