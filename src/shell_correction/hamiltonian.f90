@@ -9,7 +9,7 @@ module Hamiltonian
 
     private
     public :: diagonalize, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels, H_protons, H_neutrons, get_levels
-    public :: S0, T0, Tplus, Tminus, VSO_off_diag_elem_v2, el_pot, print_shell_params, write_result, time_diag, time_ws, time_Vc, time_Vso, normal_sph
+    public :: S0, T0, Tplus, Tminus, VSO_off_diag_elem_v2, el_pot, print_shell_params, write_result, time_diag, time_ws, time_Vc, time_Vso, normal_cart
     integer, parameter :: nquad =64
     real(kind), dimension(nquad) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
     logical :: precomputed_quad = .false.
@@ -209,15 +209,13 @@ module Hamiltonian
         sp = sin(phi)
         cp = cos(phi)
         r = [st*cp, st*sp, ct]
-        rp = [-st*sp, st*ct,0.0_kind]
+        rp = [-st*sp, st*cp,0.0_kind]
         rt = [ct*cp, ct*sp, -st]
         rad = surfRadius(theta, def, 1.0_kind)
         draddt = dsurfRadiusdtheta(theta, def, 1.0_kind)
 
         normal = rad*draddt * cross(r,rp) + rad*rad * cross(rt,rp)
         normal = normal/sqrt(dot_product(normal,normal))
-        print*, "len normal ^ 2", dot_product(normal,normal)
-
     end function
 
     function cross(v1,v2)

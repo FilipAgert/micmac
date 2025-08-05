@@ -44,11 +44,12 @@ program run_ho
     VC%def = def
 
     r = 10.0
-    theta = pi/2.0
-    phi = 0
-    normal_vec = normal_sph(def, theta, phi)
+    theta = pi/4
+    phi = 1
+    normal_vec = normal_cart(def, theta, phi)
     write(*,'(a,f7.2)') "r = ", r
     write(*,'(a,f7.2)') "Theta = ", theta
+    write(*,'(a,f7.2)') "phi = ", phi
     vcpot = VC%eval(r, theta)
     write(*,'(a,f7.2)') "Pot = ", vcpot
     write(*,'(a,3f7.2)')"normal: ", normal_vec
