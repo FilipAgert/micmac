@@ -1258,7 +1258,7 @@ subroutine write_result(Z,A,E_n,E_p, states_n, states_p, V_n, V_p)
         idx_p = maxloc(abs(V_p(ii,:)),1)
         state_p = states_p(idx_p)
         idx_n = maxloc(abs(V_n(ii,:)),1)
-        state_n = states_p(idx_n)
+        state_n = states_n(idx_n)
         if(state_p%pi < 0) then
             pp = '-'
         else
