@@ -9,7 +9,7 @@ module Hamiltonian
 
     private
     public :: diagonalize, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels, H_protons, H_neutrons, get_levels
-    public :: S0, T0, Tplus, gnlp, gnl, Tminus, VSO_off_diag_elem_v2, el_pot, print_shell_params, write_result
+    public :: S0, T0, Tplus, Tminus, VSO_off_diag_elem_v2, el_pot, print_shell_params, write_result
     integer, parameter :: nquad =64
     real(kind), dimension(nquad) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
     logical :: precomputed_quad = .false.
@@ -532,7 +532,7 @@ module Hamiltonian
                 ! endif
             end do
         end do
-        call write_mat_to_file(VWS_mat)
+        !call write_mat_to_file(VWS_mat)
     end function
 
     function Vso_mat(states, def, R0, omegaz, omegaperp, mass, WS_depth, lambda)
