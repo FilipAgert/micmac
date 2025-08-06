@@ -146,13 +146,15 @@ module Hamiltonian
 
     end function
 
-    subroutine diagonalize(E, V, H) !!Diagnoalize H and return V and E as eigenvectors sorted with lowest energy first.
-        real(kind), intent(in) :: H(:,:)
-        real(kind), intent(out) :: E(size(H,1)), V(size(H,1),size(H,1))
+    subroutine diagonalize(E, V, H, geteigv) !!Diagnoalize H and return V and E as eigenvectors sorted with lowest energy first.
+        real(kind), intent(in) :: H(:,:) !!Hamiltonian to diagonalize
+        real(kind), intent(out) :: E(size(H,1)) !!Array containing energies in ascending order
+        real(kind), intent(out) :: V(size(H,1),size(H,1)) !!Eigenvector matrix if geteigv true
+        logical, intent(in) :: geteigv !!flag if include eigenvectors or not
         external :: dsyev !!lapack routine for diagnoalizing symmetric matrix
-
         !!lapack variables!!
-        character(len=1), parameter :: jobz = 'V', uplo = 'U'
+        character(len=1), parameter ::  uplo = 'U'
+        character(len=1) :: jobz
         integer :: N
         integer :: lda
         real(kind) :: w(size(H,1))
@@ -163,6 +165,11 @@ module Hamiltonian
         integer :: info
         real(kind) :: time0, time1
         call cpu_time(time0)
+        if(geteigv) then
+            jobz = 'V'
+        else
+            jobz = 'E'
+        endif
         N = size(H,1)
         ! write(*,*) N
         lda = N
@@ -1124,13 +1131,14 @@ module Hamiltonian
     end subroutine
 
 
-    subroutine get_levels(E_P, E_N,Z,A,def, max_N)
+    subroutine get_levels(E_P, E_N,Z,A,def, max_N, geteigv)
         real(kind),allocatable, intent(out) :: E_P(:), E_N(:)
         integer, intent(in) :: Z, A, max_N
         type(betadef), intent(in) :: def
         real(kind) :: Vn(num_n_states,num_n_states) ,Hp(num_p_states,num_p_states), Hn(num_n_states,num_n_states), Vp(num_p_states,num_p_states)
         type(an_ho_state) :: states_p(num_p_states), states_n(num_n_states)
         real(kind) :: hbaromega0, hbaromegaz, hbaromegaperp
+        logical, intent(in) :: geteigv !!true if you want printing of eigenvalues and their parities
         allocate(E_p(num_p_states),E_n(num_n_states))
         Vn = 0
         Vp = 0
@@ -1145,19 +1153,19 @@ module Hamiltonian
         write(*,'(A)') "Calculating proton hamiltonian..."
         Hp = H_protons(states_p, Z, A, def, hbaromegaz, hbaromegaperp)
         write(*,'(A)') "Diagonalizing..."
-        call diagonalize(E_p, Vp, Hp)
+        call diagonalize(E_p, Vp, Hp,geteigv)
         write(*,'(A)') 
         write(*,'(A)') "Calculating neutron hamiltonian..."
         Hn = H_neutrons(states_n, Z, A, def, hbaromegaz, hbaromegaperp)
         write(*,'(A)') "Diagonalizing..."
-        call diagonalize(E_n, Vn, Hn)
+        call diagonalize(E_n, Vn, Hn, geteigv)
         write(*,*)
         write(*,'(A26,f5.2,a10)') "Time spent in V_ws:", time_ws, " seconds"
         write(*,'(A26,f5.2,a10)') "Time spent in V_so:", time_Vso, " seconds"
         write(*,'(A26,f5.2,a10)') "Time spent in V_C:", time_Vc, " seconds"
         write(*,'(A26,f5.2,a10)') "Time spent in diagonalise:", time_diag, " seconds"
         write(*,*)
-        call write_result(Z, A, E_n, E_p, states_n, states_p, Vn, Vp)
+        if(geteigv) call write_result(Z, A, E_n, E_p, states_n, states_p, Vn, Vp)
     end subroutine
 
     function H_protons(states, Z,A,def,hbaromegaz, hbaromegaperp) result(H)
