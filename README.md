@@ -5,12 +5,12 @@ A **work-in-progress** program for calculating nuclear ground state masses, defo
 Microscopic corrections are from the Strutinsky method on single particle levels from a Wood-Saxon + Coulomb + spin-orbit Hamiltonian, diagonalised with an axially deformed harmonic oscillator basis.
 The microscopic method attempts to replicate [1], while the implementation uses calculations from [2]. Quadrature nodes and weights are computed using [this](https://github.com/FilipAgert/fquad/) program.
 
-> [1] **P. Jachimowicz, M. Kowal, and J. Skalski**
->     *Properties of heaviest nuclei with 98≤Z≤126 and 134≤N≤192*
+> [1] **P. Jachimowicz, M. Kowal, and J. Skalski.**
+>     *Properties of heaviest nuclei with 98≤Z≤126 and 134≤N≤192,*
 >     At. Data Nucl. Data Tables 138, 101393 (2021).
   
-> [2] **H. C. Pauli**
-> *On the shell model and its application to the deformation energy of heavy nuclei*
+> [2] **H. C. Pauli.**
+> *On the shell model and its application to the deformation energy of heavy nuclei,*
 > Physics Reports 7, 35 (1973)
 
 
