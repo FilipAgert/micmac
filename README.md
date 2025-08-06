@@ -51,7 +51,7 @@ where
 
 This generates a file containing the proton and neutron single-particle levels
 ```
-out/levels_<Z>_<A>.dat
+data/out/levels_<Z>_<A>.dat
 ```
 which contains single particle levels for protons in column 1 and neutrons in proton 2.
 
