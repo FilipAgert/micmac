@@ -12,6 +12,7 @@ module Hamiltonian
     public :: S0, T0, Tplus, Tminus, VSO_off_diag_elem_v2, el_pot, print_shell_params, write_result, time_diag, time_ws, time_Vc, time_Vso, surface_elem
     integer, parameter :: nquad =64
     real(kind), dimension(nquad) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
+    real(kind) :: HmnQ(nquad, -1:max_n+1), HmnpQ(nquad,-1:max_n ), gnlQ(nquad, -1:(max_n+1), -1:(max_n+1)), gnlpQ(nquad, -1:max_n, -1:max_n)
     logical :: precomputed_quad = .false.
 
     real(kind) :: time_diag=0, time_ws=0, time_Vc=0, time_Vso=0
@@ -94,7 +95,44 @@ module Hamiltonian
         self%precomputed_pot(ir, it) = val
     end subroutine
 
+    subroutine precompute()
+        integer :: nn, ll, jj
+        write(*,*) "precomputed"
+        call precompute_quad()
+        HmnQ(:,-1) = 0
+        HmnpQ(:,-1) = 0
+        do nn = 0,max_n+1
+            do jj = 1,nquad
+                HmnQ(jj,nn) = Hmn(her_x(jj), nn)
+            end do
+        end do
+        do nn = 0,max_n
+            do jj = 1,nquad
+                HmnpQ(jj,nn) =HmnQ(jj,nn-1)*sqrt(0.5_kind*nn) - HmnQ(jj,nn+1)*sqrt(0.5_kind*(nn+1))
+            end do
+        end do
+        gnlQ(:,-1,:) = 0
+        gnlQ(:,:,-1) = 0
+        gnlpQ(:,-1,:) = 0
+        gnlpQ(:,:,-1) = 0
 
+        do nn = 0,max_n+1
+            do ll = 0, max_n+1
+                do jj = 1,nquad
+                    gnlQ(jj,nn,ll) = gnl(lag_x(jj),nn,ll)
+                end do
+            end do
+        end do
+        do nn = 0,max_n
+            do ll = 0,max_n
+                do jj = 1,nquad
+                    gnlpQ(jj,nn,ll) = (gnlQ(jj,nn,ll) * (2*nn+ll-lag_x(jj)) &
+                    - gnlQ(jj,nn-1,ll) * 2.0* sqrt(real(nn*(nn+ll),kind)))/sqrt(lag_x(jj))
+        
+                end do
+            end do
+        end do
+    end subroutine
 
     subroutine precompute_quad()
         if(precomputed_quad) then
@@ -290,7 +328,6 @@ module Hamiltonian
             eval_vc = el_pot(r, self%radius, self%charge_dens)
            return
         endif
-        call precompute_quad()
         if(first_time) then
 
             do iu = 1, nquad
@@ -313,7 +350,7 @@ module Hamiltonian
 
             first_time = .false.
         endif
-        call precompute_quad()
+        
 
         sintheta = sin(theta)
         costheta = cos(theta)
@@ -476,7 +513,6 @@ module Hamiltonian
         type(an_ho_state) :: s1, s2
         real(kind) :: time0, time1
         allocate(Z_mat(nquad,0:max_n,0:max_n))
-        call precompute_quad()
         call cpu_time(time0)
 
         !setup potential
@@ -524,7 +560,7 @@ module Hamiltonian
         real(kind) :: eta
         integer :: nz, nzp, ii, diag
 
-        call precompute_quad()
+        
         Zmat = 0
         computed = .false.
 
@@ -653,7 +689,7 @@ module Hamiltonian
         real(kind) :: time0, time1
 
 
-        call precompute_quad()
+        
         call cpu_time(time0)
         allocate(Z_MAT(nquad,0:max_n,0:max_n))
         !setup potential
@@ -712,7 +748,7 @@ module Hamiltonian
         integer ::numstates, row, col, l1, l2, ms1, ms2
         type(an_ho_state) :: s1, s2
         allocate(T0(nquad,0:max_n, 0:max_n), W0(nquad,0:max_n, 0:max_n))
-        call precompute_quad()
+        
         call cpu_time(time0)
         kappa = lambda*(hbarc/(2*mass))**2
         ! print*, "kappa:", kappa
@@ -786,14 +822,14 @@ module Hamiltonian
         real(kind) :: eta
 
         if(first_time) then
-            call precompute_quad()
+            
             do nn = 1, nquad
                 eta = lag_x(nn)
                 invsqrteta(nn) = 1.0_kind/sqrt(eta)
             end do
             first_time = .false.
         endif
-        S0 = (get_quad_gnl(ii, s1%nr, s1%ml) * get_quad_gnlp(ii, s2%nr, s2%ml) +get_quad_gnl(ii, s2%nr, s2%ml) * get_quad_gnlp(ii, s1%nr, s1%ml) ) *invsqrteta(ii)
+        S0 = (gnlQ(ii, s1%nr, s1%ml) * gnlpQ(ii, s2%nr, s2%ml) +gnlQ(ii, s2%nr, s2%ml) * gnlpQ(ii, s1%nr, s1%ml) ) *invsqrteta(ii)
     end function
 
     function T0_mat(SO_WS, alpha_z, alpha_perp)
@@ -812,7 +848,7 @@ module Hamiltonian
         real(kind) :: eta
         integer :: nz, nzp, ii
         W0_mat = 0
-        call precompute_quad()
+        
         do nz = 0, max_n
             do nzp = 0, max_n
                 do ii = 1, nquad
@@ -833,7 +869,7 @@ module Hamiltonian
         integer, intent(in) :: eta_ii
         real(kind) :: zeta, z, rho,r ,theta
         T0 = 0
-        call precompute_quad()
+        
         rho = eta_to_rho(eta, alpha_perp)
         do i = 1,nquad
             zeta = her_x(i)
@@ -854,7 +890,7 @@ module Hamiltonian
         integer :: i
         real(kind) :: zeta, z, rho,r ,theta
         Tminus = 0
-        call precompute_quad()
+        
         rho = eta_to_rho(eta, alpha_perp)
         do i = 1,nquad
             zeta = her_x(i)
@@ -875,7 +911,7 @@ module Hamiltonian
         integer :: i
         real(kind) :: zeta, z, rho,r ,theta
         Tplus = 0
-        call precompute_quad()
+        
         rho = eta_to_rho(eta, alpha_perp)
         do i = 1,nquad
             zeta = her_x(i)
@@ -896,7 +932,7 @@ module Hamiltonian
         real(kind) ::rho, eta, weta, term
         real(kind), save :: sqrteta(1:nquad)
         logical, save :: first_time = .true.
-        call precompute_quad()
+        
         if(first_time) then
             do nn = 1, nquad
                 eta = lag_x(nn)
@@ -915,7 +951,7 @@ module Hamiltonian
             rho = eta_to_rho(eta, alpha_perp)
 
             term = W0(nn,s1%nz, s2%nz) * s2%ml + W0(nn,s2%nz, s1%nz) * s1%ml
-            term = term * weta * get_quad_gnl(nn,s1%nr, s1%ml) * get_quad_gnl(nn, s2%nr,s2%ml) / sqrteta(nn)
+            term = term * weta * gnlQ(nn,s1%nr, s1%ml) * gnlQ(nn, s2%nr,s2%ml) / sqrteta(nn)
             I1 = I1 + term
         end do
         I1 = I1 * alpha_perp*alpha_z
@@ -934,7 +970,7 @@ module Hamiltonian
         real(kind) :: rho, eta, weta, term1, term2,etafac
         real(kind), save :: invsqrteta(1:nquad)
         logical, save :: first_time = .true.
-        call precompute_quad()
+        
         if(first_time)then
             do nn = 1, nquad
                 eta = lag_x(nn)
@@ -955,8 +991,8 @@ module Hamiltonian
             term2 = W0(nn,s2%nz, s1%nz)
 
             etafac = weta *invsqrteta(nn)
-            term1 = term1 * etafac * get_quad_gnl(nn, s1%nr, s1%ml) * get_quad_gnlp(nn, s2%nr, s2%ml)
-            term2 = term2 * etafac * get_quad_gnlp(nn, s1%nr, s1%ml) * get_quad_gnl(nn, s2%nr, s2%ml)
+            term1 = term1 * etafac * gnlQ(nn, s1%nr, s1%ml) * gnlpQ(nn, s2%nr, s2%ml)
+            term2 = term2 * etafac * gnlpQ(nn, s1%nr, s1%ml) * gnlQ(nn, s2%nr, s2%ml)
 
             I2 = I2 + term1 - term2
         end do
@@ -982,7 +1018,7 @@ module Hamiltonian
         real(kind), intent(in), dimension(nquad,0:max_N, 0:max_N) :: Zmat
         integer :: ii
         real(kind) :: eta
-        call precompute_quad()
+        
         matelem = 0.0_kind
         if(s1%ml /= s2%ml .or. s1%ms /= s2%ms) then
             return
@@ -990,7 +1026,7 @@ module Hamiltonian
 
         do ii = 1, nquad
             eta = lag_x(ii)
-            matelem = matelem + lag_w(ii) * Zmat(ii,s1%nz, s2%nz) * get_quad_gnl(ii, s1%nr,s1%ml) * get_quad_gnl(ii, s2%nr, s2%ml) 
+            matelem = matelem + lag_w(ii) * Zmat(ii,s1%nz, s2%nz) * gnlQ(ii, s1%nr,s1%ml) * gnlQ(ii, s2%nr, s2%ml) 
         end do
 
     end function
@@ -1034,7 +1070,7 @@ module Hamiltonian
             !     write(*,'(A,F10.3,F10.3)'),"Eval vs preeval: " ,(pot%eval(r,theta)), pot%eval_pre(eta_ii, ii, r, theta)
             ! endif
 
-            Z_matelem = Z_matelem + her_w(ii) * get_quad_Hmn(ii, nz1) * get_quad_Hmn(ii, nz2)*pot%eval_pre(eta_ii,ii,r, theta) 
+            Z_matelem = Z_matelem + her_w(ii) * hmnQ(ii, nz1) * hmnQ(ii, nz2)*pot%eval_pre(eta_ii,ii,r, theta) 
             ! if(printflag) then
             !     write(*,'(F10.3)'),(pot%eval(0.0_kind,0.0_kind))
             ! endif
@@ -1053,7 +1089,7 @@ module Hamiltonian
                 z = zeta_to_z(zeta,alpha_z)
                 theta = theta_cyl(rho, z)
                 r = rad_cyl(rho ,z)
-                Z_matelem = Z_matelem + her_w(ii) * get_quad_Hmn(ii, nz1) * get_quad_Hmn(ii, nz2)*pot%eval_pre(eta_ii,ii,r, theta) 
+                Z_matelem = Z_matelem + her_w(ii) * hmnQ(ii, nz1) * hmnQ(ii, nz2)*pot%eval_pre(eta_ii,ii,r, theta) 
             endif
 
         endif
@@ -1088,7 +1124,7 @@ module Hamiltonian
             z = zeta_to_z(zeta,alpha_z)
             theta = theta_cyl(rho, z)
             r = rad_cyl(rho ,z)
-            W_matelem = W_matelem + her_w(ii) * get_quad_Hmnp(ii, nz1) *get_quad_Hmn(ii,nz2)*pot%eval_pre(eta_ii,ii,r, theta) 
+            W_matelem = W_matelem + her_w(ii) * hmnpQ(ii, nz1) *hmnQ(ii,nz2)*pot%eval_pre(eta_ii,ii,r, theta) 
         end do
 
 
@@ -1101,7 +1137,7 @@ module Hamiltonian
                 z = zeta_to_z(zeta,alpha_z)
                 theta = theta_cyl(rho, z)
                 r = rad_cyl(rho ,z)
-                W_matelem = W_matelem + her_w(ii) * get_quad_Hmnp(ii, nz1) *get_quad_Hmn(ii,nz2)*pot%eval_pre(eta_ii,ii,r, theta) 
+                W_matelem = W_matelem + her_w(ii) * hmnpQ(ii, nz1) *hmnQ(ii,nz2)*pot%eval_pre(eta_ii,ii,r, theta) 
             endif
         endif
 
@@ -1179,6 +1215,7 @@ module Hamiltonian
         logical, intent(in) :: geteigv !!true if you want printing of eigenvalues and their parities
         logical :: reflsym
         allocate(E_p(num_p_states),E_n(num_n_states))
+        call precompute()
         Vn = 0
         Vp = 0
         E_p = 0
@@ -1517,7 +1554,7 @@ real(kind) function get_quad_Hmn(ii,n)
     logical, save :: first_time = .true.
 
     if(first_time) then
-        call precompute_quad()
+        
         H(:,-1) = 0
         do mm = 0,max_n+1
             do jj = 1,nquad
@@ -1539,7 +1576,7 @@ real(kind) function get_quad_Hmnp(ii,n)
     logical, save :: first_time = .true.
 
     if(first_time) then
-        call precompute_quad()
+        
         do mm = 0,max_n
             do jj = 1,nquad
                 Hp(jj,mm) =get_quad_Hmn(jj,mm-1)*sqrt(0.5_kind*mm) - get_quad_Hmn(jj,mm+1)*sqrt(0.5_kind*(mm+1))
@@ -1562,7 +1599,7 @@ real(kind) function get_quad_gnl(ii,n,l)
     logical, save :: first_time = .true.
     if(l < 0) print*, "ERR: l < 0"
     if(first_time) then
-        call precompute_quad()
+        
         do nn = 0,max_n+1
             do ll = 0, max_n+1
                 do jj = 1,nquad
@@ -1590,7 +1627,7 @@ real(kind) function get_quad_gnlp(ii,n,l)
     logical, save :: first_time = .true.
 
     if(first_time) then
-        call precompute_quad()
+        
         do nn = 0,max_n
             do ll = 0,max_n
                 do jj = 1,nquad

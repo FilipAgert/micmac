@@ -39,9 +39,6 @@ program run_ho
     !Protons
     !Hp = H_protons(states, Z, A, def, hbaromegaz, hbaromegaperp)
     !Hn = H_neutrons(states, Z, A, def, hbaromegaz, hbaromegaperp)
-    VC%radius = rad
-    call VC%set_charge_dens(Z)
-    VC%def = def
 
 
     theta = 0.3
@@ -51,7 +48,6 @@ program run_ho
     ! write(*,'(a,f7.2)') "r = ", r
     ! write(*,'(a,f7.2)') "Theta = ", theta
     ! write(*,'(a,f7.2)') "phi = ", phi
-    vcpot = VC%eval(r, theta)
     ! write(*,'(a,f7.2)') "Pot = ", vcpot
     ! write(*,'(a,3f7.2)')"normal: ", normal_vec/sqrt(dot_product(normal_vec,normal_vec))
     ! write(*,'(a,3f7.2)')"JAC: ", sqrt(dot_product(normal_vec,normal_vec))
