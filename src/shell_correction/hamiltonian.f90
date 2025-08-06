@@ -317,8 +317,8 @@ module Hamiltonian
         class(VC_pot), intent(in) :: self
         real(kind), intent(in) :: r, theta
         !Do the integral int_V     dr^3/|r-r'| at the point r.
-        integer :: iu, it, ix
-        real(kind) :: u, t, x, int_theta, int_radius_ub, rolling, sintheta, sinacosu, cospipit, costheta, vinc(3), vint(3), diff(3), dist, nj(3)
+        integer :: iu, it
+        real(kind) :: u, t, rolling, sintheta, costheta, vinc(3), vint(3), diff(3), dist, nj(3)
         real(kind) :: phi, thetap, sinp, cosp, sint, cost, radp
         logical, save :: first_time = .true.
         real(kind), save, dimension(nquad) :: sinthetas, costhetas, sinphis, cosphis, surfrads
@@ -362,14 +362,10 @@ module Hamiltonian
         !https://en.wikipedia.org/wiki/Green%27s_identities
 
         do iu = 1, nquad
-            u = leg_x(iu)
-            thetap = (u + 1)*pi/2.0_kind
             sint = sinthetas(iu)
             cost = costhetas(iu)
             radp = surfrads(iu)!surfRadius(thetap, self%def, self%radius)!!r for r'
             do it = 1,nquad
-                t = leg_x(it)
-                phi = (t+1)*pi
                 sinp = sinphis(it)
                 cosp = cosphis(it)
                 vint = radp*[sint*cosp,sint*sinp,cost] 
