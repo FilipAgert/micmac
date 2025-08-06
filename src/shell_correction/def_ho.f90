@@ -140,7 +140,7 @@ function get_lowest_ho_states(N_max, n_states, hbaromega_z, hbaromega_perp) resu
 
     end do
     states = states_all(1:n_states)
-
+    call block_sort_states(states)
 end function
 
 function get_ho_states(N) result(states)
@@ -186,6 +186,45 @@ function get_ho_states(N) result(states)
         end do
     end do
 end function
+
+subroutine block_sort_states(states)
+    !!Sort states such that constants of motion are ordered next to each other.
+    !!Sort from lowest m_j to highest m_j, parity sorted from - to +
+    type(an_ho_state), intent(inout) :: states(:) !!states to sort according to constants of motion (m_j and parity)
+    integer :: i,j
+    type(an_ho_state) :: key
+    do i = 2, size(states)
+        key = states(i)
+        j = i - 1
+        do while (j >= 1)
+            if(.not. state_lt(key, states(j))) exit
+            states(j+1) = states(j)
+            j = j - 1
+        end do
+        states(j+1) = key
+    end do
+    contains
+    logical function state_lt(state1, state2)
+    !!Comparator for states.
+    !! s1 < s2 if mj1 < mj2, or if mj1==mj2, then the smaller state is the one with negative parity.
+        type(an_ho_state), intent(in) :: state1 !!Check if state1 is smaller state
+        type(an_ho_state), intent(in) :: state2 !!check if state2 is larger state
+        state_lt = state1%mj < state2%mj
+        if(state1%mj==state2%mj) then
+            state_lt = state1%pi < state2%pi
+        endif
+    end function
+end subroutine
+
+logical function state_eq_subspace(state1, state2, refl_sym)
+!!comparator for states if they are in the same subspace or not
+!!Same subspace if mj is equal and if parity is equal.
+    type(an_ho_state), intent(in) :: state1, state2
+    logical, intent(in) :: refl_sym !!True if system has reflection symmetry: parity is conserved.
+    state_eq_subspace = state1%mj == state2%mj
+    if(refl_sym) state_eq_subspace = state_eq_subspace .and. state1%pi == state2%pi !!if reflection symmetry, same subspace when parity is also conserved.
+end function
+
 
 pure real(kind) elemental function Hn(x,n) result(res)
     real(kind), intent(in) :: x
