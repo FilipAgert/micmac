@@ -97,7 +97,10 @@ module Hamiltonian
 
     subroutine precompute()
         integer :: nn, ll, jj
-        write(*,*) "precomputed"
+        if(precomputed_quad) then
+            return
+        endif
+
         call precompute_quad()
         HmnQ(:,-1) = 0
         HmnpQ(:,-1) = 0
@@ -132,12 +135,10 @@ module Hamiltonian
                 end do
             end do
         end do
+        precomputed_quad = .true.
     end subroutine
 
     subroutine precompute_quad()
-        if(precomputed_quad) then
-            return
-        endif
 
         if(mod(nquad,2) /= 0) then
             error stop "does not work with odd nquad. bug in W_matelem or Z_matelem using reflection symmetry"
@@ -160,7 +161,7 @@ module Hamiltonian
         call LEGQUAD(leg_x, leg_w)
         !!call legendre_dr_compute(gauss_order, leg_x, leg_w)
 
-        precomputed_quad = .true.
+
 
 
 
@@ -194,7 +195,9 @@ module Hamiltonian
         real(kind), allocatable :: Hd(:,:), Ed(:), Vd(:,:)
         integer :: idx, j, stopidx, sz
         real(kind) :: key, col(size(H,1))
+        real(kind) :: time0, time1
         idx = 1
+        call cpu_time(time0)
         do while (idx <= size(H,1))
             stopidx = idx
             do while(stopidx < size(H,1))
@@ -206,24 +209,39 @@ module Hamiltonian
             Hd = H(idx:stopidx, idx:stopidx)
             call diagonalize(Ed, Vd, Hd, geteigv)
             E(idx:stopidx) = Ed
-            V(idx:stopidx, idx:stopidx) = Vd
+            if(geteigv) V(idx:stopidx, idx:stopidx) = Vd
             deallocate(Hd,Ed,Vd)
             idx = stopidx + 1 !!go to next block
         end do
-        !Sort E in ascending order
-        do idx = 2, size(states)
-            key = E(idx)
-            col = V(:,idx)
-            j = idx - 1
-            do while (j >= 1)
-                if(.not. (key < E(j))) exit
-                E(j+1) = E(j)
-                V(:,j+1) = V(:,j)
-                j = j - 1
+        !Sort E in ascending order along with V
+        if(geteigv) then
+            do idx = 2, size(states)
+                key = E(idx)
+                col = V(:,idx)
+                j = idx - 1
+                do while (j >= 1)
+                    if(.not. (key < E(j))) exit
+                    E(j+1) = E(j)
+                    V(:,j+1) = V(:,j)
+                    j = j - 1
+                end do
+                V(:,j+1) = col
+                E(j+1) = key
             end do
-            V(:,j+1) = col
-            E(j+1) = key
-        end do
+        else !only sort E (faster)
+            do idx = 2, size(states)
+                key = E(idx)
+                j = idx - 1
+                do while (j >= 1)
+                    if(.not. (key < E(j))) exit
+                    E(j+1) = E(j)
+                    j = j - 1
+                end do
+                E(j+1) = key
+            end do
+        endif
+        call cpu_time(time1)
+        time_diag = time_diag + time1-time0
     end subroutine
 
     subroutine diagonalize(E, V, H, geteigv) !!Diagnoalize H and return V and E as eigenvectors sorted with lowest energy first.
@@ -243,8 +261,8 @@ module Hamiltonian
         integer :: liwork
         integer :: lwork
         integer :: info
-        real(kind) :: time0, time1
-        call cpu_time(time0)
+
+
         if(geteigv) then
             jobz = 'V'
         else
@@ -271,8 +289,7 @@ module Hamiltonian
             V = H
         endif
         deallocate(work, iwork)
-        call cpu_time(time1)
-        time_diag = time_diag + time1-time0
+
     end subroutine
 
     pure real(kind) function el_pot(r,rad,charge_dens) !!electric potential of a uniformly charged sphere
