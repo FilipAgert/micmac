@@ -46,10 +46,10 @@ program run_ho
     open(4, file=filename)
     write(4,'(I3,A,I3,A)') Z, ",", A, ", = Z,A"
     do n = 1, num_p_states
-        write(4, '(F10.5,A,F10.5)') E_p(n), "," , E_n(n)
+        write(4, '(F10.5,3x,F10.5)') E_p(n) , E_n(n)
     end do
     do n = num_p_states + 1, num_n_states
-        write(4, '(F10.5,A,F10.5)') 0.0_kind, "," , E_n(n)
+        write(4, '(F10.5,3x,F10.5)') 0.0_kind, E_n(n)
     end do
     close(4)
     
