@@ -9,7 +9,7 @@ module Hamiltonian
 
     private
     public :: diagonalize, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels, H_protons, H_neutrons, get_levels, surfRadius
-    public :: S0, T0, Tplus, Tminus, VSO_off_diag_elem_v2, el_pot, print_shell_params, write_result, time_diag, time_ws, time_Vc, time_Vso, surface_elem
+    public :: S0, T0, Tplus, Tminus, VSO_off_diag_elem, el_pot, print_shell_params, write_result, time_diag, time_ws, time_Vc, time_Vso, surface_elem
     integer, parameter :: nquad =64
     real(kind), dimension(nquad) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
     real(kind) :: HmnQ(nquad, -1:max_n+1), HmnpQ(nquad,-1:max_n ), gnlQ(nquad, -1:(max_n+1), -1:(max_n+1)), gnlpQ(nquad, -1:max_n, -1:max_n)
@@ -783,7 +783,7 @@ module Hamiltonian
                     !     call exit 
                     ! endif
                 elseif((ms1 == ms2 + 2 .and. l1 == l2 - 1) .or. (ms1 == ms2 - 2 .and. l1 == l2 + 1)) then
-                    Vso_mat(row,col) = VSO_off_diag_elem_v2(s1,s2,W0,alpha_z,alpha_perp)
+                    Vso_mat(row,col) = VSO_off_diag_elem(s1,s2,W0,alpha_z,alpha_perp)
                     ! if(isnan(Vso_mat(row,col))) then
                     !     write(*,*) "Off diagonal VSO element is not a number:"
                     !     call exit 
@@ -1165,7 +1165,7 @@ module Hamiltonian
     end function
 
 
-    real(kind)  function VSO_off_diag_elem_v2(s1,s2,W0,alpha_z,alpha_perp) result(matelem)
+    real(kind)  function VSO_off_diag_elem(s1,s2,W0,alpha_z,alpha_perp) result(matelem)
         type(an_ho_state), intent(in) :: s1, s2
         real(kind), intent(in) :: alpha_z, alpha_perp
         real(kind), intent(in) :: W0(nquad,0:max_n, 0:max_n)
@@ -1541,109 +1541,4 @@ subroutine write_result(Z,A,E_n,E_p, states_n, states_p, V_n, V_p)
 
     write(*,*) comm
 end subroutine
-
-real(kind) function get_quad_Hmn(ii,n)
-    !!Gets Hmn at quadrature integration point ii
-    !!Precomputes and saves
-    use def_ho, only:Hmn
-    integer, intent(in) :: n !!order of modified polynomial
-    integer, intent(in) :: ii !!index of quadrature root
-    integer :: jj
-    integer :: mm
-    real(kind), save :: H(1:nquad, -1:max_n+1)
-    logical, save :: first_time = .true.
-
-    if(first_time) then
-        
-        H(:,-1) = 0
-        do mm = 0,max_n+1
-            do jj = 1,nquad
-                H(jj,mm) = Hmn(her_x(jj), mm)
-            end do
-        end do
-        first_time = .false.
-    endif
-    get_quad_Hmn = H(ii,n)
-end function
-real(kind) function get_quad_Hmnp(ii,n)
-    !!Gets Hmnp at quadrature integration point ii
-    !!Precomputes and saves
-    integer, intent(in) :: n !!order of modified polynomial
-    integer, intent(in) :: ii !!index of quadrature root
-    integer :: jj
-    integer :: mm
-    real(kind), save :: Hp(1:nquad, -1:max_n)
-    logical, save :: first_time = .true.
-
-    if(first_time) then
-        
-        do mm = 0,max_n
-            do jj = 1,nquad
-                Hp(jj,mm) =get_quad_Hmn(jj,mm-1)*sqrt(0.5_kind*mm) - get_quad_Hmn(jj,mm+1)*sqrt(0.5_kind*(mm+1))
-            end do
-        end do
-        first_time = .false.
-    endif
-    get_quad_Hmnp = Hp(ii,n)
-end function
-
-real(kind) function get_quad_gnl(ii,n,l)
-    !!Gets Hmn at quadrature integration point ii
-    !!Precomputes and saves
-    use def_ho, only:gnl
-    integer, intent(in) :: n,l !!order of modified polynomial
-    integer, intent(in) :: ii !!index of quadrature root
-    integer :: ll
-    integer :: nn, jj
-    real(kind), save :: g(1:nquad, 0:(max_n+1), 0:(max_n+1))
-    logical, save :: first_time = .true.
-    if(l < 0) print*, "ERR: l < 0"
-    if(first_time) then
-        
-        do nn = 0,max_n+1
-            do ll = 0, max_n+1
-                do jj = 1,nquad
-                    g(jj,nn,ll) = gnl(lag_x(jj),nn,ll)
-                end do
-            end do
-        end do
-        first_time = .false.
-    endif
-    if(n < 0) then
-        get_quad_gnl = 0
-    else
-        get_quad_gnl = g(ii,n,l)
-    endif
-end function
-
-real(kind) function get_quad_gnlp(ii,n,l)
-    !!Gets Hmn at quadrature integration point ii
-    !!Precomputes and saves
-    integer, intent(in) :: n,l !!order of modified polynomial
-    integer, intent(in) :: ii !!index of quadrature root
-    integer :: ll
-    integer :: nn, jj
-    real(kind), save ::  gp(1:nquad, 0:(max_n), 0:(max_n))
-    logical, save :: first_time = .true.
-
-    if(first_time) then
-        
-        do nn = 0,max_n
-            do ll = 0,max_n
-                do jj = 1,nquad
-                    gp(jj,nn,ll) = (get_quad_gnl(jj,nn,ll) * (2*nn+ll-lag_x(jj)) &
-                    - get_quad_gnl(jj,nn-1,ll) * 2.0* sqrt(real(nn*(nn+ll),kind)))/sqrt(lag_x(jj))
-        
-                end do
-            end do
-        end do
-        first_time = .false.
-    endif
-    if(n < 0) then
-        get_quad_gnlp = 0
-    else
-        get_quad_gnlp = gp(ii,n,l)
-    endif
-
-end function
 end module

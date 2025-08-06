@@ -197,7 +197,7 @@ contains
         end if
 
         expected = VSO_off_diag_elem(s1, s2, pot, 1.0_kind, 1.0_kind)
-        actual =VSO_off_diag_elem_v2(s1, s2, pot, 1.0_kind, 1.0_kind)
+        actual =VSO_off_diag_elem(s1, s2, pot, 1.0_kind, 1.0_kind)
         print*, expected
         print*, actual
         pass = eq_r(expected, actual)  ! Replace with actual call: e.g. call micmac_result(actual)
