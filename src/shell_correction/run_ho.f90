@@ -63,7 +63,7 @@ program run_ho
     write(*,'(A,F10.3, A)')"omega:", hbaromega0, " MeV/hbar"
     write(*,'(A,F10.3, A)')"omegaz:", hbaromegaz, " MeV/hbar"
     write(*,'(A,F10.3, A)')"omegaperp", hbaromegaperp, " MeV/hbar"
-    call get_levels(E_p, E_n,Z,A,def, max_n, .false.)
+    call get_levels(E_p, E_n,Z,A,def, max_n, .true.)
 
     ! print*, "Neutrons:", E_n(1:5)
     ! print*, "Protons:" ,E_p(1:5)

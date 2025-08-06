@@ -146,6 +146,44 @@ module Hamiltonian
 
     end function
 
+    subroutine diagonalize_block_mat(E, V, H, geteigv, states, refl_sym)
+        real(kind), intent(in) :: H(:,:) !!Block diagonal hamiltonian to diagonalize
+        real(kind), intent(out) :: E(size(H,1)) !!Array containing energies in ascending order
+        real(kind), intent(out) :: V(size(H,1),size(H,1)) !!Eigenvector matrix if geteigv true
+        logical, intent(in) :: geteigv !!if get eigenvectors or not
+        type(an_ho_state), intent(in) :: states(size(H,1)) !!states corresponding to H
+        logical, intent(in) :: refl_sym !!true if system has reflection symmery (parity is conserved)
+        real(kind), allocatable :: Hd(:,:), Ed(:), Vd(:,:)
+        integer :: idx, j, stopidx, sz
+        real(kind) :: key
+        idx = 1
+        do while (idx <= size(H,1))
+            stopidx = idx
+            do while(stopidx < size(H,1))
+                if( .not. state_eq_subspace(states(idx), states(stopidx + 1), refl_sym)) exit
+                stopidx = stopidx + 1
+            end do!on exit of loop, idx:stopidx is the indices in H and states which are a subspace
+            sz = stopidx -idx + 1
+            allocate(Hd(sz,sz), Ed(sz), Vd(sz,sz))
+            Hd = H(idx:stopidx, idx:stopidx)
+            call diagonalize(Ed, Vd, Hd, geteigv)
+            E(idx:stopidx) = Ed
+            deallocate(Hd,Ed,Vd)
+            idx = stopidx + 1 !!go to next block
+        end do
+        !Sort E in ascending order
+        do idx = 2, size(states)
+            key = E(idx)
+            j = idx - 1
+            do while (j >= 1)
+                if(.not. (key < E(j))) exit
+                E(j+1) = E(j)
+                j = j - 1
+            end do
+            E(j+1) = key
+        end do
+    end subroutine
+
     subroutine diagonalize(E, V, H, geteigv) !!Diagnoalize H and return V and E as eigenvectors sorted with lowest energy first.
         real(kind), intent(in) :: H(:,:) !!Hamiltonian to diagonalize
         real(kind), intent(out) :: E(size(H,1)) !!Array containing energies in ascending order
@@ -1139,6 +1177,7 @@ module Hamiltonian
         type(an_ho_state) :: states_p(num_p_states), states_n(num_n_states)
         real(kind) :: hbaromega0, hbaromegaz, hbaromegaperp
         logical, intent(in) :: geteigv !!true if you want printing of eigenvalues and their parities
+        logical :: reflsym
         allocate(E_p(num_p_states),E_n(num_n_states))
         Vn = 0
         Vp = 0
@@ -1153,12 +1192,15 @@ module Hamiltonian
         write(*,'(A)') "Calculating proton hamiltonian..."
         Hp = H_protons(states_p, Z, A, def, hbaromegaz, hbaromegaperp)
         write(*,'(A)') "Diagonalizing..."
-        call diagonalize(E_p, Vp, Hp,geteigv)
+        reflsym = is_reflection_sym(def)
+        call diagonalize_block_mat(E_p, Vp, Hp, geteigv, states_p, reflsym)
+        !call diagonalize(E_p, Vp, Hp,geteigv)
         write(*,'(A)') 
         write(*,'(A)') "Calculating neutron hamiltonian..."
         Hn = H_neutrons(states_n, Z, A, def, hbaromegaz, hbaromegaperp)
         write(*,'(A)') "Diagonalizing..."
-        call diagonalize(E_n, Vn, Hn, geteigv)
+        call diagonalize_block_mat(E_n, Vn, Hn, geteigv, states_n, reflsym)
+        !call diagonalize(E_n, Vn, Hn, geteigv)
         write(*,*)
         write(*,'(A26,f5.2,a10)') "Time spent in V_ws:", time_ws, " seconds"
         write(*,'(A26,f5.2,a10)') "Time spent in V_so:", time_Vso, " seconds"

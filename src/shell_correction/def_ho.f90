@@ -5,7 +5,7 @@ module def_ho
     implicit none
     private
     public :: an_ho_state, get_ho_states, getnumstates, betadef, getnumstatesupto, fac, Hn, lna, alpha, get_lowest_ho_states, get_ho_states_upto
-    public :: kronecker, kin_en, gnl, gnlp, hmn, hmnp, spherical_def
+    public :: kronecker, kin_en, gnl, gnlp, hmn, hmnp, spherical_def, state_eq_subspace
 
 
 
