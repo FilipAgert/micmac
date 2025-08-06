@@ -13,7 +13,7 @@ PAIR_EXEN = run_pair.exe
 FISS_EXEN = fiss_bar.exe
 TAB_EXEN = write_tab.exe
 SH_EXEN = shell
-ST_EXEN = strut.exe
+ST_EXEN = strut
 
 # Flags
 LIBS = -llapack -lblas -fopenmp

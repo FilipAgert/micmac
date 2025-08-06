@@ -6,12 +6,34 @@ program run_strut
     implicit none
 
     real(kind) :: e_shell_corr
-    integer :: A, Z
+    integer :: A, Z,n
     type(betadef) :: def
+    real(kind) :: beta2, beta4
+    character(len=50) :: arg1, arg2
+    beta2 = 0
+    beta4 = 0
 
     A = 208
     Z = 82
-    def = betadef(beta2 = 0.0_kind, beta4=0.0_kind)
+
+    ! Get the number of command-line arguments
+    n = command_argument_count()
+    if(n > 0) then
+        if(n < 2) error stop "must input 0,2, 3 or 4 arguments: <Z> <A> <beta2> <beta4>" 
+        call get_command_argument(1,arg1)
+        call get_command_argument(2,arg2)
+        read(arg1,'(I20)')Z
+        read(arg2,'(I20)')A
+        if(n>2) then
+            call get_command_argument(3,arg1)
+            read(arg1,*)beta2
+        endif
+        if(n>3) then
+            call get_command_argument(4,arg1)
+            read(arg1,*)beta4
+        endif
+    endif
+    def = betadef(beta2 = beta2, beta4=beta4)
     call print_shell_params(Z, A, def)
 
     !e_shell_corr= get_shell(A-Z, levels, omega_0, .false.)
