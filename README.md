@@ -3,11 +3,12 @@
 A **work-in-progress** program for calculating nuclear ground state masses, deformation, fission barrier heights and deformation using a macroscopic-microscopic method.
 
 Microscopic corrections are from the Strutinsky method on single particle levels from a Wood-Saxon + Coulomb + spin-orbit Hamiltonian, diagonalised with an axially deformed harmonic oscillator basis.
-The microscopic method attempts to replicate [1], while the implementation uses calculations from [2].
+The microscopic method attempts to replicate [1], while the implementation uses calculations from [2]. Quadrature nodes and weights are computed using [this](https://github.com/FilipAgert/fquad/) program.
 
 [1] P. Jachimowicz, M. Kowal, and J. Skalski, Properties of heaviest nuclei with 98≤Z≤126 and 134≤N≤192, At. Data Nucl. Data Tables 138, 101393 (2021).
   
 [2] H. C. Pauli, On the shell model and its application to the deformation energy of heavy nuclei, Physics Reports 7, 35 (1973).
+
 
 
 ---
@@ -81,3 +82,5 @@ This outputs the shell correction to console for the provided nucleus.
 ### Macroscopic
 - Method for finding fission barrier in multidimensional deformation space.
 - Incorporate Strutinsky shell correction program into microscopic correction instead of current simplified shell correction calculation.
+- Implement higher order deformations.
+- Change the Coulomb and surface macroscopic deformation energy from and expansion to performing the integral directly. 
