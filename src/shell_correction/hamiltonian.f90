@@ -1145,7 +1145,6 @@ module Hamiltonian
         real(kind), intent(in) :: alpha_perp
         real(kind), dimension(nquad,0:max_n, 0:max_n) :: T0_mat
         integer :: ii
-        real(kind) :: eta
         matelem = 0.0_kind
         if(s1%ml /= s2%ml .and. s1%ms /= s2%ms) then
             write(*,*) "Error: states are non diagonal in diagonal element calculation"
@@ -1153,7 +1152,6 @@ module Hamiltonian
         endif
 
         do ii = 1, nquad
-            eta = lag_x(ii)
             matelem = matelem + S0(ii, s1, s2) * T0_mat(ii,s1%nz, s2%nz)* lag_w(ii) !== 2*lambda*sigma where sigma = +- 1/2
             
         end do
