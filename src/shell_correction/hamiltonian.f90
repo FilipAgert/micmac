@@ -193,7 +193,7 @@ module Hamiltonian
         logical, intent(in) :: refl_sym !!true if system has reflection symmery (parity is conserved)
         real(kind), allocatable :: Hd(:,:), Ed(:), Vd(:,:)
         integer :: idx, j, stopidx, sz
-        real(kind) :: key
+        real(kind) :: key, col(size(H,1))
         idx = 1
         do while (idx <= size(H,1))
             stopidx = idx
@@ -206,18 +206,22 @@ module Hamiltonian
             Hd = H(idx:stopidx, idx:stopidx)
             call diagonalize(Ed, Vd, Hd, geteigv)
             E(idx:stopidx) = Ed
+            V(idx:stopidx, idx:stopidx) = Vd
             deallocate(Hd,Ed,Vd)
             idx = stopidx + 1 !!go to next block
         end do
         !Sort E in ascending order
         do idx = 2, size(states)
             key = E(idx)
+            col = V(:,idx)
             j = idx - 1
             do while (j >= 1)
                 if(.not. (key < E(j))) exit
                 E(j+1) = E(j)
+                V(:,j+1) = V(:,j)
                 j = j - 1
             end do
+            V(:,j+1) = col
             E(j+1) = key
         end do
     end subroutine
@@ -1233,10 +1237,10 @@ module Hamiltonian
         call diagonalize_block_mat(E_n, Vn, Hn, geteigv, states_n, reflsym)
         !call diagonalize(E_n, Vn, Hn, geteigv)
         write(*,*)
-        write(*,'(A26,f5.2,a10)') "Time spent in V_ws:", time_ws, " seconds"
-        write(*,'(A26,f5.2,a10)') "Time spent in V_so:", time_Vso, " seconds"
-        write(*,'(A26,f5.2,a10)') "Time spent in V_C:", time_Vc, " seconds"
-        write(*,'(A26,f5.2,a10)') "Time spent in diagonalise:", time_diag, " seconds"
+        write(*,'(A26,f5.3,a10)') "Time spent in V_ws:", time_ws, " seconds"
+        write(*,'(A26,f5.3,a10)') "Time spent in V_so:", time_Vso, " seconds"
+        write(*,'(A26,f5.3,a10)') "Time spent in V_C:", time_Vc, " seconds"
+        write(*,'(A26,f5.3,a10)') "Time spent in diagonalise:", time_diag, " seconds"
         write(*,*)
         if(geteigv) call write_result(Z, A, E_n, E_p, states_n, states_p, Vn, Vp)
     end subroutine
@@ -1498,9 +1502,9 @@ subroutine write_result(Z,A,E_n,E_p, states_n, states_p, V_n, V_p)
         fermi_i_n = (A-Z)/2 + 1
     endif
     do ii = 1, (A-Z)/2+2
-        idx_p = maxloc(abs(V_p(ii,:)),1)
+        idx_p = maxloc(abs(V_p(:,ii)),1)
         state_p = states_p(idx_p)
-        idx_n = maxloc(abs(V_n(ii,:)),1)
+        idx_n = maxloc(abs(V_n(:,ii)),1)
         state_n = states_n(idx_n)
         if(state_p%pi < 0) then
             pp = '-'
