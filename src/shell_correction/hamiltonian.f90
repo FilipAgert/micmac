@@ -168,7 +168,7 @@ module Hamiltonian
         if(geteigv) then
             jobz = 'V'
         else
-            jobz = 'E'
+            jobz = 'N'
         endif
         N = size(H,1)
         ! write(*,*) N
