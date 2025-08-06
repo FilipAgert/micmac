@@ -12,7 +12,7 @@ FIT_EXEN = runfit.exe
 PAIR_EXEN = run_pair.exe
 FISS_EXEN = fiss_bar.exe
 TAB_EXEN = write_tab.exe
-HO_EXEN = ho.exe
+SH_EXEN = shell
 ST_EXEN = strut.exe
 
 # Flags
@@ -28,7 +28,7 @@ MAIN_OBJ = $(DOBJ)/main.o
 TEST_OBJ = $(DOBJ)/run_tests.o
 FIT_OBJ = $(DOBJ)/runfit.o
 FISS_OBJ = $(DOBJ)/run_fissbarr.o
-HO_OBJ = $(DOBJ)/run_ho.o
+SH_OBJ = $(DOBJ)/run_shell.o
 TAB_OBJ = $(DOBJ)/table_writer.o
 PAIR_OBJ = $(DOBJ)/run_pair.o
 ST_OBJ =$(DOBJ)/run_strut.o
@@ -76,8 +76,8 @@ $(DEXE)/$(FIT_EXEN): $(FIT_OBJ) $(OBJECTS) | $(DEXE)
 $(DEXE)/$(FISS_EXEN): $(FISS_OBJ) $(OBJECTS) | $(DEXE)
 	$(CCL) $@ $(FISS_OBJ) $(OBJECTS) $(LIBS)
 
-$(DEXE)/$(HO_EXEN): $(HO_OBJ) $(OBJECTS) | $(DEXE)
-	$(CCL) $@ $(HO_OBJ) $(OBJECTS) $(LIBS)
+$(DEXE)/$(SH_EXEN): $(SH_OBJ) $(OBJECTS) | $(DEXE)
+	$(CCL) $@ $(SH_OBJ) $(OBJECTS) $(LIBS)
 
 $(DEXE)/$(ST_EXEN): $(ST_OBJ) $(OBJECTS) | $(DEXE)
 	$(CCL) $@ $(ST_OBJ) $(OBJECTS) $(LIBS)
@@ -100,7 +100,7 @@ fiss: $(DEXE)/$(FISS_EXEN)
 
 buildtab: $(DEXE)/$(TAB_EXEN)
 
-ho: $(DEXE)/$(HO_EXEN)
+sh: $(DEXE)/$(SH_EXEN)
 
 st: $(DEXE)/$(ST_EXEN)
 
@@ -122,8 +122,8 @@ runfiss: fiss
 runtab: buildtab
 	$(DEXE)/$(TAB_EXEN)
 
-runho: ho
-	$(DEXE)/$(HO_EXEN)
+runsh: sh
+	$(DEXE)/$(SH_EXEN)
 
 runst: st
 	$(DEXE)/$(ST_EXEN)
@@ -132,7 +132,7 @@ runpair: pair
 	$(DEXE)/$(PAIR_EXEN)
 
 runcallgrind:
-	@name="callgrind.out.$(HO_EXEN)"; \
+	@name="callgrind.out.$(SH_EXEN)"; \
 	n=0; \
 	filename="$$name"; \
 	while [ -e "$$filename" ]; do \
@@ -140,7 +140,7 @@ runcallgrind:
 		filename="$$name\_$$n"; \
 	done; \
 	echo "Saving callgrind output to $$filename"; \
-	valgrind --tool=callgrind --callgrind-out-file=$$filename $(DEXE)/$(HO_EXEN); \
+	valgrind --tool=callgrind --callgrind-out-file=$$filename $(DEXE)/$(SH_EXEN); \
 	kcachegrind $$filename
 
 clean:
