@@ -633,7 +633,6 @@ module Hamiltonian
         distances = distfunc%eval(starts)
         best = minloc(distances,1)
         x = starts(best)
-        write(*,*) "RESTART"
         goto 200
     end function
 
