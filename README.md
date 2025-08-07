@@ -22,26 +22,25 @@ In the makefile, change `DLIB` to the directory where these libraries are contai
 
 
 ## Build Instructions
-
-Use `make` to compile different parts of the code:
-### Compile macroscopic + microscopic fitting program
-```bash
-make
-```
 ### Compile shell model program
 ```bash
 make sh
+```
+which builds the executable at:
+```
+app/shell
 ```
 ### Compile Strutinsky shell correction program
 ```bash
 make st
 ```
+which builds the executable at:
+```
+app/strut
+```
+
 ---
 ## Running the program
-### Run macroscopic-microscopic calculation
-```bash
-make run
-```
 
 ### Run shell model calculation
 The shell model program is run with the following syntax:
@@ -54,15 +53,25 @@ where
 - `<beta2>`: Quadrupole deformation of nucleus (optional, defaults to 0)
 - `<beta4>`: Hexadecapole deformation of nucleus (optional, defaults to 0)
 
-This generates a file containing the proton and neutron single-particle levels
+This generates two files containing the proton and neutron single-particle levels
 ```
-data/out/levels_<Z>_<A>.dat
+data/out/<Z>_<A>/levels_n.dat
+data/out/<Z>_<A>/levels_p.dat
 ```
-which contains single particle levels for protons in column 1 and neutrons in proton 2.
+which contains single particle levels for protons and neutrons. 
+Each file contains three columns:
+| Column | Description        |
+|--------|--------------------|
+| 1      | m_j |
+| 2      | parity             |
+| 3      | Energy (MeV)       |
 
-The format for reading the levels is: `f10.5,3x,f10.5`
+m_j is in half integer format such that value 3 in column one means m_j = 3/2.
+Parity is 0 in column 2 if parity is not a good quantum number with the current settings. This is only if `beta3`, `beta5` or `beta7` is nonzero.
 
-Note: Each level has degeneracy 2
+The format for reading the files is: `(i3,1x,i3,1x,f10.5)`.
+
+Note: Each level has degeneracy 2.
 
 ### Run Strutinsky shell correction
 The strutinsky shell correction program is run with the following syntax:
@@ -76,7 +85,8 @@ where
 - `<beta4>`: Hexadecapole deformation of nucleus (optional, defaults to 0)
 
 This outputs the shell correction to console for the provided nucleus.
-
+## Settings and parameters
+In the file src/settings.f90 the settings for the shell model can be found. These are the physical parameters such as potential depth, or the technical parameters, such as `N_max` for the maximum harmonic oscillator shell to include in the states. From all the states up to `N_max` in the axially deformed harmonic oscillator, we pick the lowest energy states to include in the diagonalisation. The number of states to include is decided by the parameters `num_p_states` and `num_n_states`. 
 ## TODO
 ### Microscopic
 - Verify single particle levels to verify it's implemented correctly.
