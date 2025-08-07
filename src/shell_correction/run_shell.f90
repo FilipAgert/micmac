@@ -41,7 +41,7 @@ program run_ho
     def = betadef(beta2 =beta2, beta4=beta4)
     allocate(E_p(num_p_states), E_n(num_n_states))
     call print_shell_params(Z,A,def)
-    call get_levels(E_p,qnp, E_n,qnn,Z,A,def, max_n, .true.)
+    call get_levels(E_p,qnp, E_n,qnn,Z,A,def, N_max, .true.)
 
     write(*,*) Z, A
     inquire (file=folder_name,exist=exists)

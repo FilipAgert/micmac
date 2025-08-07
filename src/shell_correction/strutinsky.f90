@@ -1,5 +1,5 @@
 module strutinsky
-    use constants, only: kind, max_n, pi
+    use constants, only: kind, N_max, pi
     use Hamiltonian, only: get_levels
     use def_ho, only: betadef, getnumstatesupto, lna
     use quad, only: lagquad, legquad
@@ -45,7 +45,7 @@ module strutinsky
         real(kind) :: gamma_p, efp, gamma_n, efn, epair_corr, dens_p, dens_n
         
         write(*,'(A)') "Calculating single particle energies..."
-        call get_levels(E_p, qnp, E_n, qnn, Z, A, def, max_n, .false.)
+        call get_levels(E_p, qnp, E_n, qnn, Z, A, def, N_max, .false.)
         hbaromega0 = 41.0_kind * A**(-1.0_kind/3.0_kind) !!MeV
         call purge_levels(E_p, 3.2*hbaromega0, Z)
         call purge_levels(E_n, 3.2*hbaromega0, A-Z)
@@ -79,7 +79,7 @@ module strutinsky
         real(kind) :: E_sh_corr_p, E_sh_corr_n, hbaromega0, gamma_p, efp, gamma_n, efn
         
         write(*,'(A)') "Calculating single particle energies..."
-        call get_levels(E_p, qnp,E_n,qnn, Z, A, def, max_n, .false.)
+        call get_levels(E_p, qnp,E_n,qnn, Z, A, def, N_max, .false.)
         hbaromega0 = 41.0_kind * A**(-1.0_kind/3.0_kind) !!MeV
         call purge_levels(E_p, 3.2*hbaromega0, Z) !cutoff of levels g.r.t. 3.2 hbaromega above fermi level
         call purge_levels(E_n, 3.2*hbaromega0, A-Z)

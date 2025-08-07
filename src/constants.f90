@@ -57,7 +57,7 @@ module constants
     real(kind), parameter :: lambda_n = 35.0_kind !for neutron
 
 
-    integer, parameter :: max_n =19
+    integer, parameter :: N_max =19
     integer, parameter :: num_p_states = 450
     integer, parameter :: num_n_states = 550
     logical :: printflag = .false.

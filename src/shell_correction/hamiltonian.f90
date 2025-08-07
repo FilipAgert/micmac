@@ -12,7 +12,7 @@ module Hamiltonian
     public :: S0, T0, Tplus, Tminus, VSO_off_diag_elem, el_pot, print_shell_params, write_result, time_diag, time_ws, time_Vc, time_Vso, surface_elem
     integer, parameter :: nquad =64
     real(kind), dimension(nquad) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
-    real(kind) :: HmnQ(nquad, -1:max_n+1), HmnpQ(nquad,-1:max_n ), gnlQ(nquad, -1:(max_n+1), -1:(max_n+1)), gnlpQ(nquad, -1:max_n, -1:max_n)
+    real(kind) :: HmnQ(nquad, -1:N_max+1), HmnpQ(nquad,-1:N_max ), gnlQ(nquad, -1:(N_max+1), -1:(N_max+1)), gnlpQ(nquad, -1:N_max, -1:N_max)
     logical :: precomputed_quad = .false.
 
     real(kind) :: time_diag=0, time_ws=0, time_Vc=0, time_Vso=0
@@ -104,12 +104,12 @@ module Hamiltonian
         call precompute_quad()
         HmnQ(:,-1) = 0
         HmnpQ(:,-1) = 0
-        do nn = 0,max_n+1
+        do nn = 0,N_max+1
             do jj = 1,nquad
                 HmnQ(jj,nn) = Hmn(her_x(jj), nn)
             end do
         end do
-        do nn = 0,max_n
+        do nn = 0,N_max
             do jj = 1,nquad
                 HmnpQ(jj,nn) =HmnQ(jj,nn-1)*sqrt(0.5_kind*nn) - HmnQ(jj,nn+1)*sqrt(0.5_kind*(nn+1))
             end do
@@ -119,15 +119,15 @@ module Hamiltonian
         gnlpQ(:,-1,:) = 0
         gnlpQ(:,:,-1) = 0
 
-        do nn = 0,max_n+1
-            do ll = 0, max_n+1
+        do nn = 0,N_max+1
+            do ll = 0, N_max+1
                 do jj = 1,nquad
                     gnlQ(jj,nn,ll) = gnl(lag_x(jj),nn,ll)
                 end do
             end do
         end do
-        do nn = 0,max_n
-            do ll = 0,max_n
+        do nn = 0,N_max
+            do ll = 0,N_max
                 do jj = 1,nquad
                     gnlpQ(jj,nn,ll) = (gnlQ(jj,nn,ll) * (2*nn+ll-lag_x(jj)) &
                     - gnlQ(jj,nn-1,ll) * 2.0* sqrt(real(nn*(nn+ll),kind)))/sqrt(lag_x(jj))
@@ -529,7 +529,7 @@ module Hamiltonian
         integer ::numstates, row, col
         type(an_ho_state) :: s1, s2
         real(kind) :: time0, time1
-        allocate(Z_mat(nquad,0:max_n,0:max_n))
+        allocate(Z_mat(nquad,0:N_max,0:N_max))
         call cpu_time(time0)
 
         !setup potential
@@ -570,8 +570,8 @@ module Hamiltonian
     end function
 
     subroutine comp_zmat(Zmat, pot,alpha_z, alpha_perp) !!use the reccurence relations to compute the Zmat completely from the main diagonals
-        real(kind), dimension(nquad,0:max_n,0:max_n), intent(out) :: Zmat
-        logical, dimension(0:max_n, 0:max_n) :: computed
+        real(kind), dimension(nquad,0:N_max,0:N_max), intent(out) :: Zmat
+        logical, dimension(0:N_max, 0:N_max) :: computed
         class(potential) :: pot
         real(kind), intent(in) :: alpha_z, alpha_perp
         real(kind) :: eta
@@ -581,8 +581,8 @@ module Hamiltonian
         Zmat = 0
         computed = .false.
 
-        do nz = 0, max_n !!compute main diagonals
-            do nzp = nz, min(max_n, nz+1)
+        do nz = 0, N_max !!compute main diagonals
+            do nzp = nz, min(N_max, nz+1)
                 do ii = 1, nquad
                     eta = lag_x(ii)
                     Zmat(ii,nzp, nz) = Z_matelem(eta, ii,nzp,nz,pot,alpha_z,alpha_perp)
@@ -592,7 +592,7 @@ module Hamiltonian
             end do
         end do
 
-        do nzp = 1,max_n !reflect off diagonal.
+        do nzp = 1,N_max !reflect off diagonal.
             nz = nzp -1
             Zmat(:,nzp, nz) = Zmat(:,nz, nzp)
             computed(nzp, nz) = .true.
@@ -604,14 +604,14 @@ module Hamiltonian
         ! end do
 
         !!compute off diagonals using recurrence relation:
-        do diag = 2, max_n
-            do nz = diag, max_n
+        do diag = 2, N_max
+            do nz = diag, N_max
                 nzp = nz - diag
 
                 if(computed(nzp, nz)) cycle
 
 
-                if(within_bounds(nzp + 1,0, max_n) .and. within_bounds(nz - 1, 0, max_n)) then
+                if(within_bounds(nzp + 1,0, N_max) .and. within_bounds(nz - 1, 0, N_max)) then
                     if(.not. computed(nzp + 1, nz - 1)) then
                         do ii = 1, nquad
                             eta = lag_x(ii)
@@ -628,7 +628,7 @@ module Hamiltonian
                     endif
                 endif
 
-                if(within_bounds(nzp - 1,0, max_n) .and. within_bounds(nz - 1, 0, max_n)) then
+                if(within_bounds(nzp - 1,0, N_max) .and. within_bounds(nz - 1, 0, N_max)) then
                     if(.not. computed(nzp - 1, nz - 1)) then
                         do ii = 1, nquad
                             eta = lag_x(ii)
@@ -645,7 +645,7 @@ module Hamiltonian
                     endif
                 endif
 
-                if(within_bounds(nzp,0, max_n) .and. within_bounds(nz - 2, 0, max_n)) then
+                if(within_bounds(nzp,0, N_max) .and. within_bounds(nz - 2, 0, N_max)) then
                     if(.not. computed(nzp, nz - 2)) then
                         do ii = 1, nquad
                             eta = lag_x(ii)
@@ -669,8 +669,8 @@ module Hamiltonian
         ! do nz = 0, max_n
         !     write(*, str) Zmat(nz,:,1)
         ! end do
-        do nz = 0, max_n !reflect to lower triangular matrix.
-            do nzp = nz, max_n
+        do nz = 0, N_max !reflect to lower triangular matrix.
+            do nzp = nz, N_max
                 Zmat(:,nzp, nz)= Zmat(:,nz, nzp)
             end do
         end do
@@ -708,7 +708,7 @@ module Hamiltonian
 
         
         call cpu_time(time0)
-        allocate(Z_MAT(nquad,0:max_n,0:max_n))
+        allocate(Z_MAT(nquad,0:N_max,0:N_max))
         !setup potential
         VWS%def = def
         VWS%radius = R0
@@ -764,7 +764,7 @@ module Hamiltonian
         real(kind) :: time0, time1
         integer ::numstates, row, col, l1, l2, ms1, ms2
         type(an_ho_state) :: s1, s2
-        allocate(T0(nquad,0:max_n, 0:max_n), W0(nquad,0:max_n, 0:max_n))
+        allocate(T0(nquad,0:N_max, 0:N_max), W0(nquad,0:N_max, 0:N_max))
         
         call cpu_time(time0)
         kappa = lambda*(hbarc/(2*mass))**2
@@ -850,7 +850,7 @@ module Hamiltonian
     end function
 
     function T0_mat(SO_WS, alpha_z, alpha_perp)
-        real(kind), dimension(nquad,0:max_n, 0:max_n) :: T0_mat
+        real(kind), dimension(nquad,0:N_max, 0:N_max) :: T0_mat
         type(WS_pot), intent(in) :: SO_WS
         real(kind), intent(in) :: alpha_z, alpha_perp
 
@@ -859,15 +859,15 @@ module Hamiltonian
 
     function W0_mat(SO_WS, alpha_z, alpha_perp) !!int tilde(h) h S
         !!TOdo: use recurence relation to not have to compute entire matrix
-        real(kind), dimension(nquad,0:max_n, 0:max_n) :: W0_mat
+        real(kind), dimension(nquad,0:N_max, 0:N_max) :: W0_mat
         type(WS_pot), intent(in) :: SO_WS
         real(kind), intent(in) :: alpha_z, alpha_perp
         real(kind) :: eta
         integer :: nz, nzp, ii
         W0_mat = 0
         
-        do nz = 0, max_n
-            do nzp = 0, max_n
+        do nz = 0, N_max
+            do nzp = 0, N_max
                 do ii = 1, nquad
                     eta = lag_x(ii)
                     W0_mat(ii,nzp, nz) = W_matelem(eta, ii, nzp, nz, SO_WS, alpha_z, alpha_perp)
@@ -944,7 +944,7 @@ module Hamiltonian
     real(kind) function I1(s1,s2, W0,alpha_z, alpha_perp)
         type(an_ho_state), intent(in) :: s1, s2
         real(kind), intent(in) ::  alpha_z, alpha_perp
-        real(kind), dimension(nquad,0:max_n, 0:max_n), intent(in) :: W0
+        real(kind), dimension(nquad,0:N_max, 0:N_max), intent(in) :: W0
         integer :: nn
         real(kind) ::rho, eta, weta, term
         real(kind), save :: sqrteta(1:nquad)
@@ -983,7 +983,7 @@ module Hamiltonian
         type(an_ho_state), intent(in) :: s1, s2
         real(kind), intent(in) ::  alpha_z, alpha_perp
         integer :: nn
-        real(kind), dimension(nquad,0:max_n, 0:max_n), intent(in) :: W0
+        real(kind), dimension(nquad,0:N_max, 0:N_max), intent(in) :: W0
         real(kind) :: rho, eta, weta, term1, term2,etafac
         real(kind), save :: invsqrteta(1:nquad)
         logical, save :: first_time = .true.
@@ -1032,7 +1032,7 @@ module Hamiltonian
 
     real(kind) function pot_elem_zmatpre(s1,s2,Zmat) result(matelem)
         type(an_ho_state), intent(in) :: s1, s2
-        real(kind), intent(in), dimension(nquad,0:max_N, 0:max_N) :: Zmat
+        real(kind), intent(in), dimension(nquad,0:N_max, 0:N_max) :: Zmat
         integer :: ii
         real(kind) :: eta
         
@@ -1164,7 +1164,7 @@ module Hamiltonian
     real(kind)  function VSO_diag_elem(s1,s2,T0_mat,alpha_perp) result(matelem)
         type(an_ho_state), intent(in) :: s1, s2
         real(kind), intent(in) :: alpha_perp
-        real(kind), dimension(nquad,0:max_n, 0:max_n) :: T0_mat
+        real(kind), dimension(nquad,0:N_max, 0:N_max) :: T0_mat
         integer :: ii
         matelem = 0.0_kind
         if(s1%ml /= s2%ml .and. s1%ms /= s2%ms) then
@@ -1183,7 +1183,7 @@ module Hamiltonian
     real(kind)  function VSO_off_diag_elem(s1,s2,W0,alpha_z,alpha_perp) result(matelem)
         type(an_ho_state), intent(in) :: s1, s2
         real(kind), intent(in) :: alpha_z, alpha_perp
-        real(kind), intent(in) :: W0(nquad,0:max_n, 0:max_n)
+        real(kind), intent(in) :: W0(nquad,0:N_max, 0:N_max)
         matelem = 0
 
         if(s1%ml == s2%ml + 1 .and. s1%ms == s2%ms - 2) then
@@ -1452,7 +1452,7 @@ subroutine print_shell_params(Z, A, def)
     line = ""
     call print_one_line(symb, line)
     text = ": Maximum harmonic oscillator shell"
-    write(line,'(A10,I10, A67)') "N_max = ", max_n, adjustl(text)
+    write(line,'(A10,I10, A67)') "N_max = ", N_max, adjustl(text)
     call print_one_line(symb, line)
     text = ": Number of proton levels in diagonalisation"
     write(line,'(A10,I10, A67)') "N_p = ", num_p_states, adjustl(text)
