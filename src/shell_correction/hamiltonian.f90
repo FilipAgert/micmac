@@ -1220,8 +1220,10 @@ module Hamiltonian
     end subroutine
 
 
-    subroutine get_levels(E_P, E_N,Z,A,def, max_N, geteigv)
+    subroutine get_levels(E_P,qnp, E_N,qnn,Z,A,def, max_N, geteigv)
         real(kind),allocatable, intent(out) :: E_P(:), E_N(:)
+        integer, allocatable, intent(out) :: qnp(:,:) !!proton level quantum numbers. only if geteigv = true
+        integer, allocatable, intent(out) :: qnn(:,:) !!proton level quantum numbers. only if getegiv = true
         integer, intent(in) :: Z, A, max_N
         type(betadef), intent(in) :: def
         real(kind) :: Vn(num_n_states,num_n_states) ,Hp(num_p_states,num_p_states), Hn(num_n_states,num_n_states), Vp(num_p_states,num_p_states)
@@ -1259,7 +1261,14 @@ module Hamiltonian
         write(*,'(A26,f5.3,a10)') "Time spent in V_C:", time_Vc, " seconds"
         write(*,'(A26,f5.3,a10)') "Time spent in diagonalise:", time_diag, " seconds"
         write(*,*)
-        if(geteigv) call write_result(Z, A, E_n, E_p, states_n, states_p, Vn, Vp)
+        allocate(qnp(2,num_p_states), qnn(2,num_n_states))
+        qnp = 0
+        qnn = 0
+        if(geteigv) then
+            call get_all_qns(qnp, Vp,states_p, reflsym)
+            call get_all_qns(qnn, Vn, states_n, reflsym)
+            !call write_result(Z, A, E_n, E_p, states_n, states_p, Vn, Vp, reflsym)
+        endif
     end subroutine
 
     function H_protons(states, Z,A,def,hbaromegaz, hbaromegaperp) result(H)
@@ -1480,19 +1489,45 @@ subroutine print_one_line(symb, line)
     write(*,'(1x,a,1x,A87,a)') symb,line,symb
 end subroutine
 
-subroutine write_result(Z,A,E_n,E_p, states_n, states_p, V_n, V_p)
+subroutine get_all_qns(qn, V, states, refl_sym)
+    real(kind), intent(in) :: V(:,:)
+    integer, intent(out) :: qn(2,size(V,1))
+    type(an_ho_state), intent(in) :: states(:)
+    logical, intent(in) :: refl_sym
+    integer :: p, mj
+    integer :: ii
+    do ii = 1, size(V,1)
+        call get_quant_nums(p,mj, V(:,ii),states, refl_sym)
+        qn(:,ii) = [mj,p]
+    end do
+end subroutine
+
+subroutine get_quant_nums(p, mj, vec, states, refl_sym)
+    !!Gets the quantum numbers for an eigenstate of the Hamiltonian
+    integer, intent(out) :: p!! parity: -1 or +1. 0 if parity not a good quantum number.
+    integer, intent(out) :: mj!! m_j as half integer. E.g. 3 is m_j = 3/2
+    real(kind), intent(in) :: vec(:) !!
+    type(an_ho_state), intent(in) :: states(:)
+    logical, intent(in) :: refl_sym !!true if system has reflection symmetry (parity is a good quantum nbr)
+    integer :: idx
+    idx = maxloc(abs(vec),1)
+    p = 0
+    if(refl_sym) p = states(idx)%pi
+    mj = states(idx)%mj
+end subroutine
+
+subroutine write_result(Z,A,E_n,E_p, states_n, states_p, V_n, V_p, refl_sym)
     real(kind) :: E_n(:), E_p(:)
-    integer :: Z, A, ii, idx_p, idx_n, fermi_i_p, fermi_i_n
-    type(betadef) :: def
+    integer :: Z, A, ii, fermi_i_p, fermi_i_n
     type(an_ho_state), dimension(:) :: states_n, states_p
-    type(an_ho_state) :: state_p, state_n
     real(kind), dimension(:,:) :: V_n, V_p
+    logical, intent(in) :: refl_sym
     character(len=90) :: comm
     character :: symb
-    character(len=87) :: line
-    character(len=67) :: text
-    character :: pp, pn
+    character(len=400) :: line
+    character :: ppt, pnt
     character(len=8) :: fermi_p, fermi_n
+    integer:: pp, pn, mjp, mjn
     
     symb = '+'
     do ii = 1, 90
@@ -1500,8 +1535,7 @@ subroutine write_result(Z,A,E_n,E_p, states_n, states_p, V_n, V_p)
     end do
 
     write(*,*) comm
-
-    write(line,'(A)') "Shell model calculation completed"
+    line= "Shell model calculation completed"
     call print_line(symb, line)
 
 
@@ -1519,37 +1553,33 @@ subroutine write_result(Z,A,E_n,E_p, states_n, states_p, V_n, V_p)
         fermi_i_n = (A-Z)/2 + 1
     endif
     do ii = 1, (A-Z)/2+2
-        idx_p = maxloc(abs(V_p(:,ii)),1)
-        state_p = states_p(idx_p)
-        idx_n = maxloc(abs(V_n(:,ii)),1)
-        state_n = states_n(idx_n)
-        if(state_p%pi < 0) then
-            pp = '-'
+        call get_quant_nums(pp, mjp, V_p(:,ii), states_p, refl_sym)
+        call get_quant_nums(pn, mjn, V_n(:,ii), states_n, refl_sym)
+        ppt = ''
+        if(pp < 0) then
+            ppt = '-'
         else
-            pp = '+'
+            ppt = '+'
         endif
-
-        if(state_n%pi < 0) then
-            pn = '-'
+        pnt = ''
+        if(pn < 0) then
+            pnt = '-'
         else
-            pn = '+'
+            pnt = '+'
         endif
-
         if(ii == fermi_i_p) then
             fermi_p = " <- e_f "
         else
             fermi_p = ""
         endif
-
-
         if(ii == fermi_i_n) then
             fermi_n = " <- e_f "
         else
             fermi_n = ""
         endif
 
-
-        write(line,'(I3,1x, I3,A3,A1, 2x,F10.3, a8,1x, I3,A3,A1,2x, F10.3,a8)')ii, state_p%mj, "/2 ", pp, E_p(ii), fermi_p,state_n%mj, "/2 ", pn, E_n(ii), fermi_n
+        write(*,*)ii, mjp, "/2 ", ppt, E_p(ii), fermi_p,mjn, "/2 ", pnt, E_n(ii), fermi_n
+        write(line,'(I3,1x, I3,A3,A1, 2x,F10.3, a8,1x, I3,A3,A1,2x, F10.3,a8)')ii, mjp, "/2 ", ppt, E_p(ii), fermi_p,mjn, "/2 ", pnt, E_n(ii), fermi_n
         call print_one_line(symb, line)
     end do
 

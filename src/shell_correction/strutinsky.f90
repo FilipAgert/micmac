@@ -39,12 +39,13 @@ module strutinsky
         integer, intent(in) :: Z, A
         real(kind), dimension(:), allocatable :: E_n, E_p
         type(betadef), intent(in) :: def
+        integer, dimension(:,:), allocatable :: qnp, qnn
         logical, intent(in) :: fix_gamma
         real(kind) :: E_sh_corr_p, E_sh_corr_n, hbaromega0
         real(kind) :: gamma_p, efp, gamma_n, efn, epair_corr, dens_p, dens_n
         
         write(*,'(A)') "Calculating single particle energies..."
-        call get_levels(E_p, E_n, Z, A, def, max_n, .false.)
+        call get_levels(E_p, qnp, E_n, qnn, Z, A, def, max_n, .false.)
         hbaromega0 = 41.0_kind * A**(-1.0_kind/3.0_kind) !!MeV
         call purge_levels(E_p, 3.2*hbaromega0, Z)
         call purge_levels(E_n, 3.2*hbaromega0, A-Z)
@@ -73,11 +74,12 @@ module strutinsky
         integer, intent(in) :: Z, A
         real(kind), dimension(:), allocatable :: E_n, E_p
         type(betadef), intent(in) :: def
+        integer, dimension(:,:), allocatable :: qnn, qnp
         logical, intent(in) :: fix_gamma
         real(kind) :: E_sh_corr_p, E_sh_corr_n, hbaromega0, gamma_p, efp, gamma_n, efn
         
         write(*,'(A)') "Calculating single particle energies..."
-        call get_levels(E_p, E_n, Z, A, def, max_n, .false.)
+        call get_levels(E_p, qnp,E_n,qnn, Z, A, def, max_n, .false.)
         hbaromega0 = 41.0_kind * A**(-1.0_kind/3.0_kind) !!MeV
         call purge_levels(E_p, 3.2*hbaromega0, Z) !cutoff of levels g.r.t. 3.2 hbaromega above fermi level
         call purge_levels(E_n, 3.2*hbaromega0, A-Z)

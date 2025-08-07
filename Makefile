@@ -17,9 +17,9 @@ ST_EXEN = strut
 
 # Flags
 LIBS = -llapack -lblas -fopenmp
-FLAGS = -O2 -I$(DOBJ) -ffree-line-length-none -fcheck=all -fbacktrace -g -fimplicit-none -fno-omit-frame-pointer
+FLAGS = -O2 -I$(DOBJ) -ffree-line-length-none -fcheck=all -g -fcheck=bounds -fcheck=all -fbacktrace -g -fimplicit-none -fno-omit-frame-pointer
 CC = gfortran $(FLAGS) -J$(DMOD) $(LIBS) -L$(DLIB) -c
-CCL = gfortran -o
+CCL = gfortran $(FLAGS) -o
 
 # Objects
 OBJECTS = $(DOBJ)/constants.o $(DOBJ)/micmac.o $(DOBJ)/mass_table.o $(DOBJ)/fitting.o $(DOBJ)/optimise.o $(DOBJ)/def_ho.o $(DOBJ)/quad.o $(DOBJ)/hamiltonian.o $(DOBJ)/strutinsky.o $(DOBJ)/brent.o $(DOBJ)/pairing.o
