@@ -17,7 +17,7 @@ ST_EXEN = strut
 
 # Flags
 LIBS = -llapack -lblas -fopenmp
-FLAGS = -O2 -I$(DOBJ) -ffree-line-length-none -fcheck=all -g -fcheck=bounds -fcheck=all -fbacktrace -g -fimplicit-none -fno-omit-frame-pointer
+FLAGS = -O2 -I$(DOBJ) -ffree-line-length-none -ffpe-trap=invalid,zero,overflow -ffpe-summary=all -fcheck=all -g -fcheck=bounds -fcheck=all -fbacktrace -g -fimplicit-none -fno-omit-frame-pointer
 CC = gfortran $(FLAGS) -J$(DMOD) $(LIBS) -L$(DLIB) -c
 CCL = gfortran $(FLAGS) -o
 

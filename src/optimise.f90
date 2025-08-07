@@ -105,12 +105,15 @@ module optimise
             A = d2f
 
             g = df
-            ! write(*,*) g, A, x
+
             if(abs(g) < tol) then
                 converged = .true.
                 exit
             endif
-            alpha = g*g/(g*A*g)
+            if(abs(A) < 1e-12) then
+                !Do a step of 
+            endif
+            alpha = 1.0_kind/(A)
             x = x - alpha * g
         end do
 

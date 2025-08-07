@@ -248,12 +248,19 @@ module quad
     real(kind=kind) function fac(n)
         logical, save :: firsttime = .true.
         integer :: n
-        real(kind=kind), save :: f(0:1750)
-        integer :: i
+        real(kind=kind), save, allocatable :: f(:)
+        integer :: i, ub
         if(kind < 16 .and. n > 165) write(*,*) "ERR: need quad precision for this N"
-        f(0) = 1
+
         if(firsttime) then
-            do i = 1,1750
+            if(kind == 16) then
+                ub = 1750
+            else
+                ub = 169
+            endif
+            allocate(f(0:ub))
+            f(0) = 1
+            do i = 1,ub
                 f(i) = f(i-1) * i
             end do
             firsttime = .false.

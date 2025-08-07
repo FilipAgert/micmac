@@ -27,6 +27,10 @@ module Hamiltonian
         type(betadef) :: def
     contains
         procedure :: eval => surfdisteval
+        procedure :: df=>surfderiv
+        procedure :: d2f =>surf2deriv
+        procedure :: d3f =>surf3deriv
+
 
     end type
 
@@ -189,11 +193,13 @@ module Hamiltonian
         real(kind), intent(in) :: H(:,:) !!Block diagonal hamiltonian to diagonalize
         real(kind), intent(out) :: E(size(H,1)) !!Array containing energies in ascending order
         real(kind), intent(out) :: V(size(H,1),size(H,1)) !!Eigenvector matrix if geteigv true
+        real(kind) :: V_temp(size(H,1),size(H,1))
         logical, intent(in) :: geteigv !!if get eigenvectors or not
         type(an_ho_state), intent(in) :: states(size(H,1)) !!states corresponding to H
         logical, intent(in) :: refl_sym !!true if system has reflection symmery (parity is conserved)
         real(kind), allocatable :: Hd(:,:), Ed(:), Vd(:,:)
-        integer :: idx, j, stopidx, sz
+        integer :: idx, j, stopidx, sz 
+        integer ::indices(size(E,1))
         real(kind) :: key, col(size(H,1))
         real(kind) :: time0, time1
         idx = 1
@@ -209,35 +215,28 @@ module Hamiltonian
             Hd = H(idx:stopidx, idx:stopidx)
             call diagonalize(Ed, Vd, Hd, geteigv)
             E(idx:stopidx) = Ed
-            if(geteigv) V(idx:stopidx, idx:stopidx) = Vd
+            if(geteigv) V_temp(idx:stopidx, idx:stopidx) = Vd
             deallocate(Hd,Ed,Vd)
             idx = stopidx + 1 !!go to next block
         end do
         !Sort E in ascending order along with V
-        if(geteigv) then
-            do idx = 2, size(states)
-                key = E(idx)
-                col = V(:,idx)
-                j = idx - 1
-                do while (j >= 1)
-                    if(.not. (key < E(j))) exit
-                    E(j+1) = E(j)
-                    V(:,j+1) = V(:,j)
-                    j = j - 1
-                end do
-                V(:,j+1) = col
-                E(j+1) = key
+        indices(1) = 1
+        do idx = 2, size(states)
+            indices(idx)=idx
+            key = E(idx)
+            j = idx - 1
+            do while (j >= 1)
+                if(.not. (key < E(j))) exit
+                E(j+1) = E(j)
+                indices(j+1) = indices(j)
+                j = j - 1
             end do
-        else !only sort E (faster)
-            do idx = 2, size(states)
-                key = E(idx)
-                j = idx - 1
-                do while (j >= 1)
-                    if(.not. (key < E(j))) exit
-                    E(j+1) = E(j)
-                    j = j - 1
-                end do
-                E(j+1) = key
+            indices(j+1) = idx
+            E(j+1) = key
+        end do
+        if(geteigv) then
+            do idx = 1, size(states)
+                V(:,idx) = V_temp(:,indices(idx))
             end do
         endif
         call cpu_time(time1)
@@ -445,12 +444,35 @@ module Hamiltonian
 
     pure elemental real(kind) function dY20dtheta(theta) result(dydt)
         real(kind), intent(in) :: theta
-        dydt = -1.5_kind * sqrt(5.0_kind/pi) * sin(theta)*cos(theta)
+        dydt = -0.75_kind * sqrt(5.0_kind/pi) * sin(2*theta)
+    end function
+
+    pure elemental real(kind) function d2Y20dtheta2(theta) result(dy2dt2)!!second
+        real(kind), intent(in) :: theta
+        dy2dt2 = -1.5_kind * sqrt(5.0_kind/pi) * cos(2*theta)
+    end function
+
+    pure elemental real(kind) function d3Y20dtheta3(theta) result(dy3dt3)
+        real(kind), intent(in) :: theta
+        dy3dt3 = 6* sqrt(5.0_kind/pi) * sin(theta)*cos(theta)
     end function
 
     pure elemental real(kind) function dY40dtheta(theta) result(dydt)
         real(kind), intent(in) :: theta
         dydt = 15*sin(theta)*cos(theta)*(3.0_kind-7.0_kind*cos(theta)*cos(theta))/(4.0_kind*sqrt(pi))
+    end function
+
+    pure elemental real(kind) function d2Y40dtheta2(theta) result(dy2dt2)!!second 
+        real(kind), intent(in) :: theta
+        real(kind)::ct2,st2
+        ct2 = cos(theta)**2
+        st2 = sin(theta)**2
+        dy2dt2 = 15.0_kind*(3.0*st2+7.0*ct2*ct2 - 3.0*(7.0*st2+1)*ct2)/(4.0_kind*sqrt(pi))
+    end function
+
+    pure elemental real(kind) function d3Y40dtheta3(theta) result(dy3dt3)
+        real(kind), intent(in) :: theta
+        dy3dt3 = 15.0*(sin(2.0*theta)+14.0*sin(4.0*theta))/(4.0*sqrt(pi))
     end function
 
     pure elemental real(kind) function surfdisteval(self, x) !!Gets distance to surface at angle x.
@@ -464,6 +486,56 @@ module Hamiltonian
                     + (self%r*sin(self%theta) - radius*sin(x))**2
     end function
 
+    pure elemental real(kind) function surfderiv(self, x) result(dF) !!Gets derivative of distance to surface at angle x.
+        class(dist_min), intent(in) :: self
+        real(kind), intent(in) :: x !!Angle theta in this case.
+
+        real(kind) :: radius, dradius
+        real(kind) :: xp, yp
+        radius = surfRadius(x, self%def, self%radius)
+        dradius = dsurfRadiusdtheta(x, self%def, self%radius)
+        xp = self%r * cos(self%theta)
+        yp = self%r * sin(self%theta)
+
+        dF = 2*radius*(xp*sin(x) - yp*cos(x) + dradius) - 2*dradius *(xp*cos(x)+yp*sin(x))
+    end function
+
+    pure elemental real(kind) function surf2deriv(self, x) result(d2F) !!Gets second derivative of distance to surface at angle x.
+        class(dist_min), intent(in) :: self
+        real(kind), intent(in) :: x !!Angle theta in this case.
+
+        real(kind) :: radius, dradius, ddradius
+        real(kind) :: a, b, ct, st
+        radius = surfRadius(x, self%def, self%radius)
+        dradius = dsurfRadiusdtheta(x, self%def, self%radius)
+        ddradius = d2surfRadiusdtheta2(x, self%def, self%radius)
+        a = self%r * cos(self%theta)
+        b = self%r * sin(self%theta)
+        ct = cos(x)
+        st = sin(x)
+        d2F = -2.0*ddradius *(a*ct + b*st) + 2*radius*(a*ct+b*st+ddradius) +&
+        2*dradius*(2*a*st-2*b*ct)+2*dradius*dradius
+    end function
+
+    pure elemental real(kind) function surf3deriv(self, x) result(d3F) !!Gets second derivative of distance to surface at angle x.
+        class(dist_min), intent(in) :: self
+        real(kind), intent(in) :: x !!Angle theta in this case.
+
+        real(kind) :: f, df, ddf, dddf
+        real(kind) :: a, b, ct, st
+        f = surfRadius(x, self%def, self%radius)
+        df = dsurfRadiusdtheta(x, self%def, self%radius)
+        ddf = d2surfRadiusdtheta2(x, self%def, self%radius)
+        dddf = d3surfRadiusdtheta3(x, self%def, self%radius)
+        a = self%r * cos(self%theta)
+        b = self%r * sin(self%theta)
+        ct = cos(x)
+        st = sin(x)
+
+        d3F = -2.0*dddf*(a*ct+b*st) +2.0*f*(-a*st+b*ct+dddf) - 6.0*ddf*(b*ct-a*st) + 6.0*df*(a*ct+b*st+ddf)
+    end function
+
+
     pure elemental real(kind) function surfRadius(theta, def, R0) !!computes distance to surface
         real(kind), intent(in) :: theta, R0
         type(betadef), intent(in) :: def
@@ -474,6 +546,18 @@ module Hamiltonian
         real(kind), intent(in) :: theta, R0
         type(betadef), intent(in) :: def
         drdt = R0 * (def%beta2 * dY20dtheta(theta) + def%beta4*dY40dtheta(theta))
+    end function
+
+    pure elemental real(kind) function d2surfRadiusdtheta2(theta, def, R0)result(dR2dt2) !!partial derivative of radius wrt theta.
+        real(kind), intent(in) :: theta, R0
+        type(betadef), intent(in) :: def
+        dR2dt2 = R0 * (def%beta2 * d2Y20dtheta2(theta) + def%beta4*d2Y40dtheta2(theta))
+    end function
+
+    pure elemental real(kind) function d3surfRadiusdtheta3(theta, def, R0)result(dR3dt3) !!second derivative of radius wrt theta.
+        real(kind), intent(in) :: theta, R0
+        type(betadef), intent(in) :: def
+        dR3dt3 = R0 * (def%beta2 * d3Y20dtheta3(theta) + def%beta4*d3Y40dtheta3(theta))
     end function
 
 
@@ -507,12 +591,60 @@ module Hamiltonian
         real(kind), intent(in) :: r, theta, radius
         type(betadef), intent(in) :: def
         type(dist_min) :: distfunc
-        real(kind) :: ang
-        logical :: conv
+        real(kind) :: df, d2f, step
+        real(kind), parameter :: dt = 1e-6
+        real(kind), parameter :: tol = 1e-4
+        real(kind) :: x, lb, ub
+        real(kind) :: perturbed
+        real(kind) :: starts(100), distances(100)
+        logical :: converged
+        integer :: maxiter, ii, best
+        maxiter = 30
 
         distfunc = dist_min(r=r, theta=theta, def=def, radius=radius)
-        call conj_grad_method(ang, dist, conv, distfunc, 0.0_kind, pi,theta,1e-5_kind)
+        !dampening = 0.1 + 0.9*exp(-((r-radius)/(radius*0.33))**2) !!Dampen search if far away from surface.
+        converged = .false.
+        x = theta
+ 200    continue
+        do ii = 1, maxiter
+            df = distfunc%df(x)
+            d2f = distfunc%d2f(x)
+            if(abs(df) < tol) then
+                if(d2f > 0) then !if local minima
+                    converged = .true.
+                    dist = distfunc%eval(x)
+                    return
+                else  !if local maxima
+                    exit
+                endif
+            endif
+            if(abs(d2f) < 1e-12) then
+                !Do a step of gradient descent.
+                step = -df*1e-6
+            else
+                step = -df/d2f
+            endif
+            x = x + step
+            if(x<0 .or. x>pi) exit !!outside bounds
+        end do
+        lb = min(0.0_kind, theta-pi/2)
+        ub = max(pi, theta+pi/2)
+        call get_samples(starts, theta, lb, ub)
+        distances = distfunc%eval(starts)
+        best = minloc(distances,1)
+        x = starts(best)
+        write(*,*) "RESTART"
+        goto 200
     end function
+
+    subroutine get_samples(s, x, a, b)
+        real(kind), intent(inout) :: s(:)
+        real(kind), intent(in) :: x !!peak of distribution
+        real(kind), intent(in) :: a,b !!endpoints
+        call random_number(s)
+        s = s*(b-a) + a
+
+    end subroutine
 
     function coul_mat(states, def, R0,ZZ, mass, omegaz, omegaperp)
         implicit none
