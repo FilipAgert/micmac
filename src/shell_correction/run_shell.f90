@@ -43,7 +43,6 @@ program run_ho
     call print_shell_params(Z,A,def)
     call get_levels(E_p,qnp, E_n,qnn,Z,A,def, N_max, .true.)
 
-    write(*,*) Z, A
     inquire (file=folder_name,exist=exists)
 
     if (.not. exists) then

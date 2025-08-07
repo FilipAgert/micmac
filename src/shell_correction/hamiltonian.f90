@@ -1267,7 +1267,7 @@ module Hamiltonian
         if(geteigv) then
             call get_all_qns(qnp, Vp,states_p, reflsym)
             call get_all_qns(qnn, Vn, states_n, reflsym)
-            !call write_result(Z, A, E_n, E_p, states_n, states_p, Vn, Vp, reflsym)
+            call write_result(Z, A, E_n, E_p, states_n, states_p, Vn, Vp, reflsym)
         endif
     end subroutine
 
@@ -1524,7 +1524,7 @@ subroutine write_result(Z,A,E_n,E_p, states_n, states_p, V_n, V_p, refl_sym)
     logical, intent(in) :: refl_sym
     character(len=90) :: comm
     character :: symb
-    character(len=400) :: line
+    character(len=87) :: line
     character :: ppt, pnt
     character(len=8) :: fermi_p, fermi_n
     integer:: pp, pn, mjp, mjn
@@ -1578,7 +1578,6 @@ subroutine write_result(Z,A,E_n,E_p, states_n, states_p, V_n, V_p, refl_sym)
             fermi_n = ""
         endif
 
-        write(*,*)ii, mjp, "/2 ", ppt, E_p(ii), fermi_p,mjn, "/2 ", pnt, E_n(ii), fermi_n
         write(line,'(I3,1x, I3,A3,A1, 2x,F10.3, a8,1x, I3,A3,A1,2x, F10.3,a8)')ii, mjp, "/2 ", ppt, E_p(ii), fermi_p,mjn, "/2 ", pnt, E_n(ii), fermi_n
         call print_one_line(symb, line)
     end do
