@@ -1,26 +1,14 @@
 module def_ho
     use constants, only: kind, hbarc, pi, i_kind, use_ml_sym
-    use micmac, only: deformation
     use optimise, only:func_1d, conj_grad_method
+    use shape
     implicit none
     private
     public :: an_ho_state, get_ho_states, getnumstates, betadef, getnumstatesupto, fac, Hn, lna, alpha, get_lowest_ho_states, get_ho_states_upto
-    public :: kronecker, kin_en, gnl, gnlp, hmn, hmnp, spherical_def, state_eq_subspace
+    public :: kronecker, kin_en, gnl, gnlp, hmn, hmnp, spherical_def, state_eq_subspace, compute_omega_perp, compute_omega_Z
 
 
 
-    type :: betadef
-        real(kind) :: beta2, beta4
-
-        contains
-        procedure :: eq => def_equals
-        procedure :: omega_perp => compute_omega_perp
-        procedure :: omega_z => compute_omega_Z
-        procedure :: omega_def => compute_omega_def
-
-    end type
-
-    type(betadef), parameter :: spherical_def = betadef(beta2=0, beta4=0)
 
 
 
@@ -34,11 +22,6 @@ module def_ho
     !! Computes single particle energies in a shell model potential.
     contains 
 
-pure logical function def_equals(self, other) result(equality)
-    class(betadef), intent(in) :: self,other
-    equality = self%beta2==other%beta2 .and. self%beta4 == other%beta4 
-
-end function
 pure function compute_omega_def(self, omega0) result(omegadef)
     class(betadef), intent(in) :: self
     real(kind), intent(in) :: omega0
@@ -54,7 +37,7 @@ pure function compute_omega_perp(self, omega0) result(omegaperp)
     real(kind) :: omegaperp
     real(kind) :: delta
     delta = self%beta2 / 1.057
-    omegaperp = self%omega_def(omega0)*sqrt((1.0_kind + 2.0_kind/3.0_kind * delta))
+    omegaperp = compute_omega_def(self,omega0)*sqrt((1.0_kind + 2.0_kind/3.0_kind * delta))
 end function
 
 pure function compute_omega_Z(self, omega0) result(omegaz)
@@ -63,7 +46,7 @@ pure function compute_omega_Z(self, omega0) result(omegaz)
     real(kind) :: omegaz
     real(kind) :: delta
     delta = self%beta2 / 1.057
-    omegaz = self%omega_def(omega0) * sqrt( (1.0_kind - 4.0_kind/3.0_kind * delta))
+    omegaz =  compute_omega_def(self,omega0) * sqrt( (1.0_kind - 4.0_kind/3.0_kind * delta))
 end function
 
 pure function ho_en(self, hbaromega_z, hbaromega_perp) result(en)

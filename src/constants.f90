@@ -62,7 +62,7 @@ module constants
     integer, parameter :: num_n_states = 550
     logical :: printflag = .false.
 
-
+    integer, parameter :: nquad =64
     !!pairing parameters
     real(kind), parameter :: g0p = 13.40
     real(kind), parameter :: g1p = 44.89

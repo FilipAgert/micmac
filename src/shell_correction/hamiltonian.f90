@@ -2,6 +2,7 @@ module Hamiltonian
     use constants
     use def_ho
     use quad
+    use shape
     !!use quadrule, only:legendre_dr_compute, hermite_ek_compute, laguerre_ss_compute
     use optimise, only:func_1d, conj_grad_method
     implicit none
@@ -10,7 +11,7 @@ module Hamiltonian
     private
     public :: diagonalize, WS_pot, VC_pot, dist_min, Vso_mat, commutator, VWS_mat, coul_mat, print_levels, H_protons, H_neutrons, get_levels, surfRadius
     public :: S0, T0, Tplus, Tminus, VSO_off_diag_elem, el_pot, print_shell_params, write_result, time_diag, time_ws, time_Vc, time_Vso, surface_elem
-    integer, parameter :: nquad =64
+
     real(kind), dimension(nquad) :: her_x, her_w, lag_x, lag_w, leg_x, leg_w
     real(kind) :: HmnQ(nquad, -1:N_max+1), HmnpQ(nquad,-1:N_max ), gnlQ(nquad, -1:(N_max+1), -1:(N_max+1)), gnlpQ(nquad, -1:N_max, -1:N_max)
     logical :: precomputed_quad = .false.
@@ -432,48 +433,6 @@ module Hamiltonian
 
 
 
-    pure elemental real(kind) function Y20(theta)
-        real(kind), intent(in) :: theta
-        Y20 = sqrt(5.0_kind / (16 * pi)) * (3.0_kind * cos(theta)**2 - 1.0_kind)
-    end function
-
-    pure elemental real(kind) function Y40(theta)
-        real(kind) ,intent(in) :: theta
-        Y40 = sqrt(9.0_kind / (256 * pi)) * (35.0_kind * cos(theta)**4 - 30.0_kind * cos(theta)**2 + 3)
-    end function
-
-    pure elemental real(kind) function dY20dtheta(theta) result(dydt)
-        real(kind), intent(in) :: theta
-        dydt = -0.75_kind * sqrt(5.0_kind/pi) * sin(2*theta)
-    end function
-
-    pure elemental real(kind) function d2Y20dtheta2(theta) result(dy2dt2)!!second
-        real(kind), intent(in) :: theta
-        dy2dt2 = -1.5_kind * sqrt(5.0_kind/pi) * cos(2*theta)
-    end function
-
-    pure elemental real(kind) function d3Y20dtheta3(theta) result(dy3dt3)
-        real(kind), intent(in) :: theta
-        dy3dt3 = 6* sqrt(5.0_kind/pi) * sin(theta)*cos(theta)
-    end function
-
-    pure elemental real(kind) function dY40dtheta(theta) result(dydt)
-        real(kind), intent(in) :: theta
-        dydt = 15*sin(theta)*cos(theta)*(3.0_kind-7.0_kind*cos(theta)*cos(theta))/(4.0_kind*sqrt(pi))
-    end function
-
-    pure elemental real(kind) function d2Y40dtheta2(theta) result(dy2dt2)!!second 
-        real(kind), intent(in) :: theta
-        real(kind)::ct2,st2
-        ct2 = cos(theta)**2
-        st2 = sin(theta)**2
-        dy2dt2 = 15.0_kind*(3.0*st2+7.0*ct2*ct2 - 3.0*(7.0*st2+1)*ct2)/(4.0_kind*sqrt(pi))
-    end function
-
-    pure elemental real(kind) function d3Y40dtheta3(theta) result(dy3dt3)
-        real(kind), intent(in) :: theta
-        dy3dt3 = 15.0*(sin(2.0*theta)+14.0*sin(4.0*theta))/(4.0*sqrt(pi))
-    end function
 
     pure elemental real(kind) function surfdisteval(self, x) !!Gets distance to surface at angle x.
         class(dist_min), intent(in) :: self
@@ -536,11 +495,7 @@ module Hamiltonian
     end function
 
 
-    pure elemental real(kind) function surfRadius(theta, def, R0) !!computes distance to surface
-        real(kind), intent(in) :: theta, R0
-        type(betadef), intent(in) :: def
-        surfRadius = R0 * (1.0_kind + def%beta2 * Y20(theta) + def%beta4*Y40(theta))
-    end function
+
 
     pure elemental real(kind) function dsurfRadiusdtheta(theta, def, R0)result(dRdt) !!partial derivative of radius wrt theta.
         real(kind), intent(in) :: theta, R0
@@ -1362,27 +1317,25 @@ module Hamiltonian
         real(kind) :: hbaromega0, hbaromegaz, hbaromegaperp
         logical, intent(in) :: geteigv !!true if you want printing of eigenvalues and their parities
         logical :: reflsym
+        real(kind) :: vfac
         allocate(E_p(num_p_states),E_n(num_n_states))
         call precompute()
-        Vn = 0
-        Vp = 0
-        E_p = 0
-        E_n =0
+        vfac = vol_fac(def)
         hbaromega0 = 41.0_kind * A**(-1.0_kind/3.0_kind) !!MeV
-        hbaromegaperp = def%omega_perp(hbaromega0) !! omega = Mev/hbar
-        hbaromegaz = def%omega_z(hbaromega0)
+        hbaromegaperp =compute_omega_perp(def,hbaromega0) !! omega = Mev/hbar
+        hbaromegaz = compute_omega_Z(def,hbaromega0)
         states_p = get_lowest_ho_states(max_n, num_p_states, hbaromegaz, hbaromegaperp)
         states_n = get_lowest_ho_states(max_n, num_n_states, hbaromegaz, hbaromegaperp)
         write(*,'(A)') 
         write(*,'(A)') "Calculating proton hamiltonian..."
-        Hp = H_protons(states_p, Z, A, def, hbaromegaz, hbaromegaperp)
+        Hp = H_protons(states_p, Z, A, def, vfac,hbaromegaz, hbaromegaperp)
         write(*,'(A)') "Diagonalizing..."
         reflsym = is_reflection_sym(def)
         call diagonalize_block_mat(E_p, Vp, Hp, geteigv, states_p, reflsym)
         !call diagonalize(E_p, Vp, Hp,geteigv)
         write(*,'(A)') 
         write(*,'(A)') "Calculating neutron hamiltonian..."
-        Hn = H_neutrons(states_n, Z, A, def, hbaromegaz, hbaromegaperp)
+        Hn = H_neutrons(states_n, Z, A, def, vfac,hbaromegaz, hbaromegaperp)
         write(*,'(A)') "Diagonalizing..."
         call diagonalize_block_mat(E_n, Vn, Hn, geteigv, states_n, reflsym)
         !call diagonalize(E_n, Vn, Hn, geteigv)
@@ -1402,15 +1355,15 @@ module Hamiltonian
         endif
     end subroutine
 
-    function H_protons(states, Z,A,def,hbaromegaz, hbaromegaperp) result(H)
+    function H_protons(states, Z,A,def,vfac,hbaromegaz, hbaromegaperp) result(H)
         implicit none
         integer :: Z, A
         type(betadef) :: def
-        real(kind) :: hbaromegaz, hbaromegaperp, Vwsdepth, I,radius,radius_so
+        real(kind) :: hbaromegaz, hbaromegaperp, Vwsdepth, I,radius,radius_so,vfac
         type(an_ho_state) :: states(:)
         real(kind), dimension(size(states),size(states)) :: H, VSO, VC, VWS, Tkin
-        radius = r0_p * A**(1.0_kind/3.0_kind)
-        radius_so = r0_so_p* A**(1.0_kind/3.0_kind)
+        radius = r0_p * A**(1.0_kind/3.0_kind)*vfac
+        radius_so = r0_so_p* A**(1.0_kind/3.0_kind)*vfac
         I = (A-2.0_kind*Z)/A
         Vwsdepth = V0_ws * (1.0_kind+kappa_ws*I)
         write(*,'(A)') "Wood-Saxon term..."
@@ -1427,15 +1380,15 @@ module Hamiltonian
 
     end function
 
-    function H_neutrons(states, Z,A,def,hbaromegaz, hbaromegaperp) result(H)
+    function H_neutrons(states, Z,A,def,vfac,hbaromegaz, hbaromegaperp) result(H)
         implicit none
         integer :: Z, A
         type(betadef) :: def
-        real(kind) :: hbaromegaz, hbaromegaperp, Vwsdepth, I, radius,radius_so
+        real(kind) :: hbaromegaz, hbaromegaperp, Vwsdepth, I, radius,radius_so, vfac
         type(an_ho_state) :: states(:)
         real(kind), dimension(size(states),size(states)) :: H, VSO, VWS, Tkin
-        radius = r0_n * A**(1.0_kind/3.0_kind)
-        radius_so = r0_so_n* A**(1.0_kind/3.0_kind)
+        radius = r0_n * A**(1.0_kind/3.0_kind) * vfac
+        radius_so = r0_so_n* A**(1.0_kind/3.0_kind) * vfac
         I = (A-2.0_kind*Z)/A
         Vwsdepth = V0_ws * (1.0_kind-kappa_ws*I)
         write(*,'(A)') "Wood-Saxon term..."
