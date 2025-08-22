@@ -1,6 +1,7 @@
 # Macroscopic-Microscopic Nuclear Model
 
 A **work-in-progress** program for calculating nuclear ground state masses, deformation, fission barrier heights and deformation using a macroscopic-microscopic method.
+There is likely an error in the implementation of the shell model as the spectra does not look right.
 
 Microscopic corrections are from the Strutinsky method on single particle levels from a Wood-Saxon + Coulomb + spin-orbit Hamiltonian, diagonalised with an axially deformed harmonic oscillator basis.
 The microscopic method attempts to replicate [1], while the implementation uses calculations from [2]. Quadrature nodes and weights are computed using [this](https://github.com/FilipAgert/fquad/) program.
